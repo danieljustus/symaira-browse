@@ -1,5 +1,5 @@
 # Build outputs
-/symfetch
+/symbrowse
 dist/
 
 # macOS
@@ -17,9 +17,6 @@ vendor/
 
 # Cache
 .cache/
-
-# Agent/developer workspace files
-AGENTS.md
 
 # Local audit reports
 .github/audit/

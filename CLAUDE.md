@@ -1,7 +1,8 @@
 # Symaira Browse — Claude Instructions
 
-Verbindliche Anweisungen stehen in [AGENTS.md](AGENTS.md).
+All binding repository instructions are in [AGENTS.md](AGENTS.md).
 
-Bauplan und Umsetzungsplan:
-- [ARCHITEKTUR.md](ARCHITEKTUR.md) — Idee, Architektur, Entscheidungsprotokoll
-- [PLANUNG.md](PLANUNG.md) — Milestones, Issues, Abhängigkeiten
+Architecture and implementation plan:
+
+- [ARCHITEKTUR.md](ARCHITEKTUR.md) — idea, architecture, and decision record
+- [PLANUNG.md](PLANUNG.md) — milestones, issues, and dependencies

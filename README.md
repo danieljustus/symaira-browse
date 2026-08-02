@@ -1,40 +1,52 @@
 # Symaira Browse (`symbrowse`)
 
-> **Der Browser, den ein Agent bedienen kann und ein Mensch jederzeit übernehmen darf — ohne dass die Sitzung abreißt.**
+> The browser an agent can operate while a person can take over at any time — without losing the session.
 
-Status: **Planungsphase.** Es gibt noch keinen Code — nur den Bauplan.
+Status: **foundation scaffold**. The repository currently provides the standalone Go/Cobra entrypoint and development tooling; browser and daemon capabilities are implemented in later milestones.
 
----
+## Quick start
 
-## Was das wird
+Requirements:
 
-`symbrowse` steuert einen echten Chrome über das Chrome DevTools Protocol,
-adressiert Seitenelemente über deterministische, LLM-freundliche Referenzen
-(`@e7`), hält Sitzungen zwischen Aufrufen warm und hat eine **eingebaute
-Übergabestelle an den Menschen** — für Login, 2FA, CAPTCHA und die Freigabe
-riskanter Aktionen.
+- Go 1.26.5
+- A POSIX shell and GNU Make
 
-## Abgrenzung zu `symaira-fetch`
+Build and inspect the command:
 
-Die beiden Werkzeuge sind zwei Stufen derselben Aufgabe, kein Ersatz füreinander:
+```sh
+make build
+./symbrowse --help
+./symbrowse version
+```
 
-| | [`symfetch`](https://github.com/danieljustus/symaira-fetch) — Tier 0 | `symbrowse` — Tier 1 |
-|---|---|---|
-| JavaScript | nein | ja |
-| Interaktion | nein | ja (klicken, tippen, absenden) |
-| Kosten | ~100 ms, ~30 MB | ~1–3 s, ~300 MB |
-| Braucht Chrome | nein | ja |
-| Wofür | Inhalt lesen | Arbeitsabläufe erledigen |
+The build is CGO-free by default. The `VERSION` variable can be overridden for a local build:
 
-Beide liefern **dasselbe Ausgabeschema**. Ein Agent lernt ein Format, nicht zwei.
-`symfetch` verweist bei client-gerendertem Inhalt selbst auf `symbrowse`.
+```sh
+make build VERSION=0.1.0
+```
 
-## Dokumente
+## Development
 
-- **[ARCHITEKTUR.md](ARCHITEKTUR.md)** — Idee, Architektur, Entscheidungsprotokoll,
-  Abgrenzung zum Vorbild [vercel-labs/agent-browser](https://github.com/vercel-labs/agent-browser)
-- **[PLANUNG.md](PLANUNG.md)** — Milestones v0.1.0 → v1.0.0, 64 Issues, Abhängigkeitsgraph
+```sh
+make fmt-check  # verify Go formatting
+make test       # run tests without CGO
+make test-race  # run the race detector
+make lint       # golangci-lint, or go vet when it is unavailable
+make clean      # remove local build and coverage artifacts
+```
 
-## Lizenz
+The repository is standalone-first. Future integrations with other Symaira tools are runtime integrations with fallbacks, not compile-time sibling-repository dependencies.
 
-Apache-2.0 — siehe [LICENSE](LICENSE).
+## Architecture
+
+`symbrowse` will control a real Chrome through the Chrome DevTools Protocol, maintain durable sessions, expose deterministic element references, and provide an explicit out-of-band handoff to a person for login, 2FA, CAPTCHA, and approval workflows.
+
+- [ARCHITEKTUR.md](ARCHITEKTUR.md) — binding architecture and decision record
+- [PLANUNG.md](PLANUNG.md) — milestones, issues, and dependency plan
+- [AGENTS.md](AGENTS.md) — repository rules for contributors and agents
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
+- [SECURITY.md](SECURITY.md) — security reporting policy
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE).
