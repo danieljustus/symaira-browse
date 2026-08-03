@@ -19,11 +19,12 @@ const (
 // Config is the effective symbrowse configuration. All fields use JSON tags
 // because configkit uses the same tags for TOML and environment lookups.
 type Config struct {
-	LogLevel  string `json:"log_level"`
-	LogFormat string `json:"log_format"`
-	ConfigDir string `json:"config_dir"`
-	CacheDir  string `json:"cache_dir"`
-	StateDir  string `json:"state_dir"`
+	LogLevel       string `json:"log_level"`
+	LogFormat      string `json:"log_format"`
+	ConfigDir      string `json:"config_dir"`
+	CacheDir       string `json:"cache_dir"`
+	StateDir       string `json:"state_dir"`
+	ExecutablePath string `json:"executable_path"`
 }
 
 // Paths contains the default XDG directories used by symbrowse.
@@ -37,11 +38,12 @@ type Paths struct {
 // field means that the corresponding flag was not supplied and must not
 // override a higher-level configuration source.
 type FlagOverrides struct {
-	LogLevel  *string
-	LogFormat *string
-	ConfigDir *string
-	CacheDir  *string
-	StateDir  *string
+	LogLevel       *string
+	LogFormat      *string
+	ConfigDir      *string
+	CacheDir       *string
+	StateDir       *string
+	ExecutablePath *string
 }
 
 // Result contains the effective configuration and the source selected for each
@@ -58,11 +60,12 @@ func Defaults() *Config {
 		return &Config{LogLevel: "warn", LogFormat: "text"}
 	}
 	return &Config{
-		LogLevel:  "warn",
-		LogFormat: "text",
-		ConfigDir: paths.ConfigDir,
-		CacheDir:  paths.CacheDir,
-		StateDir:  paths.StateDir,
+		LogLevel:       "warn",
+		LogFormat:      "text",
+		ConfigDir:      paths.ConfigDir,
+		CacheDir:       paths.CacheDir,
+		StateDir:       paths.StateDir,
+		ExecutablePath: "",
 	}
 }
 
@@ -111,11 +114,12 @@ func LoadWithOverrides(overrides FlagOverrides) (Result, error) {
 	}
 
 	sources := map[string]string{
-		"log_level":  "default",
-		"log_format": "default",
-		"config_dir": "default",
-		"cache_dir":  "default",
-		"state_dir":  "default",
+		"log_level":       "default",
+		"log_format":      "default",
+		"config_dir":      "default",
+		"cache_dir":       "default",
+		"state_dir":       "default",
+		"executable_path": "default",
 	}
 
 	home, err := os.UserHomeDir()
@@ -146,6 +150,7 @@ func LoadWithOverrides(overrides FlagOverrides) (Result, error) {
 	applyOverride(&cfg.ConfigDir, overrides.ConfigDir, sources, "config_dir")
 	applyOverride(&cfg.CacheDir, overrides.CacheDir, sources, "cache_dir")
 	applyOverride(&cfg.StateDir, overrides.StateDir, sources, "state_dir")
+	applyOverride(&cfg.ExecutablePath, overrides.ExecutablePath, sources, "executable_path")
 
 	return Result{Config: *cfg, Sources: sources}, nil
 }
@@ -161,7 +166,7 @@ func markFileSources(sources map[string]string, path, source string) error {
 	if _, err := toml.DecodeFile(path, &raw); err != nil {
 		return err
 	}
-	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir"} {
+	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path"} {
 		if _, ok := raw[field]; ok {
 			sources[field] = source
 		}
@@ -170,7 +175,7 @@ func markFileSources(sources map[string]string, path, source string) error {
 }
 
 func markEnvSources(sources map[string]string) {
-	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir"} {
+	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path"} {
 		if value, ok := os.LookupEnv(envPrefix + "_" + envKey(field)); ok && value != "" {
 			sources[field] = "env"
 		}
