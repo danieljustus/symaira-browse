@@ -75,6 +75,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newFrameCommand())
 	root.AddCommand(newDialogCommand())
 	root.AddCommand(newA11yCommand())
+	root.AddCommand(newDiffCommand())
 	return root
 }
 

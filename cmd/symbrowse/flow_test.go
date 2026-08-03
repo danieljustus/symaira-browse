@@ -166,3 +166,32 @@ steps:
 		t.Errorf("error = %v, want missing inputs message", err)
 	}
 }
+
+func TestDiffSnapshotTreesHelper(t *testing.T) {
+	result := diffSnapshotTrees("line1\nline2\n", "line2\nline3\n")
+	added := result["added"].([]string)
+	removed := result["removed"].([]string)
+	if len(added) != 1 || added[0] != "line3" {
+		t.Errorf("added = %v, want [line3]", added)
+	}
+	if len(removed) != 1 || removed[0] != "line1" {
+		t.Errorf("removed = %v, want [line1]", removed)
+	}
+	if result["stable"].(int) != 1 {
+		t.Errorf("stable = %v, want 1", result["stable"])
+	}
+	diffLines := result["diff"].([]string)
+	if len(diffLines) != 2 || diffLines[0] != "- line1" || diffLines[1] != "+ line3" {
+		t.Errorf("diff = %v", diffLines)
+	}
+}
+
+func TestSplitLines(t *testing.T) {
+	lines := splitLines("a\nb\nc")
+	if len(lines) != 3 || lines[0] != "a" || lines[2] != "c" {
+		t.Errorf("splitLines = %v", lines)
+	}
+	if empty := splitLines(""); len(empty) != 0 {
+		t.Errorf("splitLines('') = %v, want empty", empty)
+	}
+}

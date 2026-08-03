@@ -468,6 +468,12 @@ func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, err
 			return nil, err
 		}
 		return result, nil
+	case "screenshot":
+		data, err := service.Screenshot(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"png": data}, nil
 	default:
 		return nil, fmt.Errorf("unknown navigation command %q", frame.Cmd)
 	}
