@@ -87,15 +87,20 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	}
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
+	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{})
+	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"))
+	defer func() { _ = navigation.Close() }()
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:  path,
 		Session:     session,
-		Registry:    daemon.NewSessionRegistry(daemon.SessionRegistryOptions{}),
+		Registry:    registry,
 		IdleTimeout: idle,
-		Handler: func(_ context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
+		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
+			case "open", "goto", "back", "forward", "reload", "wait":
+				return navigation.Handle(ctx, frame)
 			default:
 				return nil, nil, daemon.NewError(daemon.ErrorUnknownCommand, "command is not implemented by the daemon")
 			}

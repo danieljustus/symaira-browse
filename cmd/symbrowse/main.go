@@ -32,6 +32,9 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newDoctorCommand())
 	root.AddCommand(newDaemonCommand())
 	root.AddCommand(newSessionCommand())
+	for _, command := range newNavigationCommands() {
+		root.AddCommand(command)
+	}
 	return root
 }
 
