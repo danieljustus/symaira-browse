@@ -42,6 +42,7 @@ func newRootCommand() *cobra.Command {
 	}
 	root.AddCommand(newSnapshotCommand())
 	root.AddCommand(newReadCommand())
+	root.AddCommand(newBatchCommand())
 	root.AddCommand(newFindCommand())
 	for _, command := range newInspectionCommands() {
 		root.AddCommand(command)
