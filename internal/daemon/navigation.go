@@ -458,6 +458,16 @@ func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, err
 			return nil, err
 		}
 		return map[string]any{"user_agent_set": true}, nil
+	case "a11y":
+		var options engine.A11yOptions
+		if err := decodeOptionalArgs(frame, &options); err != nil {
+			return nil, err
+		}
+		result, err := service.Audit(ctx, options)
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
 	default:
 		return nil, fmt.Errorf("unknown navigation command %q", frame.Cmd)
 	}
