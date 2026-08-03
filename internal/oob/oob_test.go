@@ -3,6 +3,8 @@ package oob
 import (
 	"context"
 	"errors"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -115,8 +117,19 @@ func TestNotifierFallbackWithoutMacOS(t *testing.T) {
 		Stderr:     func(message string) { stderr = message },
 	}
 	prompt := &Prompt{ID: "oob-1", Kind: KindHandoff, Title: "Handoff"}
-	if err := notifier.Notify(prompt); err == nil {
-		t.Fatal("expected notification failure on non-darwin path")
+	if runtime.GOOS != "darwin" {
+		// On non-macOS the notifier falls back to stderr and must succeed.
+		if err := notifier.Notify(prompt); err != nil {
+			t.Fatalf("fallback notify failed: %v", err)
+		}
+		if !strings.Contains(stderr, "oob-1") {
+			t.Fatalf("stderr = %q", stderr)
+		}
+	} else {
+		// On macOS the injected failing command surfaces as an error that
+		// must never break the blocking wait.
+		if err := notifier.Notify(prompt); err == nil {
+			t.Fatal("expected notification failure")
+		}
 	}
-	_ = stderr
 }
