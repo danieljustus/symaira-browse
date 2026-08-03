@@ -16,11 +16,12 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/config"
 	"github.com/danieljustus/symaira-browse/internal/daemon"
+	"github.com/danieljustus/symaira-browse/internal/profiles"
 	"github.com/danieljustus/symaira-browse/internal/state"
 )
 
 func newDaemonCommand() *cobra.Command {
-	var session, restore string
+	var session, restore, profile string
 	command := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run or inspect the symbrowse daemon",
@@ -31,6 +32,7 @@ func newDaemonCommand() *cobra.Command {
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
 	command.PersistentFlags().StringVar(&restore, "restore", "", "restore the named state when the session browser starts")
+	command.PersistentFlags().StringVar(&profile, "profile", "", "reuse an existing Chrome profile (name or path) instead of a private session profile")
 	command.AddCommand(newDaemonStatusCommand(&session))
 	command.AddCommand(newDaemonStopCommand(&session))
 	return command
@@ -73,6 +75,16 @@ func newDaemonStopCommand(session *string) *cobra.Command {
 }
 
 func runDaemon(cmd *cobra.Command, session string) error {
+	profile, _ := cmd.Flags().GetString("profile")
+	if profile != "" {
+		resolved, byName, err := profiles.Resolve(profile)
+		if err != nil {
+			return fmt.Errorf("resolve profile %q: %w", profile, err)
+		}
+		if byName {
+			profile = resolved
+		}
+	}
 	path, err := daemon.SocketPath(session)
 	if err != nil {
 		return err
@@ -120,6 +132,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		StateStore:     stateStore,
 		RestoreOnStart: restoreOnStart,
 		Autosave:       autosave,
+		Profile:        profile,
 	})
 	defer func() { _ = navigation.Close() }()
 	stateRuntime := daemon.NewStateRuntime(stateStore, navigation)

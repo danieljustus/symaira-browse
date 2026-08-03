@@ -13,6 +13,7 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/engine/chrome"
+	"github.com/danieljustus/symaira-browse/internal/profiles"
 	"github.com/danieljustus/symaira-browse/internal/state"
 )
 
@@ -22,6 +23,7 @@ type NavigationRuntime struct {
 	mu             sync.Mutex
 	registry       *SessionRegistry
 	executable     string
+	profile        string
 	services       map[string]*engine.NavigationService
 	engines        map[string]engine.Engine
 	autosave       *AutosaveConfig
@@ -39,6 +41,11 @@ type NavigationRuntimeOptions struct {
 	// RestoreOnStart maps a session name to the state to restore when the
 	// session's browser is first launched.
 	RestoreOnStart map[string]string
+	// Profile is an existing Chrome profile directory to reuse instead of a
+	// private session profile (issue B-38). The daemon emits a warning when
+	// set, because a running Chrome locks the profile and the domain
+	// allowlist cannot be enforced for a human-owned profile.
+	Profile string
 }
 
 // NewNavigationRuntime creates a runtime. Chrome is not started until the
@@ -50,6 +57,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 	return &NavigationRuntime{
 		registry:       registry,
 		executable:     executable,
+		profile:        options.Profile,
 		services:       make(map[string]*engine.NavigationService),
 		engines:        make(map[string]engine.Engine),
 		autosave:       options.Autosave,
@@ -287,7 +295,12 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 	if r.executable == "" {
 		return nil, errors.New("browser executable is not configured; set SYMBROWSE_EXECUTABLE_PATH")
 	}
-	browser := chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: info.UserDataDir})
+	userDataDir := info.UserDataDir
+	if r.profile != "" {
+		userDataDir = r.profile
+		slog.Warn("chrome profile reuse", "session", session, "profile", r.profile, "warning", profiles.Warning)
+	}
+	browser := chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: userDataDir})
 	if err := browser.Launch(ctx); err != nil {
 		return nil, err
 	}
