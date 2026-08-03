@@ -24,6 +24,7 @@ func TestEveryRegisteredCommandHasAClass(t *testing.T) {
 		"set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent",
 		"journal.tail", "journal.show", "policy.explain", "oob.status",
 		"trace.replay", "watch", "eval", "submit", "download", "upload", "network.route",
+		"console.list", "console.clear", "errors.list", "errors.clear",
 		"session.list", "session.info", "daemon.status",
 	}
 	for _, command := range registered {

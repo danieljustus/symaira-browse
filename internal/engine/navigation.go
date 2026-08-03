@@ -160,6 +160,16 @@ func NewNavigationService(browser Engine, page Page, options NavigationOptions) 
 	return &NavigationService{engine: browser, page: page, probeContext: options.ProbeContext, timeout: options.Timeout, pollInterval: options.PollInterval, networkIdleFor: options.NetworkIdleFor, refs: make(map[string]SnapshotRef), refRegistry: newStableRefRegistry(), snapshotHistory: make(map[string]snapshotRecord)}
 }
 
+// Evaluate executes one JavaScript expression on the active page (issue
+// #60). The result is protocol-neutral; exceptions carry their text.
+func (s *NavigationService) Evaluate(ctx context.Context, expression string) (EvaluationResult, error) {
+	return s.engine.Evaluate(ctx, s.page, expression)
+}
+
+// Page returns the page handle the service navigates (used by engine
+// capabilities that address the page, e.g. runtime event buffers).
+func (s *NavigationService) Page() Page { return s.page }
+
 // Open navigates to url. Goto is an explicit alias for Open.
 func (s *NavigationService) Open(ctx context.Context, url string) (NavigationOutcome, error) {
 	return s.navigate(ctx, "open", url)
