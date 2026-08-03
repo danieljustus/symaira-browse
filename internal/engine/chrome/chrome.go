@@ -76,6 +76,11 @@ type Engine struct {
 	networkByID     map[string]map[string]engine.NetworkRequest
 	networkRoutes   map[string]map[string]engine.NetworkRoute
 	networkBodies   map[string]map[string]string
+
+	// upload/download state (issue #63).
+	downloadMu     sync.Mutex
+	downloadDir    map[string]string
+	downloadEvents map[string][]engine.DownloadEvent
 }
 
 // New creates an unlaunched Chrome engine.
@@ -94,6 +99,7 @@ func New(options Options) *Engine {
 		networkEnabled: make(map[string]bool),
 		networkByID:    make(map[string]map[string]engine.NetworkRequest),
 		networkBodies:  make(map[string]map[string]string),
+		downloadDir:    make(map[string]string),
 	}
 }
 

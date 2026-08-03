@@ -124,8 +124,10 @@ var Classification = map[string]RiskClass{
 	// credential
 	"auth.login": ClassCredential,
 	// download / upload
-	"download": ClassDownload,
-	"upload":   ClassUpload,
+	"download":        ClassDownload,
+	"upload":          ClassUpload,
+	"downloads.list":  ClassRead,
+	"download.setdir": ClassDownload,
 	// network-mock
 	"network.route":    ClassNetworkMock,
 	"network.unroute":  ClassNetworkMock,

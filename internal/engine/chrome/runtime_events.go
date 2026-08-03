@@ -39,6 +39,10 @@ func (e *Engine) handleEvent(sessionID, method string, params json.RawMessage) {
 		e.recordLoadingFailed(sessionID, params)
 	case "Fetch.requestPaused":
 		e.recordRequestPaused(sessionID, params)
+	case "Browser.downloadWillBegin":
+		e.recordDownloadWillBegin(sessionID, params)
+	case "Browser.downloadProgress":
+		e.recordDownloadProgress(sessionID, params)
 	}
 }
 

@@ -25,6 +25,7 @@ func TestEveryRegisteredCommandHasAClass(t *testing.T) {
 		"journal.tail", "journal.show", "policy.explain", "oob.status",
 		"trace.replay", "watch", "eval", "submit", "download", "upload", "network.route",
 		"network.unroute", "network.requests", "network.request", "network.har",
+		"downloads.list", "download.setdir",
 		"console.list", "console.clear", "errors.list", "errors.clear",
 		"session.list", "session.info", "daemon.status",
 	}
