@@ -46,6 +46,7 @@ func newRootCommand() *cobra.Command {
 	for _, command := range newStateCommands() {
 		root.AddCommand(command)
 	}
+	root.AddCommand(newStateCommand())
 	return root
 }
 
