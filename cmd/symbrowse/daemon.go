@@ -17,6 +17,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/config"
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/journal"
+	"github.com/danieljustus/symaira-browse/internal/oob"
 	"github.com/danieljustus/symaira-browse/internal/policy"
 	"github.com/danieljustus/symaira-browse/internal/profiles"
 	"github.com/danieljustus/symaira-browse/internal/state"
@@ -146,6 +147,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	}
 	journalRuntime := daemon.NewJournalRuntime(journalFor(cfg, session), navigation)
 	policyRuntime := daemon.NewPolicyRuntime(cfg.StateDir, policyMode())
+	oobRuntime := daemon.NewOOBRuntime(oob.NewManager(), oob.NewNotifier(), navigation, policyRuntime.Policy(), policyMode())
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:  path,
 		Session:     session,
@@ -156,6 +158,13 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
 			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear", "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent":
+				allowed, decision, gateErr := oobRuntime.DecideAndConfirm(ctx, frame.Session, frame.Cmd, frameURL(frame), approvalTimeout())
+				if gateErr != nil {
+					return nil, nil, gateErr
+				}
+				if !allowed {
+					return nil, nil, daemon.NewError(daemon.ErrorPeerDenied, fmt.Sprintf("policy decision %s denied %s", decision, frame.Cmd))
+				}
 				return journalRuntime.Handle(ctx, frame)
 			case "state.save", "state.load", "state.list", "state.show", "state.clear", "state.clean":
 				return stateRuntime.Handle(ctx, frame)
@@ -165,6 +174,8 @@ func runDaemon(cmd *cobra.Command, session string) error {
 				return journalRuntime.HandleJournal(ctx, frame)
 			case "policy.explain":
 				return policyRuntime.Handle(ctx, frame)
+			case "oob.status", "oob.complete", "oob.cancel", "handoff":
+				return oobRuntime.Handle(ctx, frame)
 			default:
 				return nil, nil, daemon.NewError(daemon.ErrorUnknownCommand, "command is not implemented by the daemon")
 			}
@@ -253,6 +264,28 @@ func policyMode() policy.Mode {
 		return policy.ModeMCP
 	}
 	return policy.ModeTTY
+}
+
+// frameURL extracts the target URL from a frame's args for policy decisions.
+func frameURL(frame daemon.Frame) string {
+	var request struct {
+		URL string `json:"url"`
+	}
+	if err := json.Unmarshal(frame.Args, &request); err != nil {
+		return ""
+	}
+	return request.URL
+}
+
+// approvalTimeout bounds an OOB approval wait. SYMBROWSE_APPROVAL_TIMEOUT
+// overrides the default of 60 seconds; timeout always resolves to deny.
+func approvalTimeout() time.Duration {
+	if raw := os.Getenv("SYMBROWSE_APPROVAL_TIMEOUT"); raw != "" {
+		if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	return 60 * time.Second
 }
 
 func daemonLifecycleRequest(ctx context.Context, session, command string, autostart bool) (daemon.Response, error) {

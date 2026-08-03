@@ -53,6 +53,9 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newJournalCommand())
 	root.AddCommand(newPolicyCommand())
 	root.AddCommand(newTraceCommand())
+	root.AddCommand(newOOBCommand())
+	root.AddCommand(newHandoffCommand())
+	root.AddCommand(newWatchCommand())
 	return root
 }
 

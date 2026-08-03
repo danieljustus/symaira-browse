@@ -54,6 +54,9 @@ func (r *PolicyRuntime) Handle(ctx context.Context, frame Frame) (any, []Warning
 	}
 }
 
+// Policy returns the loaded policy (for the OOB approval gate).
+func (r *PolicyRuntime) Policy() *policy.Policy { return r.policy }
+
 // PolicyFilePath returns where the policy file is expected.
 func (r *PolicyRuntime) PolicyFilePath() string { return r.policy.Source }
 

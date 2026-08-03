@@ -357,6 +357,17 @@ func decodeOptionalArgs(frame Frame, target any) error {
 	return nil
 }
 
+// serviceIfReady returns the session service without launching a browser.
+func (r *NavigationRuntime) serviceIfReady(session string) (*engine.NavigationService, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	service := r.services[session]
+	if service == nil {
+		return nil, errors.New("session has no live browser")
+	}
+	return service, nil
+}
+
 func (r *NavigationRuntime) service(ctx context.Context, session string) (*engine.NavigationService, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()

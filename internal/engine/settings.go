@@ -149,3 +149,45 @@ func (s *NavigationService) SetDevice(ctx context.Context, name string) error {
 	}
 	return settings.ApplyDevice(ctx, s.page, device)
 }
+
+// OverlayHost is the optional engine capability for OOB overlay injection.
+type OverlayHost interface {
+	InstallOverlay(context.Context, Page, OverlayRequest) error
+	RemoveOverlay(context.Context, Page) error
+	OverlayResult(context.Context, Page) (string, error)
+}
+
+// OverlayRequest is the data rendered into the injected overlay.
+type OverlayRequest struct {
+	Title            string `json:"title"`
+	Reason           string `json:"reason"`
+	ID               string `json:"id"`
+	CountdownSeconds int64  `json:"countdown_seconds,omitempty"`
+}
+
+// InstallOverlay injects the OOB overlay into the current page.
+func (s *NavigationService) InstallOverlay(ctx context.Context, request OverlayRequest) error {
+	host, ok := s.engine.(OverlayHost)
+	if !ok {
+		return errors.New("overlay is not supported by this engine")
+	}
+	return host.InstallOverlay(ctx, s.page, request)
+}
+
+// RemoveOverlay detaches the OOB overlay.
+func (s *NavigationService) RemoveOverlay(ctx context.Context) error {
+	host, ok := s.engine.(OverlayHost)
+	if !ok {
+		return errors.New("overlay is not supported by this engine")
+	}
+	return host.RemoveOverlay(ctx, s.page)
+}
+
+// OverlayResult reads the human's decision from the overlay.
+func (s *NavigationService) OverlayResult(ctx context.Context) (string, error) {
+	host, ok := s.engine.(OverlayHost)
+	if !ok {
+		return "", errors.New("overlay is not supported by this engine")
+	}
+	return host.OverlayResult(ctx, s.page)
+}
