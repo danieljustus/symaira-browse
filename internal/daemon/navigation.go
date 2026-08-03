@@ -121,9 +121,99 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 			return nil, nil, &Error{Code: findErr.Code, Message: findErr.Message, Details: map[string]any{"matches": findErr.Matches}}
 		}
 		return result, nil, err
+	case "cookies.list":
+		var request struct {
+			URLs []string `json:"urls,omitempty"`
+		}
+		_ = decodeOptionalArgs(frame, &request)
+		cookies, err := service.CookiesForURLs(ctx, request.URLs)
+		if err != nil {
+			return nil, nil, err
+		}
+		origin, originErr := service.Origin(ctx)
+		if originErr != nil {
+			origin = ""
+		}
+		return map[string]any{"origin": origin, "cookies": cookies}, nil, nil
+	case "cookies.set":
+		var request struct {
+			Cookie engine.Cookie `json:"cookie"`
+			URL    string        `json:"url"`
+		}
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, nil, err
+		}
+		if err := service.SetCookie(ctx, request.Cookie, request.URL); err != nil {
+			return nil, nil, err
+		}
+		return map[string]any{"set": request.Cookie.Name}, nil, nil
+	case "cookies.clear":
+		var request struct {
+			Name string `json:"name"`
+			URL  string `json:"url"`
+		}
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, nil, err
+		}
+		if err := service.DeleteCookie(ctx, request.Name, request.URL); err != nil {
+			return nil, nil, err
+		}
+		return map[string]any{"cleared": request.Name}, nil, nil
+	case "storage.list":
+		var request struct {
+			Kind engine.StorageKind `json:"kind"`
+		}
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, nil, err
+		}
+		items, err := service.Storage().StorageItems(ctx, request.Kind)
+		if err != nil {
+			return nil, nil, err
+		}
+		origin, originErr := service.Origin(ctx)
+		if originErr != nil {
+			origin = ""
+		}
+		return map[string]any{"origin": origin, "kind": request.Kind, "items": items}, nil, nil
+	case "storage.set":
+		var request struct {
+			Kind  engine.StorageKind `json:"kind"`
+			Key   string             `json:"key"`
+			Value string             `json:"value"`
+		}
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, nil, err
+		}
+		if err := service.Storage().SetStorageItem(ctx, request.Kind, request.Key, request.Value); err != nil {
+			return nil, nil, err
+		}
+		return map[string]any{"set": request.Key}, nil, nil
+	case "storage.clear":
+		var request struct {
+			Kind engine.StorageKind `json:"kind"`
+		}
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, nil, err
+		}
+		if err := service.Storage().ClearStorage(ctx, request.Kind); err != nil {
+			return nil, nil, err
+		}
+		return map[string]any{"cleared": request.Kind}, nil, nil
 	default:
 		return nil, nil, fmt.Errorf("unknown navigation command %q", frame.Cmd)
 	}
+}
+
+// decodeOptionalArgs decodes args when present, leaving target zero-valued for
+// commands with fully optional payloads.
+func decodeOptionalArgs(frame Frame, target any) error {
+	if len(frame.Args) == 0 || string(frame.Args) == "null" {
+		return nil
+	}
+	if err := json.Unmarshal(frame.Args, target); err != nil {
+		return fmt.Errorf("decode %s arguments: %w", frame.Cmd, err)
+	}
+	return nil
 }
 
 func (r *NavigationRuntime) service(ctx context.Context, session string) (*engine.NavigationService, error) {
