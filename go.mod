@@ -7,7 +7,7 @@ require (
 	github.com/chromedp/cdproto v0.0.0-20260719223732-95f6af754cfe
 	github.com/danieljustus/symaira-corekit v0.8.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 )
 
 require (
