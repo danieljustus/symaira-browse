@@ -60,9 +60,14 @@ func newVersionCommand() *cobra.Command {
 		Short: "Print the symbrowse version",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// version --json is the versionkit handshake payload
+			// ({tool, version, schema_version}) consumed by GUI clients
+			// (symaira-appkit SymairaToolKit) and Hub/Brain. It
+			// deliberately bypasses the unified output envelope: the
+			// payload IS the contract (issue #32, ARCHITEKTUR.md §6.2).
 			info := symversion.Info(version)
 			if jsonOutputFlag(cmd) {
-				return writeEnvelope(cmd, output.OK(info, nil))
+				return info.Write(cmd.OutOrStdout())
 			}
 			_, err := fmt.Fprintln(cmd.OutOrStdout(), info.String())
 			return err

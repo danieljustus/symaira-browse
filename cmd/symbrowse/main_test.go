@@ -15,21 +15,11 @@ func TestVersionJSON(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	var envelope struct {
-		Success bool `json:"success"`
-		Data    struct {
-			Tool          string `json:"tool"`
-			SchemaVersion int    `json:"schema_version"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(output.Bytes(), &envelope); err != nil {
-		t.Fatalf("output = %q: %v", output.String(), err)
-	}
-	if !envelope.Success {
-		t.Fatalf("envelope = %#v: expected success", envelope)
-	}
-	if envelope.Data.Tool != "symbrowse" || envelope.Data.SchemaVersion != 1 {
-		t.Fatalf("payload = %#v", envelope.Data)
+	// The versionkit contract is exact bytes: {tool, version,
+	// schema_version} on a single line, no envelope, no extra fields.
+	want := `{"tool":"symbrowse","version":"dev","schema_version":1}` + "\n"
+	if output.String() != want {
+		t.Fatalf("version --json = %q, want %q", output.String(), want)
 	}
 }
 
