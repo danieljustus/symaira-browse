@@ -88,7 +88,16 @@ func (s *NavigationService) Inspect(ctx context.Context, request InspectionReque
 		ref := strings.TrimPrefix(request.Selector, "@")
 		s.refMu.RLock()
 		snapshotRef, found := s.refs[ref]
+		var tombstone *RefTombstone
+		if s.refRegistry != nil {
+			if registryRef, registryTombstone, registryFound := s.refRegistry.resolve(ref); registryFound {
+				snapshotRef, tombstone, found = registryRef, registryTombstone, true
+			}
+		}
 		s.refMu.RUnlock()
+		if tombstone != nil {
+			return InspectionResult{}, &InspectionError{Code: "stale_ref", Message: staleRefMessage(request.Selector, tombstone), Hint: staleRefHint}
+		}
 		if !found {
 			return InspectionResult{}, &InspectionError{
 				Code:    "unknown_ref",

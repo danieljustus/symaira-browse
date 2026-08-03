@@ -30,12 +30,15 @@ type SnapshotResult struct {
 
 // SnapshotRef describes the protocol-neutral target behind one rendered ref.
 type SnapshotRef struct {
-	NodeID        string `json:"node_id"`
-	BackendNodeID int64  `json:"backend_node_id,omitempty"`
-	Role          string `json:"role"`
-	Name          string `json:"name,omitempty"`
-	Interactive   bool   `json:"interactive"`
-	URL           string `json:"url,omitempty"`
+	NodeID         string `json:"node_id"`
+	BackendNodeID  int64  `json:"backend_node_id,omitempty"`
+	Role           string `json:"role"`
+	Name           string `json:"name,omitempty"`
+	Interactive    bool   `json:"interactive"`
+	URL            string `json:"url,omitempty"`
+	RefKey         string `json:"refkey,omitempty"`
+	DOMPath        string `json:"dom_path,omitempty"`
+	SiblingOrdinal int    `json:"sibling_ordinal,omitempty"`
 }
 
 // AXSelectorResolver resolves a CSS selector to an accessibility node's
@@ -69,13 +72,11 @@ func (s *NavigationService) Snapshot(ctx context.Context, options SnapshotOption
 	if err != nil {
 		return SnapshotResult{}, err
 	}
-	s.setSnapshotRefs(result.Refs)
-	return result, nil
+	return s.applyStableSnapshot(result), nil
 }
 
 // RenderSnapshot renders protocol-neutral AXNode payloads into deterministic
-// text. It does not retain state between calls; ref stability is intentionally
-// left to B-16.
+// text. Stable session-local ref allocation is applied by NavigationService.
 func RenderSnapshot(nodes []AXNode, options SnapshotOptions) (SnapshotResult, error) {
 	if options.Depth < 0 {
 		return SnapshotResult{}, errors.New("snapshot depth cannot be negative")
@@ -139,6 +140,7 @@ func RenderSnapshot(nodes []AXNode, options SnapshotOptions) (SnapshotResult, er
 	for _, node := range parsed {
 		node.children = children[node.id]
 	}
+	assignSnapshotPaths(parsed, roots)
 	refs := make(map[string]SnapshotRef)
 	lines := make([]string, 0, len(parsed))
 	visited := make(map[string]bool, len(parsed))
@@ -150,20 +152,23 @@ func RenderSnapshot(nodes []AXNode, options SnapshotOptions) (SnapshotResult, er
 }
 
 type snapshotNode struct {
-	id            string
-	parentID      string
-	role          string
-	name          string
-	description   string
-	value         string
-	url           string
-	ignored       bool
-	interactive   bool
-	iframe        bool
-	shadowRoot    bool
-	backendNodeID int64
-	childIDs      []string
-	children      []string
+	id             string
+	parentID       string
+	role           string
+	name           string
+	description    string
+	value          string
+	url            string
+	ignored        bool
+	interactive    bool
+	iframe         bool
+	shadowRoot     bool
+	backendNodeID  int64
+	childIDs       []string
+	children       []string
+	domPath        string
+	siblingOrdinal int
+	detached       bool
 }
 
 func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
@@ -185,6 +190,8 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 		IsShadowRoot   bool              `json:"isShadowRoot"`
 		ShadowRoot     bool              `json:"shadowRoot"`
 		ShadowBoundary bool              `json:"shadowBoundary"`
+		Detached       bool              `json:"detached"`
+		IsDetached     bool              `json:"isDetached"`
 		Properties     []struct {
 			Name  string          `json:"name"`
 			Value json.RawMessage `json:"value"`
@@ -210,6 +217,7 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 		ignored:       payload.Ignored,
 		backendNodeID: rawInt64(payload.BackendNodeID),
 		childIDs:      make([]string, 0, len(payload.ChildIDs)),
+		detached:      payload.Detached || payload.IsDetached,
 		iframe:        payload.IsFrameOwner || strings.Contains(role, "iframe") || role == "frame" || strings.Contains(strings.ToLower(rawValue(payload.Role)), "frame"),
 		shadowRoot:    payload.IsShadowRoot || payload.ShadowRoot || payload.ShadowBoundary || strings.Contains(role, "shadow"),
 	}
@@ -262,7 +270,11 @@ func renderSnapshotNode(parsed map[string]*snapshotNode, id string, options Snap
 	if include {
 		*refNumber++
 		ref := fmt.Sprintf("e%d", *refNumber)
-		refs[ref] = SnapshotRef{NodeID: node.id, BackendNodeID: node.backendNodeID, Role: node.role, Name: node.name, Interactive: node.interactive, URL: node.url}
+		refs[ref] = SnapshotRef{
+			NodeID: node.id, BackendNodeID: node.backendNodeID, Role: node.role, Name: node.name,
+			Interactive: node.interactive, URL: node.url, RefKey: RefKey(node.role, node.name, node.domPath, node.siblingOrdinal),
+			DOMPath: node.domPath, SiblingOrdinal: node.siblingOrdinal,
+		}
 		line := strings.Repeat("  ", depth) + "- " + node.role
 		if node.name != "" {
 			line += " \"" + strings.ReplaceAll(node.name, "\"", "\\\"") + "\""
