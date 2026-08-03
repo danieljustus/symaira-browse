@@ -21,6 +21,7 @@ func newSessionCommand() *cobra.Command {
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newSessionListCommand(&session))
 	command.AddCommand(newSessionInfoCommand(&session))
+	command.AddCommand(newSessionIDCommand())
 	return command
 }
 
