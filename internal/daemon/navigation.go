@@ -23,6 +23,7 @@ type NavigationRuntime struct {
 	allowedDomains []string
 	ssrfEnabled    bool
 	allowPrivate   bool
+	headless       bool
 	services       map[string]*engine.NavigationService
 	engines        map[string]engine.Engine
 }
@@ -37,6 +38,9 @@ type NavigationRuntimeOptions struct {
 	SSRFEnabled bool
 	// AllowPrivate relaxes the SSRF guard (--allow-private).
 	AllowPrivate bool
+	// Headless launches Chrome headless (no GUI session); used in CI and
+	// agent contexts.
+	Headless bool
 }
 
 // NewNavigationRuntime creates a runtime. Chrome is not started until the
@@ -45,7 +49,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 	if executable == "" {
 		executable = os.Getenv("SYMBROWSE_EXECUTABLE_PATH")
 	}
-	return &NavigationRuntime{registry: registry, executable: executable, allowedDomains: options.AllowedDomains, ssrfEnabled: options.SSRFEnabled, allowPrivate: options.AllowPrivate, services: make(map[string]*engine.NavigationService), engines: make(map[string]engine.Engine)}
+	return &NavigationRuntime{registry: registry, executable: executable, allowedDomains: options.AllowedDomains, ssrfEnabled: options.SSRFEnabled, allowPrivate: options.AllowPrivate, headless: options.Headless, services: make(map[string]*engine.NavigationService), engines: make(map[string]engine.Engine)}
 }
 
 // Handle executes one navigation frame and returns JSON-serializable data
@@ -137,7 +141,8 @@ func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, err
 		return result, err
 	case "read":
 		var request struct {
-			URL string `json:"url,omitempty"`
+			URL        string `json:"url,omitempty"`
+			EngineHint bool   `json:"engine_hint,omitempty"`
 		}
 		if err := decodeArgs(frame, &request); err != nil {
 			return nil, err
@@ -147,7 +152,40 @@ func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, err
 				return nil, err
 			}
 		}
-		return readPage(ctx, service)
+		readData, err := readPage(ctx, service)
+		if err != nil {
+			return nil, err
+		}
+		if !request.EngineHint {
+			return readData, nil
+		}
+		// The engine hint (issue #35) compares the rendered page with a
+		// JavaScript-disabled probe load. The page must be fully settled
+		// first so delayed hydration (SPA fixtures) counts as JS-needed,
+		// and the comparison capture must happen after settling.
+		if _, err := service.Wait(ctx, engine.WaitCondition{Kind: engine.WaitLoad, LoadState: engine.LoadNetworkIdle}); err != nil {
+			return nil, err
+		}
+		settledData, err := readPage(ctx, service)
+		if err != nil {
+			return nil, err
+		}
+		settledMap, ok := settledData.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("read material has an unexpected shape")
+		}
+		urlValue, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectURL})
+		if err != nil {
+			return nil, err
+		}
+		htmlValue, _ := settledMap["html"].(string)
+		hint, err := service.JSRequired(ctx, inspectionValue(urlValue), htmlValue)
+		if err != nil {
+			return nil, err
+		}
+		settledMap["js_required"] = hint.Required
+		settledMap["js_required_reason"] = hint.Reason
+		return settledMap, nil
 
 	case "find":
 		var request engine.FindRequest
@@ -220,7 +258,7 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 	if r.executable == "" {
 		return nil, errors.New("browser executable is not configured; set SYMBROWSE_EXECUTABLE_PATH")
 	}
-	browser := chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: info.UserDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate})
+	browser := chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: info.UserDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate, Headless: r.headless})
 	if err := browser.Launch(ctx); err != nil {
 		return nil, err
 	}
@@ -239,7 +277,7 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 		_ = browser.Close()
 		return nil, err
 	}
-	service := engine.NewNavigationService(browser, page, engine.NavigationOptions{})
+	service := engine.NewNavigationService(browser, page, engine.NavigationOptions{ProbeContext: browserContext})
 	r.engines[session] = browser
 	r.services[session] = service
 	_ = r.registry.SetActiveTabs(session, 1)

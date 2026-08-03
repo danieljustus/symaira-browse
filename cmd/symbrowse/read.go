@@ -19,20 +19,22 @@ import (
 
 func newReadCommand() *cobra.Command {
 	var session, selector, filter string
-	var outline, raw, contentBoundaries bool
+	var outline, raw, contentBoundaries, engineHint bool
 	command := &cobra.Command{
 		Use:   "read [url]",
 		Short: "Render the page as markdown (or JSON) in the symfetch output schema",
 		Long: "read renders the current page — or the page at url when given — and prints " +
 			"markdown with YAML frontmatter (title, url, fetched_at, lang, tokens_est, schema_type) " +
-			"in the symfetch output schema. --json prints the same document as the unified envelope.",
+			"in the symfetch output schema. --json prints the same document as the unified envelope. " +
+			"--engine-hint additionally reports whether JavaScript was actually needed for the " +
+			"content (js_required), so an agent can choose Tier 0 directly next time.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			url := ""
 			if len(args) == 1 {
 				url = args[0]
 			}
-			payload, err := json.Marshal(map[string]string{"url": url})
+			payload, err := json.Marshal(map[string]any{"url": url, "engine_hint": engineHint})
 			if err != nil {
 				return err
 			}
@@ -44,9 +46,11 @@ func newReadCommand() *cobra.Command {
 				return responseError(response)
 			}
 			var material struct {
-				HTML  string `json:"html"`
-				Title string `json:"title"`
-				URL   string `json:"url"`
+				HTML             string `json:"html"`
+				Title            string `json:"title"`
+				URL              string `json:"url"`
+				JSRequired       *bool  `json:"js_required"`
+				JSRequiredReason string `json:"js_required_reason"`
 			}
 			materialJSON, err := json.Marshal(response.Data)
 			if err != nil {
@@ -72,7 +76,17 @@ func newReadCommand() *cobra.Command {
 				document.ContentBoundaries = &boundary
 			}
 			if jsonOutputFlag(cmd) {
-				return writeEnvelope(cmd, output.OK(document, nil))
+				data := any(document)
+				if material.JSRequired != nil {
+					// The engine hint is a sibling of the document in the
+					// envelope data (never inside the fetch-schema
+					// frontmatter, which is contract-fixed).
+					data = withEngineHint(document, *material.JSRequired, material.JSRequiredReason)
+				}
+				return writeEnvelope(cmd, output.OK(data, nil))
+			}
+			if material.JSRequired != nil {
+				return writeReadHumanWithHint(cmd, document, *material.JSRequired, material.JSRequiredReason)
 			}
 			return writeReadHuman(cmd, document)
 		},
@@ -83,7 +97,40 @@ func newReadCommand() *cobra.Command {
 	command.Flags().BoolVar(&outline, "outline", false, "return only the heading structure")
 	command.Flags().BoolVar(&raw, "raw", false, "return the page HTML instead of markdown")
 	command.Flags().BoolVar(&contentBoundaries, "content-boundaries", false, "wrap page content in unforgeable boundary markers (default on in MCP mode)")
+	command.Flags().BoolVar(&engineHint, "engine-hint", false, "report whether JavaScript was needed for the content (js_required with reason)")
 	return command
+}
+
+// withEngineHint merges the engine-hint fields into the envelope data while
+// keeping the document fields intact.
+func withEngineHint(document render.Document, required bool, reason string) any {
+	raw, err := json.Marshal(document)
+	if err != nil {
+		return document
+	}
+	var data map[string]any
+	if err := json.Unmarshal(raw, &data); err != nil {
+		return document
+	}
+	data["js_required"] = required
+	if reason != "" {
+		data["js_required_reason"] = reason
+	}
+	return data
+}
+
+// writeReadHumanWithHint prints the document followed by the engine-hint
+// line, so a Tier-0 agent sees the recommendation immediately.
+func writeReadHumanWithHint(cmd *cobra.Command, document render.Document, required bool, reason string) error {
+	if err := writeReadHuman(cmd, document); err != nil {
+		return err
+	}
+	line := fmt.Sprintf("js_required: %t", required)
+	if reason != "" {
+		line += " — " + reason
+	}
+	_, err := fmt.Fprintln(cmd.OutOrStdout(), line)
+	return err
 }
 
 func writeReadHuman(cmd *cobra.Command, document render.Document) error {

@@ -2,6 +2,8 @@ package chrome
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,7 +24,7 @@ func TestChromeHelperProcess(t *testing.T) {
 }
 
 func TestChromeArgsUsePrivateEphemeralProfile(t *testing.T) {
-	args := chromeArgs("/tmp/private-profile", false)
+	args := chromeArgs("/tmp/private-profile", false, false)
 	joined := strings.Join(args, " ")
 	for _, want := range []string{
 		"--user-data-dir=/tmp/private-profile",
@@ -37,7 +39,7 @@ func TestChromeArgsUsePrivateEphemeralProfile(t *testing.T) {
 			t.Fatalf("args missing %q: %s", want, joined)
 		}
 	}
-	for _, forbidden := range []string{"--profile-directory=Default", "--remote-debugging-port=9222", "--enable-telemetry", "--disable-webrtc"} {
+	for _, forbidden := range []string{"--profile-directory=Default", "--remote-debugging-port=9222", "--enable-telemetry", "--disable-webrtc", "--headless"} {
 		if strings.Contains(joined, forbidden) {
 			t.Fatalf("args contain forbidden %q: %s", forbidden, joined)
 		}
@@ -45,22 +47,45 @@ func TestChromeArgsUsePrivateEphemeralProfile(t *testing.T) {
 }
 
 func TestChromeArgsDisableWebRTCOnlyWithAllowlist(t *testing.T) {
-	withPolicy := strings.Join(chromeArgs("/tmp/private-profile", true), " ")
+	withPolicy := strings.Join(chromeArgs("/tmp/private-profile", true, false), " ")
 	if !strings.Contains(withPolicy, "--disable-webrtc") {
 		t.Fatalf("allowlist mode must disable WebRTC: %s", withPolicy)
 	}
 	if strings.Count(withPolicy, "about:blank") != 1 {
 		t.Fatalf("about:blank must appear exactly once: %s", withPolicy)
 	}
-	withoutPolicy := strings.Join(chromeArgs("/tmp/private-profile", false), " ")
+	withoutPolicy := strings.Join(chromeArgs("/tmp/private-profile", false, false), " ")
 	if strings.Contains(withoutPolicy, "--disable-webrtc") {
 		t.Fatalf("default mode must keep WebRTC enabled: %s", withoutPolicy)
+	}
+	if strings.Contains(withoutPolicy, "--headless=new") {
+		t.Fatalf("default mode must not be headless: %s", withoutPolicy)
+	}
+}
+
+func TestChromeArgsHeadlessMode(t *testing.T) {
+	args := chromeArgs("/tmp/private-profile", false, true)
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--headless=new") {
+		t.Fatalf("headless args missing --headless=new: %s", joined)
+	}
+	if !strings.Contains(joined, "about:blank") {
+		t.Fatalf("headless args missing the startup URL: %s", joined)
 	}
 }
 
 func TestWaitForEndpointReadsEphemeralActivePort(t *testing.T) {
+	// The endpoint must actually listen: waitForEndpoint verifies the port
+	// so a stale DevToolsActivePort from a reused profile cannot stall or
+	// misroute the engine.
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+	port := listener.Addr().(*net.TCPAddr).Port
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "DevToolsActivePort"), []byte("43123\n/devtools/browser/test\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "DevToolsActivePort"), []byte(fmt.Sprintf("%d\n/devtools/browser/test\n", port)), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -69,8 +94,38 @@ func TestWaitForEndpointReadsEphemeralActivePort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "ws://127.0.0.1:43123/devtools/browser/test" {
-		t.Fatalf("endpoint = %q", got)
+	if want := fmt.Sprintf("ws://127.0.0.1:%d/devtools/browser/test", port); got != want {
+		t.Fatalf("endpoint = %q, want %q", got, want)
+	}
+}
+
+// TestWaitForEndpointIgnoresStaleActivePort verifies the stale-file fix: a
+// DevToolsActivePort whose port refuses connections must not be accepted;
+// the fresh file (written later) wins.
+func TestWaitForEndpointIgnoresStaleActivePort(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+	port := listener.Addr().(*net.TCPAddr).Port
+	dir := t.TempDir()
+	stale := filepath.Join(dir, "DevToolsActivePort")
+	if err := os.WriteFile(stale, []byte("1\n/devtools/browser/stale\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		_ = os.WriteFile(stale, []byte(fmt.Sprintf("%d\n/devtools/browser/fresh\n", port)), 0o600)
+	}()
+	got, err := waitForEndpoint(ctx, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := fmt.Sprintf("ws://127.0.0.1:%d/devtools/browser/fresh", port); got != want {
+		t.Fatalf("endpoint = %q, want %q (stale port must be ignored)", got, want)
 	}
 }
 
