@@ -30,6 +30,15 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
+// ErrorCode exposes the stable protocol error code for the unified output
+// schema (internal/output). Codes are members of the documented enum.
+func (e *Error) ErrorCode() string {
+	if e == nil {
+		return ""
+	}
+	return e.Code
+}
+
 // Warning is a non-fatal diagnostic attached to a response.
 type Warning struct {
 	Kind     string `json:"kind"`

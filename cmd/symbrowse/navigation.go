@@ -11,6 +11,7 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/exitcodes"
 )
 
 func newNavigationCommands() []*cobra.Command {
@@ -26,13 +27,12 @@ func newNavigationCommands() []*cobra.Command {
 
 func newNavigateCommand(name string) *cobra.Command {
 	var session string
-	var jsonOutput bool
 	command := &cobra.Command{Use: name + " [url]", Short: "Navigate the browser", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		if (name == "open" || name == "goto") && len(args) != 1 {
-			return errors.New("navigation URL is required")
+			return exitcodes.Wrapf(nil, exitcodes.ExitNoInput, exitcodes.KindValidation, "navigation URL is required")
 		}
 		if name != "open" && name != "goto" && len(args) != 0 {
-			return errors.New("this navigation command does not accept arguments")
+			return exitcodes.Wrapf(nil, exitcodes.ExitNoInput, exitcodes.KindValidation, "this navigation command does not accept arguments")
 		}
 		var raw json.RawMessage
 		if len(args) == 1 {
@@ -42,17 +42,15 @@ func newNavigateCommand(name string) *cobra.Command {
 		if err != nil {
 			return err
 		}
-		return writeDaemonResponse(cmd, response, jsonOutput)
+		return writeDaemonResponse(cmd, response, false)
 	}}
 	command.Flags().StringVar(&session, "session", "default", "session name")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable result")
 	return command
 }
 
 func newWaitCommand() *cobra.Command {
 	var session, textValue, urlValue, loadValue, state string
 	var milliseconds int64
-	var jsonOutput bool
 	command := &cobra.Command{Use: "wait [selector]", Short: "Wait for a browser condition", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		condition, err := waitConditionFromFlags(args, milliseconds, textValue, urlValue, loadValue, state)
 		if err != nil {
@@ -66,7 +64,7 @@ func newWaitCommand() *cobra.Command {
 		if err != nil {
 			return err
 		}
-		return writeDaemonResponse(cmd, response, jsonOutput)
+		return writeDaemonResponse(cmd, response, false)
 	}}
 	command.Flags().StringVar(&session, "session", "default", "session name")
 	command.Flags().Int64Var(&milliseconds, "ms", 0, "wait for milliseconds")
@@ -74,7 +72,6 @@ func newWaitCommand() *cobra.Command {
 	command.Flags().StringVar(&urlValue, "url", "", "wait for a URL glob")
 	command.Flags().StringVar(&loadValue, "load", "", "wait for load, domcontentloaded, or networkidle")
 	command.Flags().StringVar(&state, "state", "visible", "selector state: visible, hidden, attached, or detached")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable result")
 	return command
 }
 

@@ -18,10 +18,13 @@ type ShowOutput struct {
 	Fields map[string]Field `json:"fields"`
 }
 
-// WriteShow writes the effective configuration to w. Human output is concise
-// and line-oriented; JSON output has a stable top-level field schema.
-func WriteShow(w io.Writer, result Result, jsonOutput bool) error {
-	fields := map[string]Field{
+// ShowOutputFor builds the stable machine-readable payload for config show.
+func ShowOutputFor(result Result) ShowOutput {
+	return ShowOutput{Fields: showFields(result)}
+}
+
+func showFields(result Result) map[string]Field {
+	return map[string]Field{
 		"cache_dir":       {Value: result.Config.CacheDir, Source: result.Sources["cache_dir"]},
 		"config_dir":      {Value: result.Config.ConfigDir, Source: result.Sources["config_dir"]},
 		"log_format":      {Value: result.Config.LogFormat, Source: result.Sources["log_format"]},
@@ -29,6 +32,12 @@ func WriteShow(w io.Writer, result Result, jsonOutput bool) error {
 		"state_dir":       {Value: result.Config.StateDir, Source: result.Sources["state_dir"]},
 		"executable_path": {Value: result.Config.ExecutablePath, Source: result.Sources["executable_path"]},
 	}
+}
+
+// WriteShow writes the effective configuration to w. Human output is concise
+// and line-oriented; JSON output has a stable top-level field schema.
+func WriteShow(w io.Writer, result Result, jsonOutput bool) error {
+	fields := showFields(result)
 	if jsonOutput {
 		encoder := json.NewEncoder(w)
 		encoder.SetEscapeHTML(false)

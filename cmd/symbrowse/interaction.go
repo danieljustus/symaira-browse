@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -24,7 +23,6 @@ func newInteractionCommands() []*cobra.Command {
 
 func newInteractionCommand(action engine.InteractionAction) *cobra.Command {
 	var session string
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   string(action) + " <selector> [value]",
 		Short: "Perform a trusted interaction",
@@ -68,15 +66,11 @@ func newInteractionCommand(action engine.InteractionAction) *cobra.Command {
 				return err
 			}
 			if !response.Success {
-				if response.Error == nil {
-					return errors.New("interaction request failed")
-				}
-				return errors.New(response.Error.Message)
+				return responseError(response)
 			}
-			return writeDaemonResponse(cmd, response, jsonOutput)
+			return writeDaemonResponse(cmd, response, false)
 		},
 	}
 	command.Flags().StringVar(&session, "session", "default", "session name")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print JSON output")
 	return command
 }

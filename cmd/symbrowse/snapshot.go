@@ -13,7 +13,7 @@ import (
 
 func newSnapshotCommand() *cobra.Command {
 	var session, selector, since string
-	var interactive, compact, urls, diff, jsonOutput bool
+	var interactive, compact, urls, diff bool
 	var depth int
 	command := &cobra.Command{
 		Use:   "snapshot",
@@ -34,7 +34,7 @@ func newSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeSnapshotResponse(cmd, response, jsonOutput, diff || since != "")
+			return writeSnapshotResponse(cmd, response, diff || since != "")
 		},
 	}
 	command.Flags().StringVar(&session, "session", "default", "session name")
@@ -45,10 +45,9 @@ func newSnapshotCommand() *cobra.Command {
 	command.Flags().BoolVarP(&urls, "urls", "u", false, "include link URLs")
 	command.Flags().BoolVar(&diff, "diff", false, "show changes since the previous snapshot")
 	command.Flags().StringVar(&since, "since", "", "show changes since a specific snapshot ID")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable snapshot payload")
 	return command
 }
 
-func writeSnapshotResponse(cmd *cobra.Command, response daemon.Response, jsonOutput, _ bool) error {
-	return writeDaemonResponse(cmd, response, jsonOutput)
+func writeSnapshotResponse(cmd *cobra.Command, response daemon.Response, _ bool) error {
+	return writeDaemonResponse(cmd, response, false)
 }

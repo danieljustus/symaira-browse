@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -33,7 +32,6 @@ func newDaemonCommand() *cobra.Command {
 }
 
 func newDaemonStatusCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "status",
 		Short: "Show daemon status",
@@ -43,15 +41,13 @@ func newDaemonStatusCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, jsonOutput)
+			return writeDaemonResponse(cmd, response, false)
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable status payload")
 	return command
 }
 
 func newDaemonStopCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the running daemon",
@@ -61,10 +57,9 @@ func newDaemonStopCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, jsonOutput)
+			return writeDaemonResponse(cmd, response, false)
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable stop payload")
 	return command
 }
 
@@ -127,19 +122,5 @@ func daemonLifecycleRequest(ctx context.Context, session, command string, autost
 }
 
 func writeDaemonResponse(cmd *cobra.Command, response daemon.Response, jsonOutput bool) error {
-	if !response.Success {
-		if response.Error == nil {
-			return errors.New("daemon request failed")
-		}
-		return errors.New(response.Error.Message)
-	}
-	if jsonOutput {
-		return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
-	}
-	if response.Data == nil {
-		_, err := fmt.Fprintln(cmd.OutOrStdout(), "ok")
-		return err
-	}
-	_, err := fmt.Fprintln(cmd.OutOrStdout(), response.Data)
-	return err
+	return writeEnvelopeFromResponse(cmd, response, jsonOutput)
 }
