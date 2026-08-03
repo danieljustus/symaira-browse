@@ -13,6 +13,7 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/engine/chrome"
+	"github.com/danieljustus/symaira-browse/internal/engine/static"
 	"github.com/danieljustus/symaira-browse/internal/profiles"
 	"github.com/danieljustus/symaira-browse/internal/state"
 )
@@ -30,6 +31,7 @@ type NavigationRuntime struct {
 	headless        bool
 	engines         map[string]engine.Engine
 	browserContexts map[string]engine.Context
+	engineKind      string
 	tabs            map[string][]*sessionTab
 	activeTab       map[string]int
 	autosave        *AutosaveConfig
@@ -77,6 +79,9 @@ type NavigationRuntimeOptions struct {
 	// UploadDirs are the allowed roots for file uploads (issue #63);
 	// paths outside are rejected by the path guard.
 	UploadDirs []string
+	// Engine selects the engine implementation: "chrome" (default) or
+	// "static" (JS-free HTML reader, issue #64).
+	Engine string
 }
 
 // NewNavigationRuntime creates a runtime. Chrome is not started until the
@@ -90,6 +95,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		executable:      executable,
 		profile:         options.Profile,
 		allowedDomains:  options.AllowedDomains,
+		engineKind:      options.Engine,
 		ssrfEnabled:     options.SSRFEnabled,
 		allowPrivate:    options.AllowPrivate,
 		headless:        options.Headless,
@@ -546,6 +552,15 @@ func networkPolicyWarnings(reporter engine.NetworkPolicyReporter) []Warning {
 	return warnings
 }
 
+// newEngine builds the engine implementation selected by the runtime options:
+// "static" (JS-free HTML reader, issue #64) or the default Chrome engine.
+func (r *NavigationRuntime) newEngine(userDataDir string) engine.Engine {
+	if r.engineKind == "static" {
+		return static.New()
+	}
+	return chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: userDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate, Headless: r.headless})
+}
+
 func (r *NavigationRuntime) service(ctx context.Context, session string) (*engine.NavigationService, error) {
 	r.mu.Lock()
 	if tabs := r.tabs[session]; len(tabs) > 0 {
@@ -566,7 +581,7 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 		r.mu.Unlock()
 		return nil, err
 	}
-	if r.executable == "" {
+	if r.executable == "" && r.engineKind != "static" {
 		r.mu.Unlock()
 		return nil, errors.New("browser executable is not configured; set SYMBROWSE_EXECUTABLE_PATH")
 	}
@@ -575,16 +590,11 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 		userDataDir = r.profile
 		slog.Warn("chrome profile reuse", "session", session, "profile", r.profile, "warning", profiles.Warning)
 	}
-	executable := r.executable
-	allowedDomains := r.allowedDomains
-	ssrfEnabled := r.ssrfEnabled
-	allowPrivate := r.allowPrivate
-	headless := r.headless
 	restoreOnStart := r.restoreOnStart[session]
 	stateStore := r.stateStore
 	r.mu.Unlock()
 
-	browser := chrome.New(chrome.Options{ExecutablePath: executable, UserDataDir: userDataDir, AllowedDomains: allowedDomains, SSRFEnabled: ssrfEnabled, AllowPrivate: allowPrivate, Headless: headless})
+	browser := r.newEngine(userDataDir)
 	if err := browser.Launch(ctx); err != nil {
 		return nil, err
 	}
