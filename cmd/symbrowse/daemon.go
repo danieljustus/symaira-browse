@@ -16,6 +16,8 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/config"
 	"github.com/danieljustus/symaira-browse/internal/daemon"
+	"github.com/danieljustus/symaira-browse/internal/journal"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 	"github.com/danieljustus/symaira-browse/internal/profiles"
 	"github.com/danieljustus/symaira-browse/internal/state"
 )
@@ -138,6 +140,12 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	stateRuntime := daemon.NewStateRuntime(stateStore, navigation)
 	stateRuntime.ReportExpired()
 	authRuntime := daemon.NewAuthRuntime(navigation, nil)
+	cfg, configErr := config.Load()
+	if configErr != nil {
+		return configErr
+	}
+	journalRuntime := daemon.NewJournalRuntime(journalFor(cfg, session), navigation)
+	policyRuntime := daemon.NewPolicyRuntime(cfg.StateDir, policyMode())
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:  path,
 		Session:     session,
@@ -148,11 +156,15 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
 			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear", "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent":
-				return navigation.Handle(ctx, frame)
+				return journalRuntime.Handle(ctx, frame)
 			case "state.save", "state.load", "state.list", "state.show", "state.clear", "state.clean":
 				return stateRuntime.Handle(ctx, frame)
 			case "auth.login":
 				return authRuntime.Handle(ctx, frame)
+			case "journal.tail", "journal.show":
+				return journalRuntime.HandleJournal(ctx, frame)
+			case "policy.explain":
+				return policyRuntime.Handle(ctx, frame)
 			default:
 				return nil, nil, daemon.NewError(daemon.ErrorUnknownCommand, "command is not implemented by the daemon")
 			}
@@ -220,6 +232,27 @@ func autosaveFromEnv(cmd *cobra.Command, restoreKey string) (*daemon.AutosaveCon
 		return nil, err
 	}
 	return config, nil
+}
+
+// journalFor builds the session journal under <state-dir>/journal.
+func journalFor(cfg *config.Config, session string) *journal.Journal {
+	dir := filepath.Join(cfg.StateDir, "journal")
+	j, err := journal.New(journal.Options{Dir: dir, Session: session})
+	if err != nil {
+		// A broken journal must never prevent the daemon from starting;
+		// NewJournalRuntime(nil, ...) disables journaling.
+		return nil
+	}
+	return j
+}
+
+// policyMode selects the default policy table: MCP mode when the daemon runs
+// as an MCP backend (SYMBROWSE_MCP=1), TTY otherwise.
+func policyMode() policy.Mode {
+	if os.Getenv("SYMBROWSE_MCP") == "1" {
+		return policy.ModeMCP
+	}
+	return policy.ModeTTY
 }
 
 func daemonLifecycleRequest(ctx context.Context, session, command string, autostart bool) (daemon.Response, error) {
