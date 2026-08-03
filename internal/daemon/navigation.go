@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
@@ -86,6 +87,23 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 		var interactionErr *engine.InteractionError
 		if errors.As(err, &interactionErr) {
 			return nil, nil, &Error{Code: interactionErr.Code, Message: interactionErr.Message, Hint: interactionErr.Hint}
+		}
+		return result, nil, err
+	case "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked":
+		var request engine.InspectionRequest
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, nil, err
+		}
+		if request.Kind == "" {
+			request.Kind = engine.InspectionKind(strings.TrimPrefix(frame.Cmd, "get."))
+			if strings.HasPrefix(frame.Cmd, "is.") {
+				request.Kind = engine.InspectionKind(strings.TrimPrefix(frame.Cmd, "is."))
+			}
+		}
+		result, err := service.Inspect(ctx, request)
+		var inspectionErr *engine.InspectionError
+		if errors.As(err, &inspectionErr) {
+			return nil, nil, &Error{Code: inspectionErr.Code, Message: inspectionErr.Message, Hint: inspectionErr.Hint}
 		}
 		return result, nil, err
 	default:
