@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"runtime"
@@ -12,6 +13,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/engine/doctor"
 	"github.com/danieljustus/symaira-browse/internal/exitcodes"
 	"github.com/danieljustus/symaira-browse/internal/logging"
+	"github.com/danieljustus/symaira-browse/internal/output"
 	symversion "github.com/danieljustus/symaira-browse/internal/version"
 )
 
@@ -27,15 +29,21 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	// The global --json flag switches every command to the unified
+	// machine-readable output envelope (docs/errors.md, internal/output).
+	root.PersistentFlags().Bool("json", false, "print the unified machine-readable output envelope")
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newConfigCommand())
 	root.AddCommand(newDoctorCommand())
 	root.AddCommand(newDaemonCommand())
 	root.AddCommand(newSessionCommand())
+	root.AddCommand(newMCPCommand())
 	for _, command := range newNavigationCommands() {
 		root.AddCommand(command)
 	}
 	root.AddCommand(newSnapshotCommand())
+	root.AddCommand(newReadCommand())
+	root.AddCommand(newBatchCommand())
 	root.AddCommand(newFindCommand())
 	for _, command := range newInspectionCommands() {
 		root.AddCommand(command)
@@ -60,26 +68,28 @@ func newRootCommand() *cobra.Command {
 }
 
 func newVersionCommand() *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "version",
 		Short: "Print the symbrowse version",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			// version --json is the versionkit handshake payload
+			// ({tool, version, schema_version}) consumed by GUI clients
+			// (symaira-appkit SymairaToolKit) and Hub/Brain. It
+			// deliberately bypasses the unified output envelope: the
+			// payload IS the contract (issue #32, ARCHITEKTUR.md §6.2).
 			info := symversion.Info(version)
-			if jsonOutput {
+			if jsonOutputFlag(cmd) {
 				return info.Write(cmd.OutOrStdout())
 			}
 			_, err := fmt.Fprintln(cmd.OutOrStdout(), info.String())
 			return err
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable version payload")
 	return command
 }
 
 func newConfigCommand() *cobra.Command {
-	var jsonOutput bool
 	var logLevel, logFormat, configDir, cacheDir, stateDir, executablePath string
 
 	show := &cobra.Command{
@@ -112,10 +122,12 @@ func newConfigCommand() *cobra.Command {
 				return err
 			}
 			slog.Debug("configuration loaded", "command", "config show")
-			return config.WriteShow(cmd.OutOrStdout(), result, jsonOutput)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(config.ShowOutputFor(result), nil))
+			}
+			return config.WriteShow(cmd.OutOrStdout(), result, false)
 		},
 	}
-	show.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable configuration payload")
 	show.Flags().StringVar(&logLevel, "log-level", "", "override the configured log level")
 	show.Flags().StringVar(&logFormat, "log-format", "", "override the configured log format")
 	show.Flags().StringVar(&configDir, "config-dir", "", "override the config directory")
@@ -129,7 +141,6 @@ func newConfigCommand() *cobra.Command {
 }
 
 func newDoctorCommand() *cobra.Command {
-	var jsonOutput bool
 	var fix bool
 	command := &cobra.Command{
 		Use:   "doctor",
@@ -152,7 +163,11 @@ func newDoctorCommand() *cobra.Command {
 			if fix {
 				report.Fixes = doctor.FixInstructions(runtime.GOOS, options)
 			}
-			if err := doctor.Write(cmd.OutOrStdout(), report, jsonOutput); err != nil {
+			if jsonOutputFlag(cmd) {
+				if err := writeEnvelope(cmd, output.OK(report, nil)); err != nil {
+					return err
+				}
+			} else if err := doctor.Write(cmd.OutOrStdout(), report, false); err != nil {
 				return err
 			}
 			if report.HasFailure("chrome") {
@@ -165,7 +180,6 @@ func newDoctorCommand() *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable doctor payload")
 	command.Flags().BoolVar(&fix, "fix", false, "print non-mutating, copyable remediation guidance")
 	return command
 }
@@ -181,8 +195,24 @@ func doctorFailureMessage(report doctor.Report, name string) string {
 
 func main() {
 	logging.Init()
-	if err := newRootCommand().Execute(); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, exitcodes.FormatCLIError(err))
-		os.Exit(int(exitcodes.ExitCodeFromError(err)))
+	os.Exit(runCLI(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// runCLI executes the root command and returns the process exit code. In JSON
+// mode failures are printed as the unified machine-readable envelope on
+// stdout; otherwise the human-readable error goes to stderr.
+func runCLI(args []string, stdout, stderr io.Writer) int {
+	root := newRootCommand()
+	root.SetArgs(args)
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	if err := root.Execute(); err != nil {
+		if jsonOutputFlag(root) {
+			_ = output.WriteError(stdout, err, true)
+		} else {
+			_, _ = fmt.Fprintln(stderr, exitcodes.FormatCLIError(err))
+		}
+		return int(exitcodes.ExitCodeFromError(err))
 	}
+	return int(exitcodes.ExitOK)
 }

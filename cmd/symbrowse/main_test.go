@@ -15,12 +15,11 @@ func TestVersionJSON(t *testing.T) {
 	if err := command.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	var payload map[string]any
-	if err := json.Unmarshal(output.Bytes(), &payload); err != nil {
-		t.Fatalf("output = %q: %v", output.String(), err)
-	}
-	if payload["tool"] != "symbrowse" || payload["schema_version"] != float64(1) {
-		t.Fatalf("payload = %#v", payload)
+	// The versionkit contract is exact bytes: {tool, version,
+	// schema_version} on a single line, no envelope, no extra fields.
+	want := `{"tool":"symbrowse","version":"dev","schema_version":1}` + "\n"
+	if output.String() != want {
+		t.Fatalf("version --json = %q, want %q", output.String(), want)
 	}
 }
 
@@ -38,16 +37,64 @@ func TestConfigShowUsesCommandWriterAndFlags(t *testing.T) {
 	if output.Len() == 0 {
 		t.Fatal("config show produced no output")
 	}
-	var payload struct {
-		Fields map[string]struct {
-			Value  string `json:"value"`
-			Source string `json:"source"`
-		} `json:"fields"`
+	var envelope struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Fields map[string]struct {
+				Value  string `json:"value"`
+				Source string `json:"source"`
+			} `json:"fields"`
+		} `json:"data"`
 	}
-	if err := json.Unmarshal(output.Bytes(), &payload); err != nil {
+	if err := json.Unmarshal(output.Bytes(), &envelope); err != nil {
 		t.Fatalf("output = %q: %v", output.String(), err)
 	}
-	if got := payload.Fields["log_level"]; got.Value != "error" || got.Source != "flag" {
+	if !envelope.Success {
+		t.Fatalf("envelope = %#v: expected success", envelope)
+	}
+	if got := envelope.Data.Fields["log_level"]; got.Value != "error" || got.Source != "flag" {
 		t.Fatalf("log_level = %#v", got)
+	}
+}
+
+// TestGlobalJSONErrorEnvelope verifies that a failing command produces the
+// unified failure envelope with a documented error code when --json is set.
+func TestGlobalJSONErrorEnvelope(t *testing.T) {
+	var output, errOutput bytes.Buffer
+	exitCode := runCLI([]string{"open", "--json"}, &output, &errOutput)
+	if exitCode == 0 {
+		t.Fatal("expected open without a URL to fail")
+	}
+	var envelope struct {
+		Success bool `json:"success"`
+		Error   struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &envelope); err != nil {
+		t.Fatalf("output = %q: %v", output.String(), err)
+	}
+	if envelope.Success {
+		t.Fatalf("envelope = %#v: expected failure", envelope)
+	}
+	if envelope.Error.Code == "" {
+		t.Fatalf("envelope = %#v: missing error code", envelope)
+	}
+}
+
+// TestHumanErrorGoesToStderr verifies that without --json the error text is
+// printed to stderr and stdout stays clean.
+func TestHumanErrorGoesToStderr(t *testing.T) {
+	var output, errOutput bytes.Buffer
+	exitCode := runCLI([]string{"open"}, &output, &errOutput)
+	if exitCode == 0 {
+		t.Fatal("expected open without a URL to fail")
+	}
+	if output.Len() != 0 {
+		t.Fatalf("stdout = %q, want empty", output.String())
+	}
+	if errOutput.Len() == 0 {
+		t.Fatal("expected an error message on stderr")
 	}
 }

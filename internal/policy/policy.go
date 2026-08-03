@@ -66,6 +66,7 @@ const (
 var Classification = map[string]RiskClass{
 	// read
 	"snapshot":       ClassRead,
+	"read":           ClassRead,
 	"get.text":       ClassRead,
 	"get.html":       ClassRead,
 	"get.value":      ClassRead,
@@ -147,6 +148,15 @@ func Classify(command string) (RiskClass, error) {
 		return class, nil
 	}
 	return "", fmt.Errorf("command %q has no risk classification", command)
+}
+
+// ClassForCommand returns the risk class for one command, falling back to
+// RiskClass("unknown") when the command has no classification yet.
+func ClassForCommand(command string) RiskClass {
+	if class, ok := Classification[command]; ok {
+		return class
+	}
+	return RiskClass("unknown")
 }
 
 // Defaults returns the built-in default decision for a class and mode.

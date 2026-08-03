@@ -1,0 +1,37 @@
+{
+  "schema": "symfetch output schema (copy)",
+  "source": "https://github.com/danieljustus/symaira-fetch internal/agentdom/document.go + internal/render/frontmatter.go (branch main, fetched 2026-08-03)",
+  "frontmatter_keys": [
+    "title",
+    "url",
+    "final_url",
+    "fetched_at",
+    "lang",
+    "tokens_est",
+    "schema_type",
+    "source",
+    "snapshot_at"
+  ],
+  "json_fields": [
+    "url",
+    "final_url",
+    "title",
+    "lang",
+    "content",
+    "interactive",
+    "islands",
+    "fetched_at",
+    "tokens_est",
+    "schema_type",
+    "status_code",
+    "char_count",
+    "est_tokens",
+    "truncated",
+    "protocol",
+    "likely_client_rendered"
+  ],
+  "browse_extensions": {
+    "note": "browse-specific content carriers in addition to the fetch-compatible metadata fields; the meta object uses only symfetch Meta field names (status_code, truncated); content_boundaries is the injection boundary field (own JSON field, never inline)",
+    "content_fields": ["markdown", "raw", "outline", "meta", "content_boundaries"]
+  }
+}

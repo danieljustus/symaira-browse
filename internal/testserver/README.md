@@ -33,10 +33,12 @@ path without requiring a server instance.
 | `ShadowDOM` | `/shadow-dom` | Defines a custom element with an open shadow root containing `#shadow-content` and `#shadow-button`. Use for shadow-root discovery and interaction tests. |
 | `HiddenText` | `/hidden-text` | Five distinct variants: `display: none` (`#display-none`), `visibility: hidden` (`#visibility-hidden`), zero font size (`#font-size-zero`), zero opacity (`#opacity-zero`), and off-viewport positioning (`#offscreen`). Use for visibility and hidden-content detection tests. |
 | `AriaLabelMismatch` | `/aria-label-mismatch` | Button visibly says `Continue` but has `aria-label="Delete account"`. Use for accessible-name mismatch and prompt-injection warning tests. |
+| `PromptInjection` | `/prompt-injection` | Agent-directed imperatives in visible text, hidden text (`display:none`), `alt`/`title` attributes, an HTML comment, and `<meta>` content. Use for prompt-injection scanner tests (issue #28). |
 | `RedirectLoop` | `/redirect-loop` | Redirects to `/redirect-loop/a`; `/redirect-loop/a` redirects to `/redirect-loop/b`; `/redirect-loop/b` redirects back to `/redirect-loop/a`. Use with a client redirect limit or disabled redirect following to test loop handling. |
 | `Slow` | `/slow` | Waits exactly `SlowResponseDelay` (currently 100 ms), unless the request context is canceled, then returns without writing. Use for timeout and cancellation tests. |
 | `NotFound` | `/not-found` | Explicit HTTP 404 response with a deterministic plain-text error body. |
 | `InternalServerError` | `/server-error` | Explicit HTTP 500 response with a deterministic plain-text error body. |
+| `MarkerSpoof` | `/marker-spoof` | Page whose content mimics the symbrowse content-boundary marker lines with a forged nonce. Use for the boundary unforgeability test (read pipeline must keep the forged markers inside the content). |
 
 The root route `/` is a small index linking to every registered fixture. The
 nested iframe support routes `/iframe/child` and `/iframe/grandchild`, and the

@@ -125,15 +125,25 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 
 // StartDaemonProcess launches an independent daemon process using executable.
 func StartDaemonProcess(ctx context.Context, executable, session string) error {
+	args := []string{"daemon"}
+	if session != "" {
+		args = append(args, "--session", session)
+	}
+	return StartDaemonProcessArgs(ctx, executable, args...)
+}
+
+// StartDaemonProcessArgs launches an independent daemon process with an
+// explicit argument list (e.g. "daemon", "--session", "default", "--ssrf").
+// Callers that need policy flags beyond the session use this form.
+func StartDaemonProcessArgs(ctx context.Context, executable string, args ...string) error {
 	if executable == "" {
 		return errors.New("daemon executable path is empty")
 	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	args := []string{"daemon"}
-	if session != "" {
-		args = append(args, "--session", session)
+	if len(args) == 0 || args[0] != "daemon" {
+		return errors.New("daemon process must start with the daemon subcommand")
 	}
 	cmd := exec.Command(executable, args...)
 	cmd.Stdin = nil

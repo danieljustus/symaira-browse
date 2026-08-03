@@ -15,7 +15,7 @@ import (
 
 func newFindCommand() *cobra.Command {
 	var session, name string
-	var exact, jsonOutput bool
+	var exact bool
 	command := &cobra.Command{
 		Use:   "find <role|text|label|placeholder|alt|title|testid> <query> <action> [value]",
 		Short: "Find an element semantically and optionally act on it",
@@ -42,13 +42,12 @@ func newFindCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeFindResponse(cmd, response, jsonOutput)
+			return writeFindResponse(cmd, response)
 		},
 	}
 	command.Flags().StringVar(&session, "session", "default", "session name")
 	command.Flags().StringVar(&name, "name", "", "filter by accessible name")
 	command.Flags().BoolVar(&exact, "exact", false, "require exact matching")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable find result")
 	return command
 }
 
@@ -75,15 +74,12 @@ func findRequest(cmd *cobra.Command, session string, request engine.FindRequest)
 	return response, nil
 }
 
-func writeFindResponse(cmd *cobra.Command, response daemon.Response, jsonOutput bool) error {
+func writeFindResponse(cmd *cobra.Command, response daemon.Response) error {
 	if !response.Success {
-		if response.Error == nil {
-			return errors.New("find request failed")
-		}
-		return errors.New(response.Error.Message)
+		return responseError(response)
 	}
-	if jsonOutput {
-		return writeDaemonResponse(cmd, response, true)
+	if jsonOutputFlag(cmd) {
+		return writeDaemonResponse(cmd, response, false)
 	}
 	var result engine.FindResult
 	raw, err := json.Marshal(response.Data)

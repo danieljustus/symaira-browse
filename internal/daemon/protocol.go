@@ -30,11 +30,24 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
-// Warning is a non-fatal diagnostic attached to a response.
+// ErrorCode exposes the stable protocol error code for the unified output
+// schema (internal/output). Codes are members of the documented enum.
+func (e *Error) ErrorCode() string {
+	if e == nil {
+		return ""
+	}
+	return e.Code
+}
+
+// Warning is a non-fatal diagnostic attached to a response. Ref and Excerpt
+// carry the optional element locator and evidence excerpt of prompt-injection
+// detections (issue #28).
 type Warning struct {
 	Kind     string `json:"kind"`
 	Severity string `json:"severity,omitempty"`
 	Message  string `json:"message"`
+	Ref      string `json:"ref,omitempty"`
+	Excerpt  string `json:"excerpt,omitempty"`
 }
 
 // Response is one newline-delimited response returned by the daemon.

@@ -26,7 +26,6 @@ func newSessionCommand() *cobra.Command {
 }
 
 func newSessionListCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "list",
 		Short: "List sessions",
@@ -36,15 +35,13 @@ func newSessionListCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, jsonOutput)
+			return writeDaemonResponse(cmd, response, false)
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }
 
 func newSessionInfoCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "info",
 		Short: "Show session information",
@@ -54,10 +51,9 @@ func newSessionInfoCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, jsonOutput)
+			return writeDaemonResponse(cmd, response, false)
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }
 

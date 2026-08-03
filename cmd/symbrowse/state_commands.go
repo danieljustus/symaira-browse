@@ -239,17 +239,6 @@ func stateRequest(ctx context.Context, session, command string, args []byte) (da
 	return client.Request(ctx, daemon.Frame{Cmd: command, Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
 }
 
-// responseError converts a failed daemon response into a plain error.
-func responseError(response daemon.Response) error {
-	if response.Error == nil {
-		return fmt.Errorf("daemon request failed")
-	}
-	if response.Error.Hint != "" {
-		return fmt.Errorf("%s (%s)", response.Error.Message, response.Error.Hint)
-	}
-	return fmt.Errorf("%s", response.Error.Message)
-}
-
 // importCurlCookies parses a curl cookie jar (Netscape format) and sets every
 // cookie through the daemon. Lines starting with # are comments; the first
 // column is the domain, the sixth the cookie name and the seventh the value.

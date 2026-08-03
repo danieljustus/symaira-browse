@@ -24,6 +24,10 @@ type NavigationRuntime struct {
 	registry       *SessionRegistry
 	executable     string
 	profile        string
+	allowedDomains []string
+	ssrfEnabled    bool
+	allowPrivate   bool
+	headless       bool
 	services       map[string]*engine.NavigationService
 	engines        map[string]engine.Engine
 	autosave       *AutosaveConfig
@@ -46,6 +50,17 @@ type NavigationRuntimeOptions struct {
 	// set, because a running Chrome locks the profile and the domain
 	// allowlist cannot be enforced for a human-owned profile.
 	Profile string
+	// AllowedDomains activates the domain allowlist network policy for every
+	// session engine (see chrome.Options.AllowedDomains).
+	AllowedDomains []string
+	// SSRFEnabled activates the SSRF guard for every session engine (see
+	// chrome.Options.SSRFEnabled). It is the MCP-mode default.
+	SSRFEnabled bool
+	// AllowPrivate relaxes the SSRF guard (--allow-private).
+	AllowPrivate bool
+	// Headless launches Chrome headless (no GUI session); used in CI and
+	// agent contexts.
+	Headless bool
 }
 
 // NewNavigationRuntime creates a runtime. Chrome is not started until the
@@ -58,6 +73,10 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		registry:       registry,
 		executable:     executable,
 		profile:        options.Profile,
+		allowedDomains: options.AllowedDomains,
+		ssrfEnabled:    options.SSRFEnabled,
+		allowPrivate:   options.AllowPrivate,
+		headless:       options.Headless,
 		services:       make(map[string]*engine.NavigationService),
 		engines:        make(map[string]engine.Engine),
 		autosave:       options.Autosave,
@@ -83,7 +102,8 @@ func (r *NavigationRuntime) AutosaveConfig() *AutosaveConfig {
 	return r.autosave
 }
 
-// Handle executes one navigation frame and returns JSON-serializable data.
+// Handle executes one navigation frame and returns JSON-serializable data
+// together with network-policy warnings collected from the session engine.
 // When autosave is active and the frame changed session state, a save is
 // scheduled asynchronously so interactive commands never pay for I/O.
 func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []Warning, error) {
@@ -92,7 +112,7 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 		return nil, nil, err
 	}
 	r.maybeAutosave(ctx, frame)
-	return data, nil, nil
+	return data, r.policyWarnings(frame.Session), nil
 }
 
 // dispatch runs one frame against the session service.
@@ -173,6 +193,54 @@ func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, err
 			return nil, &Error{Code: inspectionErr.Code, Message: inspectionErr.Message, Hint: inspectionErr.Hint}
 		}
 		return result, err
+	case "read":
+		var request struct {
+			URL        string `json:"url,omitempty"`
+			EngineHint bool   `json:"engine_hint,omitempty"`
+		}
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, err
+		}
+		if request.URL != "" {
+			if _, err := service.Open(ctx, request.URL); err != nil {
+				return nil, err
+			}
+		}
+		readData, err := readPage(ctx, service)
+		if err != nil {
+			return nil, err
+		}
+		if !request.EngineHint {
+			return readData, nil
+		}
+		// The engine hint (issue #35) compares the rendered page with a
+		// JavaScript-disabled probe load. The page must be fully settled
+		// first so delayed hydration (SPA fixtures) counts as JS-needed,
+		// and the comparison capture must happen after settling.
+		if _, err := service.Wait(ctx, engine.WaitCondition{Kind: engine.WaitLoad, LoadState: engine.LoadNetworkIdle}); err != nil {
+			return nil, err
+		}
+		settledData, err := readPage(ctx, service)
+		if err != nil {
+			return nil, err
+		}
+		settledMap, ok := settledData.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("read material has an unexpected shape")
+		}
+		urlValue, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectURL})
+		if err != nil {
+			return nil, err
+		}
+		htmlValue, _ := settledMap["html"].(string)
+		hint, err := service.JSRequired(ctx, inspectionValue(urlValue), htmlValue)
+		if err != nil {
+			return nil, err
+		}
+		settledMap["js_required"] = hint.Required
+		settledMap["js_required_reason"] = hint.Reason
+		return settledMap, nil
+
 	case "find":
 		var request engine.FindRequest
 		if err := decodeArgs(frame, &request); err != nil {
@@ -368,6 +436,45 @@ func (r *NavigationRuntime) serviceIfReady(session string) (*engine.NavigationSe
 	return service, nil
 }
 
+// policyWarnings converts the session engine's network-policy state into the
+// protocol warnings[] payload: denied requests are counted per URL, known
+// enforcement limitations are reported once per response.
+func (r *NavigationRuntime) policyWarnings(session string) []Warning {
+	r.mu.Lock()
+	browser := r.engines[session]
+	r.mu.Unlock()
+	reporter, ok := browser.(engine.NetworkPolicyReporter)
+	if !ok {
+		return nil
+	}
+	return networkPolicyWarnings(reporter)
+}
+
+const maxBlockedURLWarnings = 10
+
+func networkPolicyWarnings(reporter engine.NetworkPolicyReporter) []Warning {
+	var warnings []Warning
+	blocked := reporter.BlockedRequests()
+	if len(blocked) > 0 {
+		total := 0
+		for _, entry := range blocked {
+			total += entry.Count
+		}
+		warnings = append(warnings, Warning{Kind: "network_policy", Severity: "warning", Message: fmt.Sprintf("domain allowlist blocked %d request(s)", total)})
+		for _, entry := range blocked {
+			if len(warnings) >= maxBlockedURLWarnings+1 {
+				warnings = append(warnings, Warning{Kind: "network_policy.blocked", Severity: "warning", Message: fmt.Sprintf("and %d more blocked URL(s)", len(blocked)-maxBlockedURLWarnings)})
+				break
+			}
+			warnings = append(warnings, Warning{Kind: "network_policy.blocked", Severity: "warning", Message: fmt.Sprintf("blocked %s %s (%d requests)", entry.ResourceType, entry.URL, entry.Count)})
+		}
+	}
+	for _, limitation := range reporter.Limitations() {
+		warnings = append(warnings, Warning{Kind: "network_policy.limitation", Severity: "warning", Message: limitation})
+	}
+	return warnings
+}
+
 func (r *NavigationRuntime) service(ctx context.Context, session string) (*engine.NavigationService, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -389,9 +496,14 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 		userDataDir = r.profile
 		slog.Warn("chrome profile reuse", "session", session, "profile", r.profile, "warning", profiles.Warning)
 	}
-	browser := chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: userDataDir})
+	browser := chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: userDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate, Headless: r.headless})
 	if err := browser.Launch(ctx); err != nil {
 		return nil, err
+	}
+	if reporter, ok := any(browser).(engine.NetworkPolicyReporter); ok {
+		for _, limitation := range reporter.Limitations() {
+			slog.Warn("network policy limitation", "session", session, "message", limitation)
+		}
 	}
 	browserContext, err := browser.NewContext(ctx)
 	if err != nil {
@@ -403,7 +515,7 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 		_ = browser.Close()
 		return nil, err
 	}
-	service := engine.NewNavigationService(browser, page, engine.NavigationOptions{})
+	service := engine.NewNavigationService(browser, page, engine.NavigationOptions{ProbeContext: browserContext})
 	r.engines[session] = browser
 	r.services[session] = service
 	_ = r.registry.SetActiveTabs(session, 1)
@@ -483,6 +595,37 @@ func (r *NavigationRuntime) Close() error {
 	r.engines = make(map[string]engine.Engine)
 	r.services = make(map[string]*engine.NavigationService)
 	return first
+}
+
+// readPage fetches the raw page material for the read command: the rendered
+// HTML, the document title and the current URL. Rendering into the fetch
+// output schema happens on the CLI side (internal/render).
+func readPage(ctx context.Context, service *engine.NavigationService) (any, error) {
+	html, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectHTML})
+	if err != nil {
+		return nil, err
+	}
+	title, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectTitle})
+	if err != nil {
+		return nil, err
+	}
+	url, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectURL})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"html":  inspectionValue(html),
+		"title": inspectionValue(title),
+		"url":   inspectionValue(url),
+	}, nil
+}
+
+func inspectionValue(result engine.InspectionResult) string {
+	var value string
+	if err := json.Unmarshal(result.Value, &value); err != nil {
+		return ""
+	}
+	return value
 }
 
 func decodeArgs(frame Frame, target any) error {

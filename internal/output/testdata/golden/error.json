@@ -1,0 +1,1 @@
+{"success":false,"error":{"code":"stale_ref","message":"element @e7 no longer exists","hint":"run snapshot --diff to see what changed"}}

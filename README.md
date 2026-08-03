@@ -46,6 +46,11 @@ The repository is standalone-first. Future integrations with other Symaira tools
 - [AGENTS.md](AGENTS.md) — repository rules for contributors and agents
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
 - [SECURITY.md](SECURITY.md) — security reporting policy
+- [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
+- [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
+- [docs/mcp.md](docs/mcp.md) — MCP server: configuration snippets for Claude Code, Cursor, OpenCode, Claude Desktop, tool profiles, security defaults
+- [docs/injection.md](docs/injection.md) — prompt-injection scan (`snapshot`, `--no-injection-scan`, pattern list)
+- [docs/tiers.md](docs/tiers.md) — the fetch/browse escalation contract (`read --engine-hint`, `js_required`, decision tree)
 
 ## License
 

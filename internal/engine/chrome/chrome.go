@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,7 +20,6 @@ import (
 	cdproto "github.com/chromedp/cdproto"
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/danieljustus/symaira-browse/internal/engine"
-	"github.com/gorilla/websocket"
 )
 
 const (
@@ -32,6 +33,21 @@ type Options struct {
 	StartupTimeout time.Duration
 	RequestTimeout time.Duration
 	UserDataDir    string
+	// AllowedDomains activates the domain allowlist network policy. Patterns
+	// are bare hostnames, optionally prefixed with "*." (see internal/policy).
+	// When non-empty, every request outside the allowlist is denied on the
+	// CDP network path and WebRTC is disabled.
+	AllowedDomains []string
+	// SSRFEnabled activates the SSRF guard (issue #34): RFC1918, loopback,
+	// link-local, .local, and IPv6-ULA targets are denied on the CDP network
+	// path. It is the MCP-mode default; the regular daemon stays opt-in.
+	SSRFEnabled bool
+	// AllowPrivate relaxes the SSRF guard (--allow-private). Without it the
+	// guard denies every private target.
+	AllowPrivate bool
+	// Headless launches Chrome in headless mode (no GUI session). Needed
+	// for CI and agent contexts where a windowed Chrome cannot start.
+	Headless bool
 }
 
 // Engine is a private Chrome process plus its CDP browser connection.
@@ -43,6 +59,8 @@ type Engine struct {
 	dataDir       string
 	removeDataDir bool
 	closed        bool
+	policy        *networkPolicy
+	profileReused bool
 }
 
 // New creates an unlaunched Chrome engine.
@@ -68,6 +86,10 @@ func (e *Engine) Launch(ctx context.Context) error {
 	if e.options.ExecutablePath == "" {
 		return errors.New("chrome executable path is empty")
 	}
+	policy, err := newNetworkPolicy(e.options.AllowedDomains, e.options.SSRFEnabled, e.options.AllowPrivate, e.call)
+	if err != nil {
+		return fmt.Errorf("parse network policy: %w", err)
+	}
 	dataDir := e.options.UserDataDir
 	removeDataDir := false
 	if dataDir == "" {
@@ -77,10 +99,23 @@ func (e *Engine) Launch(ctx context.Context) error {
 			return fmt.Errorf("create private Chrome profile: %w", err)
 		}
 		removeDataDir = true
-	} else if err := os.MkdirAll(dataDir, 0o700); err != nil {
-		return fmt.Errorf("create Chrome profile: %w", err)
+	} else {
+		// A running Chrome holds a SingletonLock in the profile directory. In
+		// that state the profile is not exclusively ours and the allowlist
+		// cannot be guaranteed to cover its requests (see issue #42).
+		for _, lock := range []string{"SingletonLock", "SingletonSocket"} {
+			if _, statErr := os.Stat(filepath.Join(dataDir, lock)); statErr == nil {
+				e.mu.Lock()
+				e.profileReused = true
+				e.mu.Unlock()
+				break
+			}
+		}
+		if err := os.MkdirAll(dataDir, 0o700); err != nil {
+			return fmt.Errorf("create Chrome profile: %w", err)
+		}
 	}
-	args := chromeArgs(dataDir)
+	args := chromeArgs(dataDir, policy.active(), e.options.Headless)
 	cmd := exec.Command(e.options.ExecutablePath, args...)
 	cmd.Stdin = nil
 	cmd.Stdout = nil
@@ -109,14 +144,15 @@ func (e *Engine) Launch(ctx context.Context) error {
 	if err != nil {
 		return fail(fmt.Errorf("connect Chrome DevTools: %w", err))
 	}
+	conn.addHandler(policy.handleEvent)
 	e.mu.Lock()
-	e.cmd, e.conn, e.dataDir, e.removeDataDir = cmd, conn, dataDir, removeDataDir
+	e.cmd, e.conn, e.dataDir, e.removeDataDir, e.policy = cmd, conn, dataDir, removeDataDir, policy
 	e.mu.Unlock()
 	return nil
 }
 
-func chromeArgs(dataDir string) []string {
-	return []string{
+func chromeArgs(dataDir string, disableWebRTC, headless bool) []string {
+	args := []string{
 		"--user-data-dir=" + dataDir,
 		"--remote-debugging-port=0",
 		"--no-first-run",
@@ -128,6 +164,17 @@ func chromeArgs(dataDir string) []string {
 		"--disable-sync",
 		"about:blank",
 	}
+	if disableWebRTC {
+		// WebRTC is not a regular HTTP request and cannot be intercepted via
+		// the Fetch domain, so the allowlist disables it at the process level.
+		args = append(args[:len(args)-1], "--disable-webrtc", "about:blank")
+	}
+	if headless {
+		// Headless mode runs Chrome without a GUI session; required for
+		// CI and agent contexts where the Mach bootstrap is restricted.
+		args = append(args[:len(args)-1], "--headless=new", "about:blank")
+	}
+	return args
 }
 
 func waitForEndpoint(ctx context.Context, dataDir string) (string, error) {
@@ -140,10 +187,24 @@ func waitForEndpoint(ctx context.Context, dataDir string) (string, error) {
 				port, parseErr := strconv.Atoi(lines[0])
 				if parseErr == nil && port > 0 && port < 65536 {
 					path := lines[1]
-					if strings.HasPrefix(path, "ws://") || strings.HasPrefix(path, "wss://") {
-						return path, nil
+					endpoint := path
+					dialPort := port
+					if !strings.HasPrefix(path, "ws://") && !strings.HasPrefix(path, "wss://") {
+						endpoint = fmt.Sprintf("ws://127.0.0.1:%d%s", port, path)
+					} else if u, urlErr := url.Parse(path); urlErr == nil && u.Port() != "" {
+						if p, atoiErr := strconv.Atoi(u.Port()); atoiErr == nil {
+							dialPort = p
+						}
 					}
-					return fmt.Sprintf("ws://127.0.0.1:%d%s", port, path), nil
+					// A reused session profile can carry a stale
+					// DevToolsActivePort from a previous Chrome instance.
+					// Verify the endpoint actually accepts connections and
+					// keep waiting for a fresh file otherwise.
+					conn, dialErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", dialPort), 150*time.Millisecond)
+					if dialErr == nil {
+						_ = conn.Close()
+						return endpoint, nil
+					}
 				}
 			}
 		}
@@ -216,11 +277,39 @@ func (e *Engine) NewPage(ctx context.Context, browserContext engine.Context, url
 			return engine.Page{}, fmt.Errorf("enable %s: %w", method, err)
 		}
 	}
+	if e.policy != nil && e.policy.active() {
+		if err := e.enableNetworkPolicy(ctx, page.SessionID); err != nil {
+			return engine.Page{}, err
+		}
+	}
 	return page, nil
+}
+
+// enableNetworkPolicy arms the CDP interception for one session and asks
+// Chrome to auto-attach related targets (workers, cross-origin iframes,
+// window.open popups) so the same policy covers their requests too.
+func (e *Engine) enableNetworkPolicy(ctx context.Context, sessionID string) error {
+	if err := e.call(ctx, sessionID, cdpCommandFetchEnable, fetchEnableParams{Patterns: []fetchPattern{{URLPattern: "*", RequestStage: "Request"}}}, nil); err != nil {
+		return fmt.Errorf("enable network policy interception: %w", err)
+	}
+	if err := e.call(ctx, sessionID, cdpCommandTargetAutoAttach, targetAutoAttachParams{
+		AutoAttach:             true,
+		WaitForDebuggerOnStart: false,
+		Flatten:                true,
+		AutoAttachRelated:      true,
+	}, nil); err != nil {
+		return fmt.Errorf("enable network policy auto-attach: %w", err)
+	}
+	return nil
 }
 
 // Navigate navigates a page to url.
 func (e *Engine) Navigate(ctx context.Context, page engine.Page, url string) (engine.NavigationResult, error) {
+	if e.policy != nil && e.policy.active() {
+		if allowed, reason := e.policy.allowsURL(url); !allowed {
+			return engine.NavigationResult{}, fmt.Errorf("navigation to %q is blocked by the network policy (%s; active: %s)", url, reason, e.policy.describe())
+		}
+	}
 	params := struct {
 		URL string `json:"url"`
 	}{URL: url}
@@ -326,15 +415,34 @@ func (e *Engine) Close() error {
 }
 
 var _ engine.Engine = (*Engine)(nil)
+var _ engine.NetworkPolicyReporter = (*Engine)(nil)
 
-// rpcConnection serializes request/response pairs over a CDP WebSocket.
-type rpcConnection struct {
-	ws     *websocket.Conn
-	mu     sync.Mutex
-	next   uint64
-	closed bool
+// BlockedRequests implements engine.NetworkPolicyReporter.
+func (e *Engine) BlockedRequests() []engine.BlockedRequest {
+	e.mu.Lock()
+	policy := e.policy
+	e.mu.Unlock()
+	return policy.blockedRequests()
 }
 
+// Limitations implements engine.NetworkPolicyReporter. It reports startup
+// configurations in which the domain allowlist cannot be fully enforced.
+func (e *Engine) Limitations() []string {
+	e.mu.Lock()
+	policy := e.policy
+	reused := e.profileReused
+	e.mu.Unlock()
+	if policy == nil || !policy.active() {
+		return nil
+	}
+	var limitations []string
+	if reused {
+		limitations = append(limitations, "domain allowlist is not fully enforceable: reusing an existing Chrome profile; use a private profile for guaranteed enforcement")
+	}
+	return limitations
+}
+
+// sessionExecutor adapts a CDP session to chromedp's executor interface.
 type sessionExecutor struct {
 	conn      *rpcConnection
 	sessionID string

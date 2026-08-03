@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -25,7 +26,8 @@ import (
 )
 
 func newDaemonCommand() *cobra.Command {
-	var session, restore, profile string
+	var session, restore, profile, allowedDomains string
+	var ssrf, allowPrivate, headless bool
 	command := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run or inspect the symbrowse daemon",
@@ -35,6 +37,10 @@ func newDaemonCommand() *cobra.Command {
 		},
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
+	command.Flags().StringVar(&allowedDomains, "allowed-domains", "", "comma-separated domain allowlist (e.g. \"example.com,*.example.com\"); denies every other domain on the network layer")
+	command.Flags().BoolVar(&ssrf, "ssrf", false, "enable the SSRF guard: RFC1918, loopback, link-local, .local, and IPv6-ULA targets are denied (default on in MCP mode)")
+	command.Flags().BoolVar(&allowPrivate, "allow-private", false, "allow private and loopback targets when the SSRF guard is active")
+	command.Flags().BoolVar(&headless, "headless", false, "launch Chrome in headless mode (no GUI session; also via SYMBROWSE_HEADLESS=1)")
 	command.PersistentFlags().StringVar(&restore, "restore", "", "restore the named state when the session browser starts")
 	command.PersistentFlags().StringVar(&profile, "profile", "", "reuse an existing Chrome profile (name or path) instead of a private session profile")
 	command.AddCommand(newDaemonStatusCommand(&session))
@@ -89,6 +95,17 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			profile = resolved
 		}
 	}
+	allowedDomainsFlag, _ := cmd.Flags().GetString("allowed-domains")
+	allowedDomains := resolveAllowedDomains(allowedDomainsFlag)
+	ssrfFlag, _ := cmd.Flags().GetBool("ssrf")
+	ssrfEnabled := resolveBoolPolicy("SYMBROWSE_SSRF", ssrfFlag, func(cfg *config.Config) bool { return cfg.SSRFEnabled })
+	allowPrivateFlag, _ := cmd.Flags().GetBool("allow-private")
+	allowPrivate := resolveBoolPolicy("SYMBROWSE_ALLOW_PRIVATE", allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate })
+	headless := false
+	if raw := cmd.Flags().Lookup("headless"); raw != nil {
+		headless, _ = cmd.Flags().GetBool("headless")
+	}
+	headless = headless || os.Getenv("SYMBROWSE_HEADLESS") == "1"
 	path, err := daemon.SocketPath(session)
 	if err != nil {
 		return err
@@ -139,6 +156,10 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	}
 
 	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"), daemon.NavigationRuntimeOptions{
+		AllowedDomains: allowedDomains,
+		SSRFEnabled:    ssrfEnabled,
+		AllowPrivate:   allowPrivate,
+		Headless:       headless,
 		StateStore:     stateStore,
 		RestoreOnStart: restoreOnStart,
 		Autosave:       autosave,
@@ -164,7 +185,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			switch frame.Cmd {
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
-			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear", "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent":
+			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "read", "find", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear", "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent":
 				allowed, decision, gateErr := oobRuntime.DecideAndConfirm(ctx, frame.Session, frame.Cmd, frameURL(frame), approvalTimeout())
 				if gateErr != nil {
 					return nil, nil, gateErr
@@ -193,6 +214,57 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		return nil
 	}
 	return err
+}
+
+// resolveAllowedDomains applies the configuration precedence chain for the
+// domain allowlist: flag value, then SYMBROWSE_ALLOWED_DOMAINS, then the
+// allowed_domains setting from config.toml.
+func resolveAllowedDomains(flagValue string) []string {
+	if strings.TrimSpace(flagValue) != "" {
+		return splitDomains(flagValue)
+	}
+	if envValue := os.Getenv("SYMBROWSE_ALLOWED_DOMAINS"); strings.TrimSpace(envValue) != "" {
+		return splitDomains(envValue)
+	}
+	cfg, err := config.Load()
+	if err != nil || len(cfg.AllowedDomains) == 0 {
+		return nil
+	}
+	return cfg.AllowedDomains
+}
+
+// resolveBoolPolicy applies the same precedence chain for boolean policy
+// options (SSRF guard, allow-private): flag, then environment variable, then
+// the config.toml setting. Environment values follow strconv.ParseBool
+// semantics ("1", "t", "true", "0", "f", "false").
+func resolveBoolPolicy(envName string, flagValue bool, fromConfig func(*config.Config) bool) bool {
+	if flagValue {
+		return true
+	}
+	if envValue := os.Getenv(envName); envValue != "" {
+		parsed, err := strconv.ParseBool(envValue)
+		if err != nil {
+			return false
+		}
+		return parsed
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return false
+	}
+	return fromConfig(cfg)
+}
+
+// splitDomains splits a comma-separated allowlist value, preserving each
+// pattern as supplied (validation happens in the engine policy layer).
+func splitDomains(value string) []string {
+	var domains []string
+	for _, part := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			domains = append(domains, trimmed)
+		}
+	}
+	return domains
 }
 
 // newStateStore builds the named-state store rooted at <state-dir>/states,
@@ -309,19 +381,5 @@ func daemonLifecycleRequest(ctx context.Context, session, command string, autost
 }
 
 func writeDaemonResponse(cmd *cobra.Command, response daemon.Response, jsonOutput bool) error {
-	if !response.Success {
-		if response.Error == nil {
-			return errors.New("daemon request failed")
-		}
-		return errors.New(response.Error.Message)
-	}
-	if jsonOutput {
-		return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
-	}
-	if response.Data == nil {
-		_, err := fmt.Fprintln(cmd.OutOrStdout(), "ok")
-		return err
-	}
-	_, err := fmt.Fprintln(cmd.OutOrStdout(), response.Data)
-	return err
+	return writeEnvelopeFromResponse(cmd, response, jsonOutput)
 }
