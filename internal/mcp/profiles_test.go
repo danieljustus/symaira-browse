@@ -145,3 +145,52 @@ func contains(list []string, name string) bool {
 	}
 	return false
 }
+
+func TestProfileInfoForKnownAndUnknown(t *testing.T) {
+	info, err := ProfileInfoFor(ProfileCore)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Name != ProfileCore || len(info.Tools) == 0 {
+		t.Fatalf("info = %+v", info)
+	}
+	if _, err := ProfileInfoFor(Profile("nope")); err == nil {
+		t.Fatal("expected unknown-profile error")
+	}
+}
+
+func TestSelectToolsEmptyDefaultsToCore(t *testing.T) {
+	names, err := SelectTools("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(names) == 0 {
+		t.Fatal("empty selection resolved to no tools")
+	}
+	if _, err := SelectTools("bogus-profile"); err == nil {
+		t.Fatal("expected unknown-profile error")
+	}
+	mixed, err := SelectTools("core, flows")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(mixed) == 0 {
+		t.Fatal("mixed selection resolved to no tools")
+	}
+}
+
+func TestToolNamesForProfileStable(t *testing.T) {
+	core := toolNamesForProfile(ProfileCore)
+	if len(core) == 0 {
+		t.Fatal("core profile has no tools")
+	}
+	again := toolNamesForProfile(ProfileCore)
+	if len(again) != len(core) {
+		t.Fatal("profile tool list is not stable")
+	}
+	for i := range core {
+		if core[i] != again[i] {
+			t.Fatalf("profile tool list order changed at %d", i)
+		}
+	}
+}

@@ -95,6 +95,13 @@ type Engine struct {
 func New(options Options) *Engine {
 	if options.StartupTimeout <= 0 {
 		options.StartupTimeout = defaultStartupTimeout
+		// SYMBROWSE_CHROME_STARTUP_TIMEOUT (seconds) overrides the startup
+		// budget — CI runners start Chrome slowly under load.
+		if raw := os.Getenv("SYMBROWSE_CHROME_STARTUP_TIMEOUT"); raw != "" {
+			if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
+				options.StartupTimeout = time.Duration(seconds) * time.Second
+			}
+		}
 	}
 	if options.RequestTimeout <= 0 {
 		options.RequestTimeout = defaultRequestTimeout
@@ -212,6 +219,12 @@ func chromeArgs(dataDir string, disableWebRTC, headless bool) []string {
 		// Headless mode runs Chrome without a GUI session; required for
 		// CI and agent contexts where the Mach bootstrap is restricted.
 		args = append(args[:len(args)-1], "--headless=new", "about:blank")
+	}
+	if os.Geteuid() == 0 {
+		// Root cannot use the Chrome sandbox (CI runners run as root);
+		// without this flag Chrome refuses to start there. The shared
+		// memory flag is the standard CI fix for small /dev/shm runners.
+		args = append(args[:len(args)-1], "--no-sandbox", "--disable-dev-shm-usage", "about:blank")
 	}
 	return args
 }

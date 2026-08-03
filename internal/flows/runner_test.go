@@ -372,4 +372,124 @@ func TestFlowIDUniqueness(t *testing.T) {
 	}
 }
 
+func TestRunFindSnapshotAndAssertions(t *testing.T) {
+	executor := newFakeExecutor()
+	executor.responses["get.url"] = "http://fixture.local/landing"
+	flow := parseFlow(t, `name: probe-flow
+version: 1
+domains: ["fixture.local"]
+steps:
+  - open: { url: "http://fixture.local/landing" }
+  - find: { role: "button", value: "{{term}}" }
+  - snapshot: { compact: true }
+  - assert: { visible: "Submit form" }
+  - assert: { url: "**/landing" }
+outputs:
+  - { name: final_url, from: url }
+`)
+	report, err := Run(context.Background(), executor.Execute, RunOptions{
+		Flow:    flow,
+		Inputs:  map[string]string{"term": "search"},
+		Session: "s1",
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !report.Success {
+		t.Fatalf("report.Success = false: %s", report.Error)
+	}
+	if len(report.Steps) != 5 {
+		t.Fatalf("steps = %d, want 5", len(report.Steps))
+	}
+	// The find step must carry the substituted value in the Value field.
+	found := false
+	for _, frame := range executor.frames {
+		if frame.Cmd == "find" {
+			var request struct {
+				Kind  string `json:"kind"`
+				Query string `json:"query"`
+				Value string `json:"value"`
+			}
+			_ = json.Unmarshal(frame.Args, &request)
+			if request.Kind == "role" && request.Query == "button" && request.Value == "search" {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("find step did not carry the substituted query value")
+	}
+}
+
+func TestRunAssertNotSucceedsWhenAbsent(t *testing.T) {
+	// The fake executor fails find for "spinner" -> the element is absent.
+	executor := newFakeExecutor()
+	executor.failures["find"] = "element not found"
+	flow := parseFlow(t, `name: neg-flow
+version: 1
+domains: ["fixture.local"]
+steps:
+  - assert: { not: "spinner" }
+`)
+	report, err := Run(context.Background(), executor.Execute, RunOptions{Flow: flow, Session: "s1"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !report.Success {
+		t.Fatalf("report.Success = false: %s", report.Error)
+	}
+}
+
+func TestRunAssertNotFailsWhenPresent(t *testing.T) {
+	executor := newFakeExecutor() // find always succeeds -> element present
+	flow := parseFlow(t, `name: neg-flow
+version: 1
+domains: ["fixture.local"]
+steps:
+  - assert: { not: "spinner" }
+`)
+	report, err := Run(context.Background(), executor.Execute, RunOptions{Flow: flow, Session: "s1"})
+	if err == nil {
+		t.Fatal("expected assert-not failure")
+	}
+	if report.Success {
+		t.Fatalf("report.Success = true, want failure (spinner is present in the fixture)")
+	}
+}
+
+func TestRunAssertUrlMismatchFails(t *testing.T) {
+	executor := newFakeExecutor()
+	executor.responses["get.url"] = "http://fixture.local/other"
+	flow := parseFlow(t, `name: url-flow
+version: 1
+domains: ["fixture.local"]
+steps:
+  - assert: { url: "**/expected" }
+`)
+	report, err := Run(context.Background(), executor.Execute, RunOptions{Flow: flow, Session: "s1"})
+	if err == nil {
+		t.Fatal("expected url-mismatch failure")
+	}
+	if report.Success {
+		t.Fatalf("report.Success = true, want url-mismatch failure")
+	}
+}
+
+func TestRunAssertCombinedSelectorsOK(t *testing.T) {
+	// assert with multiple selectors is accepted and runs.
+	flow := parseFlow(t, `name: bad-flow
+version: 1
+domains: ["fixture.local"]
+steps:
+  - assert: { visible: "x", url: "**/y" }
+`)
+	report, err := Run(context.Background(), newFakeExecutor().Execute, RunOptions{Flow: flow, Session: "s1"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !report.Success {
+		t.Fatalf("report.Success = false: %s", report.Error)
+	}
+}
+
 var _ = fmt.Sprintf
