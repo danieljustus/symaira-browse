@@ -31,7 +31,7 @@
     "likely_client_rendered"
   ],
   "browse_extensions": {
-    "note": "browse-specific content carriers in addition to the fetch-compatible metadata fields; the meta object uses only symfetch Meta field names (status_code, truncated)",
-    "content_fields": ["markdown", "raw", "outline", "meta"]
+    "note": "browse-specific content carriers in addition to the fetch-compatible metadata fields; the meta object uses only symfetch Meta field names (status_code, truncated); content_boundaries is the injection boundary field (own JSON field, never inline)",
+    "content_fields": ["markdown", "raw", "outline", "meta", "content_boundaries"]
   }
 }

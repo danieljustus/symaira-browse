@@ -37,6 +37,7 @@ path without requiring a server instance.
 | `Slow` | `/slow` | Waits exactly `SlowResponseDelay` (currently 100 ms), unless the request context is canceled, then returns without writing. Use for timeout and cancellation tests. |
 | `NotFound` | `/not-found` | Explicit HTTP 404 response with a deterministic plain-text error body. |
 | `InternalServerError` | `/server-error` | Explicit HTTP 500 response with a deterministic plain-text error body. |
+| `MarkerSpoof` | `/marker-spoof` | Page whose content mimics the symbrowse content-boundary marker lines with a forged nonce. Use for the boundary unforgeability test (read pipeline must keep the forged markers inside the content). |
 
 The root route `/` is a small index linking to every registered fixture. The
 nested iframe support routes `/iframe/child` and `/iframe/grandchild`, and the
