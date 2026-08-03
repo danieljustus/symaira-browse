@@ -108,7 +108,7 @@ func runDaemon(cmd *cobra.Command, session, allowedDomainsFlag string, ssrfFlag,
 			switch frame.Cmd {
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
-			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "read", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked":
+			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "read", "find", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked":
 				return navigation.Handle(ctx, frame)
 			default:
 				return nil, nil, daemon.NewError(daemon.ErrorUnknownCommand, "command is not implemented by the daemon")

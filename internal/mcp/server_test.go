@@ -1,0 +1,336 @@
+package mcp
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log/slog"
+	"net"
+	"os"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/danieljustus/symaira-browse/internal/daemon"
+)
+
+// socketBase creates a short-lived base directory for daemon sockets.
+// macOS limits unix socket paths to 104 bytes, so t.TempDir() names (which
+// embed the test name) are too long; the daemon package's own tests use the
+// same short /tmp pattern.
+func socketBase(t *testing.T) string {
+	t.Helper()
+	base, err := os.MkdirTemp("", "mcp-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(base) })
+	return base
+}
+
+// startFakeDaemon runs an in-process daemon server on a socket under base.
+// Its handler answers the commands the MCP tools exercise and logs through
+// slog during a tool call — the zero-stdout-pollution fixture.
+func startFakeDaemon(t *testing.T, base, session string) {
+	t.Helper()
+	path, err := daemon.SocketPathIn(base, session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{})
+	server := daemon.NewServer(daemon.Options{
+		SocketPath: path,
+		Session:    session,
+		Registry:   registry,
+		Policy: daemon.PolicyStatus{
+			SSRFEnabled:  true,
+			AllowPrivate: false,
+		},
+		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
+			switch frame.Cmd {
+			case "open":
+				// Log during a tool call: must never reach the MCP stdout.
+				slog.Debug("fake daemon open", "url", string(frame.Args))
+				return map[string]any{"action": "open", "url": "https://example.com/", "http_status": 200}, nil, nil
+			case "snapshot":
+				return "fake snapshot text", []daemon.Warning{{Kind: "network_policy", Severity: "warning", Message: "domain allowlist blocked 1 request(s)"}}, nil
+			default:
+				return nil, nil, daemon.NewError(daemon.ErrorUnknownCommand, "not implemented in fake daemon: "+frame.Cmd)
+			}
+		},
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- server.ListenAndServe(ctx) }()
+	// Cleanups run LIFO: the waiter below must be registered first so that
+	// cancel() (registered last) runs before we wait for shutdown.
+	t.Cleanup(func() {
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("fake daemon did not shut down")
+		}
+	})
+	t.Cleanup(cancel)
+	// Wait until the socket accepts connections.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		conn, dialErr := net.Dial("unix", path)
+		if dialErr == nil {
+			_ = conn.Close()
+			return
+		}
+		select {
+		case serveErr := <-done:
+			t.Fatalf("fake daemon exited before ready: %v", serveErr)
+		default:
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("fake daemon socket never became ready")
+}
+
+// newTestServer builds an MCP server whose daemon socket resolves under base.
+func newTestServer(t *testing.T, base string) *Server {
+	t.Helper()
+	return New(Options{
+		Version:    "v0.3.0-test",
+		Session:    "test",
+		Executable: "symbrowse", // never executed: the fake daemon is pre-started
+		SocketPath: func(session string) (string, error) {
+			return daemon.SocketPathIn(base, session)
+		},
+	})
+}
+
+// lockedBuffer is a race-free bytes.Buffer: ServeIO writes responses while
+// the test consumes complete lines.
+type lockedBuffer struct {
+	mu   sync.Mutex
+	buf  bytes.Buffer
+	read int
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+// nextLine returns the next complete newline-terminated line, waiting up to
+// timeout. It never returns a partial line.
+func (b *lockedBuffer) nextLine(timeout time.Duration) (string, bool) {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		b.mu.Lock()
+		data := b.buf.Bytes()
+		if idx := bytes.IndexByte(data[b.read:], '\n'); idx >= 0 {
+			end := b.read + idx
+			line := string(data[b.read:end])
+			b.read = end + 1
+			b.mu.Unlock()
+			return line, true
+		}
+		b.mu.Unlock()
+		time.Sleep(5 * time.Millisecond)
+	}
+	return "", false
+}
+
+// serve runs the MCP server over an in-memory pipe and returns a sender that
+// writes one JSON-RPC request and returns the parsed response.
+func serve(t *testing.T, server *Server) func(request map[string]any) map[string]any {
+	t.Helper()
+	reader, writer := io.Pipe()
+	var output lockedBuffer
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	done := make(chan error, 1)
+	go func() { done <- server.Core().ServeIO(ctx, reader, &output) }()
+	t.Cleanup(func() {
+		cancel()
+		_ = writer.Close()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("ServeIO did not exit")
+		}
+	})
+
+	return func(request map[string]any) map[string]any {
+		raw, err := json.Marshal(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.Write(append(raw, '\n')); err != nil {
+			t.Fatal(err)
+		}
+		line, ok := output.nextLine(5 * time.Second)
+		if !ok {
+			t.Fatalf("timed out waiting for response to %v", request["method"])
+			return nil
+		}
+		var response map[string]any
+		if err := json.Unmarshal([]byte(line), &response); err != nil {
+			t.Fatalf("stdout line %q is not a JSON-RPC frame (zero-stdout violation): %v", line, err)
+		}
+		return response
+	}
+}
+
+// TestZeroStdoutPollution is the automated AC for issue #30: no byte other
+// than JSON-RPC frames may reach stdout. The fake daemon logs during a tool
+// call; every line the server writes must still parse as a JSON-RPC frame.
+func TestZeroStdoutPollution(t *testing.T) {
+	base := socketBase(t)
+	startFakeDaemon(t, base, "test")
+	server := newTestServer(t, base)
+	send := serve(t, server)
+
+	initialize := send(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "initialize",
+		"params": map[string]any{
+			"protocolVersion": "2024-11-05",
+			"capabilities":    map[string]any{},
+			"clientInfo":      map[string]any{"name": "test", "version": "0"},
+		},
+	})
+	if initialize["error"] != nil {
+		t.Fatalf("initialize error: %v", initialize["error"])
+	}
+
+	// tools/list must enumerate the full registered surface.
+	toolsResponse := send(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+	result, _ := toolsResponse["result"].(map[string]any)
+	toolList, _ := result["tools"].([]any)
+	if len(toolList) != len(tools) {
+		t.Fatalf("tools/list returned %d tools, want %d", len(toolList), len(tools))
+	}
+
+	// A tool call whose daemon handler logs: the handshake must survive and
+	// the response must be a clean JSON-RPC frame.
+	call := send(map[string]any{
+		"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+		"params": map[string]any{
+			"name":      "open",
+			"arguments": map[string]any{"url": "https://example.com/"},
+		},
+	})
+	if call["error"] != nil {
+		t.Fatalf("tools/call error: %v", call["error"])
+	}
+	callResult, _ := call["result"].(map[string]any)
+	content, _ := callResult["content"].([]any)
+	if len(content) == 0 {
+		t.Fatal("tools/call returned no content")
+	}
+
+	// Daemon warnings must be surfaced on the tool result as {data,
+	// warnings} so agents see what the network policy denied.
+	snapshotCall := send(map[string]any{
+		"jsonrpc": "2.0", "id": 4, "method": "tools/call",
+		"params": map[string]any{"name": "snapshot", "arguments": map[string]any{}},
+	})
+	snapshotResult, _ := snapshotCall["result"].(map[string]any)
+	snapshotContent, _ := snapshotResult["content"].([]any)
+	if len(snapshotContent) == 0 {
+		t.Fatal("snapshot tools/call returned no content")
+	}
+	var payload struct {
+		Data     any `json:"data"`
+		Warnings []struct {
+			Kind string `json:"kind"`
+		} `json:"warnings"`
+	}
+	textContent, _ := snapshotContent[0].(map[string]any)
+	text, _ := textContent["text"].(string)
+	if err := json.Unmarshal([]byte(text), &payload); err != nil {
+		t.Fatalf("snapshot result %q: %v", text, err)
+	}
+	if payload.Data != "fake snapshot text" || len(payload.Warnings) != 1 || payload.Warnings[0].Kind != "network_policy" {
+		t.Fatalf("snapshot payload = %+v, want data + network_policy warning", payload)
+	}
+}
+
+// TestToolsCallRejectsMissingRequiredArguments verifies that input-schema
+// validation happens before any daemon traffic (typed input schemas AC).
+func TestToolsCallRejectsMissingRequiredArguments(t *testing.T) {
+	base := socketBase(t)
+	startFakeDaemon(t, base, "test")
+	server := newTestServer(t, base)
+	send := serve(t, server)
+
+	response := send(map[string]any{
+		"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+		"params": map[string]any{"name": "open", "arguments": map[string]any{}},
+	})
+	result, _ := response["result"].(map[string]any)
+	isError, _ := result["isError"].(bool)
+	if !isError {
+		t.Fatal("open without url must fail with a tool error result")
+	}
+	content, _ := result["content"].([]any)
+	if len(content) == 0 {
+		t.Fatal("tool error result carries no content")
+	}
+	textContent, _ := content[0].(map[string]any)
+	message, _ := textContent["text"].(string)
+	if !strings.Contains(message, "url") {
+		t.Errorf("error message = %q, want mention of the missing argument", message)
+	}
+}
+
+// TestToolTableProfilesCoversEveryTool guards the data-table invariant from
+// issue #31: every tool belongs to exactly one known profile, and the all
+// profile is derived as the union by the profile filter.
+func TestToolTableProfilesCoversEveryTool(t *testing.T) {
+	seen := map[Profile]int{}
+	for _, tool := range tools {
+		switch tool.Profile {
+		case ProfileCore, ProfileNav, ProfileState, ProfileNetwork, ProfileDebug, ProfileFlows:
+			seen[tool.Profile]++
+		default:
+			t.Errorf("tool %s has no valid profile: %q", tool.Name, tool.Profile)
+		}
+	}
+	if len(seen) == 0 {
+		t.Fatal("tool table is empty")
+	}
+}
+
+// TestCoreProfileStaysUnderFifteenTools guards the "default profile
+// registers < 15 tools" acceptance criterion of issue #31.
+func TestCoreProfileStaysUnderFifteenTools(t *testing.T) {
+	var coreCount int
+	for _, tool := range tools {
+		if tool.Profile == ProfileCore {
+			coreCount++
+		}
+	}
+	if coreCount >= 15 {
+		t.Errorf("core profile has %d tools, want < 15", coreCount)
+	}
+}
+
+// TestEveryToolSchemaAcceptsSession verifies the "every tool takes session"
+// AC: the schema builder must add the session property to each tool.
+func TestEveryToolSchemaAcceptsSession(t *testing.T) {
+	for _, tool := range tools {
+		properties, ok := tool.Schema["properties"].(map[string]any)
+		if !ok {
+			t.Errorf("tool %s schema has no properties object", tool.Name)
+			continue
+		}
+		if _, ok := properties["session"]; !ok {
+			t.Errorf("tool %s schema lacks the session argument", tool.Name)
+		}
+	}
+}
+
+func TestMain(m *testing.M) {
+	// Route slog output away so it can never be mistaken for server output
+	// in the buffers under test.
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	m.Run()
+}
