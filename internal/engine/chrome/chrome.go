@@ -61,6 +61,13 @@ type Engine struct {
 	closed        bool
 	policy        *networkPolicy
 	profileReused bool
+
+	// runtime event buffers (issue #60): console API calls and uncaught
+	// exceptions, bounded per page session.
+	runtimeMu      sync.Mutex
+	runtimeEnabled map[string]bool
+	console        map[string][]engine.ConsoleEntry
+	errors         map[string][]engine.ErrorEntry
 }
 
 // New creates an unlaunched Chrome engine.
@@ -71,7 +78,12 @@ func New(options Options) *Engine {
 	if options.RequestTimeout <= 0 {
 		options.RequestTimeout = defaultRequestTimeout
 	}
-	return &Engine{options: options}
+	return &Engine{
+		options:        options,
+		runtimeEnabled: make(map[string]bool),
+		console:        make(map[string][]engine.ConsoleEntry),
+		errors:         make(map[string][]engine.ErrorEntry),
+	}
 }
 
 // Launch starts Chrome with a private profile and an ephemeral DevTools port.
@@ -145,6 +157,7 @@ func (e *Engine) Launch(ctx context.Context) error {
 		return fail(fmt.Errorf("connect Chrome DevTools: %w", err))
 	}
 	conn.addHandler(policy.handleEvent)
+	conn.addHandler(e.handleEvent)
 	e.mu.Lock()
 	e.cmd, e.conn, e.dataDir, e.removeDataDir, e.policy = cmd, conn, dataDir, removeDataDir, policy
 	e.mu.Unlock()

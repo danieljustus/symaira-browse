@@ -117,6 +117,12 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 
 // dispatch runs one frame against the session service.
 func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, error) {
+	switch frame.Cmd {
+	case "console.list", "console.clear", "errors.list", "errors.clear":
+		return r.handleRuntimeEventsFrame(ctx, frame)
+	case "eval":
+		return r.handleEvalFrame(ctx, frame)
+	}
 	service, err := r.service(ctx, frame.Session)
 	if err != nil {
 		return nil, err
@@ -636,4 +642,86 @@ func decodeArgs(frame Frame, target any) error {
 		return fmt.Errorf("decode %s arguments: %w", frame.Cmd, err)
 	}
 	return nil
+}
+
+// handleRuntimeEventsFrame serves the console and errors buffers (issue
+// #60). Without a running session engine the buffers are empty; engines
+// without the RuntimeEvents capability fail with an explicit capability
+// error instead of fabricated results.
+func (r *NavigationRuntime) handleRuntimeEventsFrame(ctx context.Context, frame Frame) (any, error) {
+	r.mu.Lock()
+	browser := r.engines[frame.Session]
+	r.mu.Unlock()
+	if browser == nil {
+		return emptyRuntimePayload(frame.Cmd), nil
+	}
+	events, ok := browser.(engine.RuntimeEvents)
+	if !ok {
+		return nil, fmt.Errorf("browser engine does not support %s", strings.TrimSuffix(frame.Cmd, ".list"))
+	}
+	service, err := r.serviceIfReady(frame.Session)
+	if err != nil || service == nil {
+		return emptyRuntimePayload(frame.Cmd), nil
+	}
+	page := service.Page()
+	switch frame.Cmd {
+	case "console.list":
+		if err := events.EnableRuntimeEvents(ctx, page); err != nil {
+			return nil, err
+		}
+		entries := events.ConsoleEvents(page)
+		return map[string]any{"entries": entries, "count": len(entries)}, nil
+	case "console.clear":
+		events.ClearConsole(page)
+		return map[string]any{"cleared": true}, nil
+	case "errors.list":
+		if err := events.EnableRuntimeEvents(ctx, page); err != nil {
+			return nil, err
+		}
+		entries := events.ErrorEvents(page)
+		return map[string]any{"entries": entries, "count": len(entries)}, nil
+	case "errors.clear":
+		events.ClearErrors(page)
+		return map[string]any{"cleared": true}, nil
+	default:
+		return nil, fmt.Errorf("unknown runtime events command %q", frame.Cmd)
+	}
+}
+
+func emptyRuntimePayload(command string) any {
+	switch command {
+	case "console.list", "errors.list":
+		return map[string]any{"entries": []any{}, "count": 0}
+	default:
+		return map[string]any{"cleared": true}
+	}
+}
+
+// handleEvalFrame executes one JavaScript expression on the active page
+// (issue #60). The result is returned protocol-neutral; exceptions carry
+// their text.
+func (r *NavigationRuntime) handleEvalFrame(ctx context.Context, frame Frame) (any, error) {
+	var request struct {
+		Expression string `json:"expression"`
+	}
+	if err := decodeArgs(frame, &request); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(request.Expression) == "" {
+		return nil, errors.New("eval requires a non-empty expression")
+	}
+	service, err := r.service(ctx, frame.Session)
+	if err != nil {
+		return nil, err
+	}
+	result, err := service.Evaluate(ctx, request.Expression)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"type":           result.Type,
+		"value":          result.Value,
+		"description":    result.Description,
+		"exception_text": result.ExceptionText,
+	}, nil
 }

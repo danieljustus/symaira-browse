@@ -67,6 +67,10 @@ var Classification = map[string]RiskClass{
 	// read
 	"snapshot":       ClassRead,
 	"read":           ClassRead,
+	"console.list":   ClassRead,
+	"console.clear":  ClassRead,
+	"errors.list":    ClassRead,
+	"errors.clear":   ClassRead,
 	"get.text":       ClassRead,
 	"get.html":       ClassRead,
 	"get.value":      ClassRead,
