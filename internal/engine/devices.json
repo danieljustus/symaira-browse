@@ -1,0 +1,10 @@
+[
+  {"name": "iPhone 13", "width": 390, "height": 844, "scale": 3, "mobile": true, "touch": true, "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"},
+  {"name": "iPhone SE", "width": 375, "height": 667, "scale": 2, "mobile": true, "touch": true, "user_agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"},
+  {"name": "iPad", "width": 768, "height": 1024, "scale": 2, "mobile": true, "touch": true, "user_agent": "Mozilla/5.0 (iPad; CPU OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1"},
+  {"name": "Pixel 7", "width": 412, "height": 915, "scale": 2.625, "mobile": true, "touch": true, "user_agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"},
+  {"name": "Galaxy S23", "width": 360, "height": 780, "scale": 3, "mobile": true, "touch": true, "user_agent": "Mozilla/5.0 (Linux; Android 13; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36"},
+  {"name": "Desktop HD", "width": 1920, "height": 1080, "scale": 1, "mobile": false, "touch": false, "user_agent": ""},
+  {"name": "Desktop 4K", "width": 3840, "height": 2160, "scale": 1, "mobile": false, "touch": false, "user_agent": ""},
+  {"name": "Laptop", "width": 1440, "height": 900, "scale": 1, "mobile": false, "touch": false, "user_agent": ""}
+]

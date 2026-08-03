@@ -49,6 +49,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newStateCommand())
 	root.AddCommand(newAuthCommand())
 	root.AddCommand(newProfilesCommand())
+	root.AddCommand(newSetCommand())
 	return root
 }
 

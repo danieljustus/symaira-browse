@@ -147,7 +147,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			switch frame.Cmd {
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
-			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear":
+			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear", "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent":
 				return navigation.Handle(ctx, frame)
 			case "state.save", "state.load", "state.list", "state.show", "state.clear", "state.clean":
 				return stateRuntime.Handle(ctx, frame)
