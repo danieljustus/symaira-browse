@@ -35,6 +35,7 @@ func newRootCommand() *cobra.Command {
 	for _, command := range newNavigationCommands() {
 		root.AddCommand(command)
 	}
+	root.AddCommand(newSnapshotCommand())
 	return root
 }
 
