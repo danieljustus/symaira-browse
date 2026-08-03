@@ -35,6 +35,7 @@ type NavigationRuntime struct {
 	lastAutosave   map[string]time.Time
 	restoreOnStart map[string]string // session -> state name to restore
 	uploadDirs     []string          // allowed upload roots (issue #63)
+	recorders      map[string]*recorderState
 }
 
 // NavigationRuntimeOptions configures the browser engines created per session.
@@ -112,11 +113,16 @@ func (r *NavigationRuntime) AutosaveConfig() *AutosaveConfig {
 // When autosave is active and the frame changed session state, a save is
 // scheduled asynchronously so interactive commands never pay for I/O.
 func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []Warning, error) {
+	if strings.HasPrefix(frame.Cmd, "flow.record.") {
+		data, err := r.handleRecordFrame(ctx, frame)
+		return data, nil, err
+	}
 	data, err := r.dispatch(ctx, frame)
 	if err != nil {
 		return nil, nil, err
 	}
 	r.maybeAutosave(ctx, frame)
+	r.recordFrame(ctx, frame.Session, frame)
 	return data, r.policyWarnings(frame.Session), nil
 }
 

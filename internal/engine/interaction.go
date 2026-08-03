@@ -229,3 +229,13 @@ func (s *NavigationService) setSnapshotRefs(refs map[string]SnapshotRef) {
 	}
 	s.refMu.Unlock()
 }
+
+// LookupRef resolves a session ref to its snapshot metadata. It is used by
+// flow recording to convert session-bound @eN refs back into semantic
+// selectors.
+func (s *NavigationService) LookupRef(ref string) (SnapshotRef, bool) {
+	s.refMu.RLock()
+	defer s.refMu.RUnlock()
+	snapshotRef, found := s.refs[ref]
+	return snapshotRef, found
+}
