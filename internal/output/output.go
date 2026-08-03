@@ -19,11 +19,15 @@ import (
 	"io"
 )
 
-// Warning is a non-fatal diagnostic attached to a successful envelope.
+// Warning is a non-fatal diagnostic attached to a successful envelope. Ref
+// and Excerpt carry the optional element locator and evidence excerpt of
+// prompt-injection detections (issue #28).
 type Warning struct {
 	Kind     string `json:"kind"`
 	Severity string `json:"severity,omitempty"`
 	Message  string `json:"message"`
+	Ref      string `json:"ref,omitempty"`
+	Excerpt  string `json:"excerpt,omitempty"`
 }
 
 // Error is the structured error payload. Code is always a member of the

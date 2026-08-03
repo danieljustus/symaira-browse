@@ -49,6 +49,7 @@ The repository is standalone-first. Future integrations with other Symaira tools
 - [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
 - [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
 - [docs/mcp.md](docs/mcp.md) — MCP server: configuration snippets for Claude Code, Cursor, OpenCode, Claude Desktop, tool profiles, security defaults
+- [docs/injection.md](docs/injection.md) — prompt-injection scan (`snapshot`, `--no-injection-scan`, pattern list)
 
 ## License
 
