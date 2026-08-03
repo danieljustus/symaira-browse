@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 )
 
 // Field is one effective configuration value and the source that supplied it.
@@ -31,6 +32,7 @@ func showFields(result Result) map[string]Field {
 		"log_level":       {Value: result.Config.LogLevel, Source: result.Sources["log_level"]},
 		"state_dir":       {Value: result.Config.StateDir, Source: result.Sources["state_dir"]},
 		"executable_path": {Value: result.Config.ExecutablePath, Source: result.Sources["executable_path"]},
+		"allowed_domains": {Value: strings.Join(result.Config.AllowedDomains, ","), Source: result.Sources["allowed_domains"]},
 	}
 }
 

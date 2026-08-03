@@ -45,3 +45,23 @@ type EvaluationResult struct {
 // AXNode contains the raw, versioned accessibility-node payload while keeping
 // generated protocol types out of the engine boundary.
 type AXNode struct{ Raw json.RawMessage }
+
+// BlockedRequest describes one distinct URL denied by the active network
+// policy and how often it was denied.
+type BlockedRequest struct {
+	URL          string `json:"url"`
+	ResourceType string `json:"resource_type"`
+	Count        int    `json:"count"`
+}
+
+// NetworkPolicyReporter is an optional engine extension. It lets callers
+// surface domain-allowlist enforcement as warnings: which requests were
+// denied and which known limitations apply to the running engine. Engines
+// without a network policy return empty slices.
+type NetworkPolicyReporter interface {
+	// BlockedRequests returns the denied requests since the engine started.
+	BlockedRequests() []BlockedRequest
+	// Limitations returns startup warnings for configurations in which the
+	// allowlist cannot be fully enforced (for example a reused profile).
+	Limitations() []string
+}

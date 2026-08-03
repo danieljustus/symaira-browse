@@ -22,7 +22,7 @@ func TestChromeHelperProcess(t *testing.T) {
 }
 
 func TestChromeArgsUsePrivateEphemeralProfile(t *testing.T) {
-	args := chromeArgs("/tmp/private-profile")
+	args := chromeArgs("/tmp/private-profile", false)
 	joined := strings.Join(args, " ")
 	for _, want := range []string{
 		"--user-data-dir=/tmp/private-profile",
@@ -37,10 +37,24 @@ func TestChromeArgsUsePrivateEphemeralProfile(t *testing.T) {
 			t.Fatalf("args missing %q: %s", want, joined)
 		}
 	}
-	for _, forbidden := range []string{"--profile-directory=Default", "--remote-debugging-port=9222", "--enable-telemetry"} {
+	for _, forbidden := range []string{"--profile-directory=Default", "--remote-debugging-port=9222", "--enable-telemetry", "--disable-webrtc"} {
 		if strings.Contains(joined, forbidden) {
 			t.Fatalf("args contain forbidden %q: %s", forbidden, joined)
 		}
+	}
+}
+
+func TestChromeArgsDisableWebRTCOnlyWithAllowlist(t *testing.T) {
+	withPolicy := strings.Join(chromeArgs("/tmp/private-profile", true), " ")
+	if !strings.Contains(withPolicy, "--disable-webrtc") {
+		t.Fatalf("allowlist mode must disable WebRTC: %s", withPolicy)
+	}
+	if strings.Count(withPolicy, "about:blank") != 1 {
+		t.Fatalf("about:blank must appear exactly once: %s", withPolicy)
+	}
+	withoutPolicy := strings.Join(chromeArgs("/tmp/private-profile", false), " ")
+	if strings.Contains(withoutPolicy, "--disable-webrtc") {
+		t.Fatalf("default mode must keep WebRTC enabled: %s", withoutPolicy)
 	}
 }
 
