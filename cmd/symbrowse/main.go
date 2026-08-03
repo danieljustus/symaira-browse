@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -76,6 +77,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newDialogCommand())
 	root.AddCommand(newA11yCommand())
 	root.AddCommand(newDiffCommand())
+	root.AddCommand(newUpgradeCommand())
 	return root
 }
 
@@ -207,6 +209,9 @@ func doctorFailureMessage(report doctor.Report, name string) string {
 
 func main() {
 	logging.Init()
+	// Optional async update hint (opt-in via SYMBROWSE_CHECK_UPDATES). The
+	// hint goes to stderr only, so stdout stays clean for JSON/MCP frames.
+	checkUpdatesAsync(context.Background())
 	os.Exit(runCLI(os.Args[1:], os.Stdout, os.Stderr))
 }
 
