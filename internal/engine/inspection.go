@@ -133,7 +133,7 @@ func validateInspectionRequest(request InspectionRequest) error {
 		return &InspectionError{Code: "invalid_inspection", Message: fmt.Sprintf("unsupported inspection kind %q", request.Kind)}
 	}
 	selector := strings.TrimSpace(request.Selector)
-	if request.Kind == InspectTitle || request.Kind == InspectURL {
+	if request.Kind == InspectTitle || request.Kind == InspectURL || request.Kind == InspectHTML {
 		if selector == "" {
 			return nil
 		}

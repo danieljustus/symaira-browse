@@ -110,6 +110,19 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 			return nil, nil, &Error{Code: inspectionErr.Code, Message: inspectionErr.Message, Hint: inspectionErr.Hint}
 		}
 		return result, nil, err
+	case "read":
+		var request struct {
+			URL string `json:"url,omitempty"`
+		}
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, nil, err
+		}
+		if request.URL != "" {
+			if _, err := service.Open(ctx, request.URL); err != nil {
+				return nil, nil, err
+			}
+		}
+		return readPage(ctx, service)
 	case "find":
 		var request engine.FindRequest
 		if err := decodeArgs(frame, &request); err != nil {
@@ -176,6 +189,37 @@ func (r *NavigationRuntime) Close() error {
 	r.engines = make(map[string]engine.Engine)
 	r.services = make(map[string]*engine.NavigationService)
 	return first
+}
+
+// readPage fetches the raw page material for the read command: the rendered
+// HTML, the document title and the current URL. Rendering into the fetch
+// output schema happens on the CLI side (internal/render).
+func readPage(ctx context.Context, service *engine.NavigationService) (any, []Warning, error) {
+	html, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectHTML})
+	if err != nil {
+		return nil, nil, err
+	}
+	title, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectTitle})
+	if err != nil {
+		return nil, nil, err
+	}
+	url, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectURL})
+	if err != nil {
+		return nil, nil, err
+	}
+	return map[string]any{
+		"html":  inspectionValue(html),
+		"title": inspectionValue(title),
+		"url":   inspectionValue(url),
+	}, nil, nil
+}
+
+func inspectionValue(result engine.InspectionResult) string {
+	var value string
+	if err := json.Unmarshal(result.Value, &value); err != nil {
+		return ""
+	}
+	return value
 }
 
 func decodeArgs(frame Frame, target any) error {
