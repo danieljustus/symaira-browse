@@ -29,12 +29,14 @@ import (
 func newDaemonCommand() *cobra.Command {
 	var session, restore, profile, allowedDomains string
 	var ssrf, allowPrivate, headless bool
+	var engineKind string
 	command := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run or inspect the symbrowse daemon",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runDaemon(cmd, session)
+
 		},
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
@@ -44,6 +46,8 @@ func newDaemonCommand() *cobra.Command {
 	command.Flags().BoolVar(&headless, "headless", false, "launch Chrome in headless mode (no GUI session; also via SYMBROWSE_HEADLESS=1)")
 	command.PersistentFlags().StringVar(&restore, "restore", "", "restore the named state when the session browser starts")
 	command.PersistentFlags().StringVar(&profile, "profile", "", "reuse an existing Chrome profile (name or path) instead of a private session profile")
+	command.Flags().StringVar(&engineKind, "engine", "chrome", "engine implementation: chrome (default) or static (JS-free HTML reader)")
+
 	command.AddCommand(newDaemonStatusCommand(&session))
 	command.AddCommand(newDaemonStopCommand(&session))
 	return command
@@ -107,6 +111,11 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		headless, _ = cmd.Flags().GetBool("headless")
 	}
 	headless = headless || os.Getenv("SYMBROWSE_HEADLESS") == "1"
+	engineKind := "chrome"
+	if raw := cmd.Flags().Lookup("engine"); raw != nil {
+		engineKind, _ = cmd.Flags().GetString("engine")
+	}
+
 	path, err := daemon.SocketPath(session)
 	if err != nil {
 		return err
@@ -166,6 +175,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		Autosave:       autosave,
 		Profile:        profile,
 		UploadDirs:     uploadDirsFromEnv(),
+		Engine:         engineKind,
 	})
 	defer func() { _ = navigation.Close() }()
 	stateRuntime := daemon.NewStateRuntime(stateStore, navigation)
