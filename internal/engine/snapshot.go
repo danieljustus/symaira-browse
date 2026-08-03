@@ -34,18 +34,19 @@ type SnapshotResult struct {
 
 // SnapshotRef describes the protocol-neutral target behind one rendered ref.
 type SnapshotRef struct {
-	NodeID         string `json:"node_id"`
-	BackendNodeID  int64  `json:"backend_node_id,omitempty"`
-	Role           string `json:"role"`
-	Name           string `json:"name,omitempty"`
-	Value          string `json:"value,omitempty"`
-	State          string `json:"state,omitempty"`
-	Visible        bool   `json:"visible"`
-	Interactive    bool   `json:"interactive"`
-	URL            string `json:"url,omitempty"`
-	RefKey         string `json:"refkey,omitempty"`
-	DOMPath        string `json:"dom_path,omitempty"`
-	SiblingOrdinal int    `json:"sibling_ordinal,omitempty"`
+	NodeID         string            `json:"node_id"`
+	BackendNodeID  int64             `json:"backend_node_id,omitempty"`
+	Role           string            `json:"role"`
+	Name           string            `json:"name,omitempty"`
+	Value          string            `json:"value,omitempty"`
+	State          string            `json:"state,omitempty"`
+	Visible        bool              `json:"visible"`
+	Interactive    bool              `json:"interactive"`
+	URL            string            `json:"url,omitempty"`
+	RefKey         string            `json:"refkey,omitempty"`
+	DOMPath        string            `json:"dom_path,omitempty"`
+	SiblingOrdinal int               `json:"sibling_ordinal,omitempty"`
+	Attributes     map[string]string `json:"attributes,omitempty"`
 }
 
 // AXSelectorResolver resolves a CSS selector to an accessibility node's
@@ -152,6 +153,7 @@ type snapshotNode struct {
 	shadowRoot     bool
 	backendNodeID  int64
 	state          map[string]string
+	attributes     map[string]string
 	visible        bool
 	childIDs       []string
 	children       []string
@@ -185,7 +187,12 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 			Name  string          `json:"name"`
 			Value json.RawMessage `json:"value"`
 		} `json:"properties"`
-		Visible *bool `json:"visible"`
+		Visible     *bool             `json:"visible"`
+		Attributes  map[string]string `json:"attributes"`
+		Alt         string            `json:"alt"`
+		Title       string            `json:"title"`
+		Placeholder string            `json:"placeholder"`
+		TestID      string            `json:"testid"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, err
@@ -208,6 +215,7 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 		backendNodeID: rawInt64(payload.BackendNodeID),
 		state:         make(map[string]string),
 		visible:       !payload.Ignored,
+		attributes:    make(map[string]string),
 		childIDs:      make([]string, 0, len(payload.ChildIDs)),
 		detached:      payload.Detached || payload.IsDetached,
 		iframe:        payload.IsFrameOwner || strings.Contains(role, "iframe") || role == "frame" || strings.Contains(strings.ToLower(rawValue(payload.Role)), "frame"),
@@ -223,6 +231,14 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 	}
 	if payload.Visible != nil {
 		node.visible = *payload.Visible
+	}
+	for key, value := range payload.Attributes {
+		node.attributes[strings.ToLower(strings.TrimSpace(key))] = value
+	}
+	for key, value := range map[string]string{"alt": payload.Alt, "title": payload.Title, "placeholder": payload.Placeholder, "testid": payload.TestID} {
+		if value != "" {
+			node.attributes[key] = value
+		}
 	}
 	for _, property := range payload.Properties {
 		propertyName := strings.ToLower(strings.TrimSpace(property.Name))
@@ -272,6 +288,7 @@ func renderSnapshotNode(parsed map[string]*snapshotNode, id string, options Snap
 			NodeID: node.id, BackendNodeID: node.backendNodeID, Role: node.role, Name: node.name,
 			Value: node.value, State: snapshotState(node.state), Visible: node.visible, Interactive: node.interactive, URL: node.url, RefKey: RefKey(node.role, node.name, node.domPath, node.siblingOrdinal),
 			DOMPath: node.domPath, SiblingOrdinal: node.siblingOrdinal,
+			Attributes: cloneStringMap(node.attributes),
 		}
 		line := strings.Repeat("  ", depth) + "- " + node.role
 		if node.name != "" {

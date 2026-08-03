@@ -110,6 +110,17 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 			return nil, nil, &Error{Code: inspectionErr.Code, Message: inspectionErr.Message, Hint: inspectionErr.Hint}
 		}
 		return result, nil, err
+	case "find":
+		var request engine.FindRequest
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, nil, err
+		}
+		result, err := service.Find(ctx, request)
+		var findErr *engine.FindError
+		if errors.As(err, &findErr) {
+			return nil, nil, &Error{Code: findErr.Code, Message: findErr.Message, Details: map[string]any{"matches": findErr.Matches}}
+		}
+		return result, nil, err
 	default:
 		return nil, nil, fmt.Errorf("unknown navigation command %q", frame.Cmd)
 	}
