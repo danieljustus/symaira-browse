@@ -127,9 +127,13 @@ var Classification = map[string]RiskClass{
 	"download": ClassDownload,
 	"upload":   ClassUpload,
 	// network-mock
-	"network.route": ClassNetworkMock,
-	"set.headers":   ClassNetworkMock,
-	"set.offline":   ClassNetworkMock,
+	"network.route":    ClassNetworkMock,
+	"network.unroute":  ClassNetworkMock,
+	"network.requests": ClassRead,
+	"network.request":  ClassRead,
+	"network.har":      ClassRead,
+	"set.headers":      ClassNetworkMock,
+	"set.offline":      ClassNetworkMock,
 	// state mutation commands are interact-classed (they touch the session)
 	"state.save":     ClassInteract,
 	"state.load":     ClassInteract,
