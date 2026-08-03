@@ -1,8 +1,21 @@
 # Symaira Browse (`symbrowse`)
 
+![Symaira Browse social preview](docs/assets/social-preview.png)
+
 > The browser an agent can operate while a person can take over at any time — without losing the session.
 
-Status: **foundation scaffold**. The repository currently provides the standalone Go/Cobra entrypoint and development tooling; browser and daemon capabilities are implemented in later milestones.
+**Abgrenzung zu `symfetch`:** `symfetch` liest einzelne Seiten mit
+Browser-Impersonation und liefert ein fetch-kompatibles Dokument.
+`symbrowse` ist der **interaktive Agenten-Browser**: eine echte Chrome-
+Session mit Navigation, Stable Refs, State (Cookies/Storage),
+Out-of-Band-Handoff für Login/2FA/Freigaben, Journal, Flows und
+Netzwerk-Kontrolle — für Abläufe, die mehrere Schritte über eine Session
+hinweg brauchen. Beide teilen sich die `corekit/domkit`-Render-Pipeline;
+`read` erzeugt strukturell identisches Markdown.
+
+Status: **v0.x (Feature-Waves A–D)**: Engine-Abstraktion (Chrome + Static),
+Domain-Allowlist, SSRF-Guard, MCP-Server, Sessions/State/Journal/OOB,
+Flows, Netzwerk-Routing, Console/Eval, Upload/Download, CI-Härtung.
 
 ## Quick start
 
@@ -10,6 +23,7 @@ Requirements:
 
 - Go 1.26.5
 - A POSIX shell and GNU Make
+- Chrome for the default engine (optional: `--engine static` reads without Chrome)
 
 Build and inspect the command:
 
@@ -39,13 +53,31 @@ The repository is standalone-first. Future integrations with other Symaira tools
 
 ## Architecture
 
-`symbrowse` will control a real Chrome through the Chrome DevTools Protocol, maintain durable sessions, expose deterministic element references, and provide an explicit out-of-band handoff to a person for login, 2FA, CAPTCHA, and approval workflows.
+`symbrowse` controls a real Chrome through the Chrome DevTools Protocol (or
+the JS-free static engine), maintains durable sessions, exposes
+deterministic element references, and provides an explicit out-of-band
+handoff to a person for login, 2FA, CAPTCHA, and approval workflows.
 
 - [ARCHITEKTUR.md](ARCHITEKTUR.md) — binding architecture and decision record
 - [PLANUNG.md](PLANUNG.md) — milestones, issues, and dependency plan
 - [AGENTS.md](AGENTS.md) — repository rules for contributors and agents
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
 - [SECURITY.md](SECURITY.md) — security reporting policy
+
+### Docs
+
+- [docs/security.md](docs/security.md) — security model, risk classes, redaction
+- [docs/tiers.md](docs/tiers.md) — escalation tiers and `read --engine-hint`
+- [docs/mcp.md](docs/mcp.md) — MCP server setup and tool profiles
+- [docs/flows.md](docs/flows.md) — flow schema, runner, record and diagnostics
+- [docs/engines.md](docs/engines.md) — engine capability matrix (Chrome vs. static)
+- [docs/journal.md](docs/journal.md) — action journal and deciders
+- [docs/errors.md](docs/errors.md) — stable error schema
+- [docs/output-schema.md](docs/output-schema.md) — read/output schema
+- [docs/benchmarks.md](docs/benchmarks.md) — benchmark results
+- [docs/tabs.md](docs/tabs.md) — tabs, windows, frames, dialogs
+- [docs/ssrf.md](docs/ssrf.md) — SSRF guard
+- [docs/injection.md](docs/injection.md) — prompt-injection heuristic scan
 - [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
 - [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
 - [docs/mcp.md](docs/mcp.md) — MCP server: configuration snippets for Claude Code, Cursor, OpenCode, Claude Desktop, tool profiles, security defaults
