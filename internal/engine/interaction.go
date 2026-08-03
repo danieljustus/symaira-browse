@@ -49,6 +49,23 @@ type InteractionResult struct {
 	Ref      string            `json:"ref,omitempty"`
 }
 
+// ClickDiagnostic describes the element that receives a click at the target's
+// center. It deliberately contains no CDP types so the interaction boundary
+// stays protocol-neutral.
+type ClickDiagnostic struct {
+	Target          InteractionTarget
+	Targeted        bool
+	Role            string
+	Name            string
+	SuggestedAction string
+}
+
+// ClickDiagnosticEngine is an optional engine capability used to reject a
+// click that would be intercepted by an overlay or modal.
+type ClickDiagnosticEngine interface {
+	DiagnoseClick(context.Context, Page, InteractionTarget) (ClickDiagnostic, error)
+}
+
 // InteractionEngine is the optional engine capability used by the interaction
 // service. It deliberately contains no CDP types so tests can inject a fake.
 type InteractionEngine interface {
@@ -87,10 +104,70 @@ func (s *NavigationService) Interact(ctx context.Context, request InteractionReq
 	if err := interactor.ScrollIntoView(ctx, s.page, target); err != nil {
 		return InteractionResult{}, fmt.Errorf("scroll %s target %q into view: %w", request.Action, request.Selector, err)
 	}
+	if isClickInteraction(request.Action) {
+		if diagnosticEngine, ok := interactor.(ClickDiagnosticEngine); ok {
+			diagnostic, err := diagnosticEngine.DiagnoseClick(ctx, s.page, target)
+			if err != nil {
+				return InteractionResult{}, fmt.Errorf("diagnose %s target %q: %w", request.Action, request.Selector, err)
+			}
+			if !diagnostic.Targeted {
+				return InteractionResult{}, s.obstructedClickError(request, diagnostic)
+			}
+		}
+	}
 	if err := interactor.PerformInteraction(ctx, s.page, target, request); err != nil {
 		return InteractionResult{}, fmt.Errorf("%s %q: %w", request.Action, request.Selector, err)
 	}
 	return InteractionResult{Action: request.Action, Selector: request.Selector, Ref: ref}, nil
+}
+
+func isClickInteraction(action InteractionAction) bool {
+	switch action {
+	case ActionClick, ActionDoubleClick, ActionCheck, ActionUncheck:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *NavigationService) obstructedClickError(request InteractionRequest, diagnostic ClickDiagnostic) error {
+	role := diagnostic.Role
+	if role == "" {
+		role = "element"
+	}
+	name := diagnostic.Name
+	if name == "" {
+		name = "unnamed"
+	}
+	ref := s.refForTarget(diagnostic.Target)
+	if ref == "" {
+		ref = "unavailable"
+	} else {
+		ref = "@" + ref
+	}
+	hint := diagnostic.SuggestedAction
+	if hint == "" {
+		hint = "close the covering element and retry the click"
+	}
+	return &InteractionError{
+		Code:    "click_obstructed",
+		Message: fmt.Sprintf("%s %q was obstructed by %s %q (ref=%s)", request.Action, request.Selector, role, name, ref),
+		Hint:    hint,
+	}
+}
+
+func (s *NavigationService) refForTarget(target InteractionTarget) string {
+	s.refMu.RLock()
+	defer s.refMu.RUnlock()
+	for ref, snapshotRef := range s.refs {
+		if target.BackendNodeID != 0 && snapshotRef.BackendNodeID == target.BackendNodeID {
+			return ref
+		}
+		if target.NodeID != "" && snapshotRef.NodeID == target.NodeID {
+			return ref
+		}
+	}
+	return ""
 }
 
 func (s *NavigationService) resolveInteractionTarget(ctx context.Context, interactor InteractionEngine, selector string) (InteractionTarget, string, error) {
