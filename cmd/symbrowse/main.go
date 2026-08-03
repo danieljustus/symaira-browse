@@ -36,6 +36,9 @@ func newRootCommand() *cobra.Command {
 		root.AddCommand(command)
 	}
 	root.AddCommand(newSnapshotCommand())
+	for _, command := range newInteractionCommands() {
+		root.AddCommand(command)
+	}
 	return root
 }
 
