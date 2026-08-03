@@ -16,22 +16,24 @@ import (
 )
 
 // startSnapshotTestDaemon runs an in-process daemon whose snapshot and
-// get.html frames serve a page containing prompt-injection vectors.
+// get.html frames serve a page containing prompt-injection vectors. The
+// socket base follows the platform layout (darwin: ~/Library/Caches, linux:
+// XDG_RUNTIME_DIR) so the CLI client dials the same path on every OS.
 func startSnapshotTestDaemon(t *testing.T) string {
 	t.Helper()
-	// macOS unix sockets cap at 104 bytes; build a short HOME layout.
+	// macOS unix sockets cap at 104 bytes; build a short base directory.
 	base, err := os.MkdirTemp("", "sb-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(base) })
 	t.Setenv("HOME", base)
-	runDir := filepath.Join(base, "Library", "Caches", "symbrowse", "run")
-	if err := os.MkdirAll(runDir, 0o700); err != nil {
+	t.Setenv("XDG_RUNTIME_DIR", filepath.Join(base, "runtime"))
+	path, err := daemon.SocketPath("test")
+	if err != nil {
 		t.Fatal(err)
 	}
-	path, err := daemon.SocketPathIn(runDir, "test")
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{})
@@ -66,11 +68,7 @@ func startSnapshotTestDaemon(t *testing.T) string {
 	})
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		probe, probeErr := daemon.SocketPathIn(runDir, "test")
-		if probeErr != nil {
-			t.Fatal(probeErr)
-		}
-		if conn, dialErr := dialUnix(probe); dialErr == nil {
+		if conn, dialErr := dialUnix(path); dialErr == nil {
 			_ = conn.Close()
 			return path
 		}
