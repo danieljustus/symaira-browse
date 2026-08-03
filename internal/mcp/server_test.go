@@ -95,14 +95,19 @@ func startFakeDaemon(t *testing.T, base, session string) {
 // newTestServer builds an MCP server whose daemon socket resolves under base.
 func newTestServer(t *testing.T, base string) *Server {
 	t.Helper()
-	return New(Options{
+	server, err := New(Options{
 		Version:    "v0.3.0-test",
 		Session:    "test",
 		Executable: "symbrowse", // never executed: the fake daemon is pre-started
+		Profiles:   "all",
 		SocketPath: func(session string) (string, error) {
 			return daemon.SocketPathIn(base, session)
 		},
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return server
 }
 
 // lockedBuffer is a race-free bytes.Buffer: ServeIO writes responses while
