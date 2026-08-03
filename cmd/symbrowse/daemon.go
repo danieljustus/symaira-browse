@@ -89,6 +89,8 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	defer cancel()
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:  path,
+		Session:     session,
+		Registry:    daemon.NewSessionRegistry(daemon.SessionRegistryOptions{}),
 		IdleTimeout: idle,
 		Handler: func(_ context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {

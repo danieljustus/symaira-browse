@@ -51,6 +51,8 @@ const (
 	ErrorOperationTimeout  = "operation_timeout"
 	ErrorPeerDenied        = "peer_denied"
 	ErrorDaemonUnavailable = "daemon_unavailable"
+	ErrorInvalidSession    = "invalid_session"
+	ErrorSessionNotFound   = "session_not_found"
 )
 
 // DecodeFrame validates and decodes a single JSON frame.
