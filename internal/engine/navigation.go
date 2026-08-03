@@ -103,14 +103,20 @@ type NavigationStateProvider interface {
 // NavigationService implements navigation and waiting over the protocol-neutral
 // Engine interface. It intentionally owns no session or daemon state.
 type NavigationService struct {
-	engine         Engine
-	page           Page
-	timeout        time.Duration
-	pollInterval   time.Duration
-	networkIdleFor time.Duration
-	refMu          sync.RWMutex
-	refs           map[string]SnapshotRef
-	refRegistry    *stableRefRegistry
+	engine            Engine
+	page              Page
+	timeout           time.Duration
+	pollInterval      time.Duration
+	networkIdleFor    time.Duration
+	refMu             sync.RWMutex
+	refs              map[string]SnapshotRef
+	refRegistry       *stableRefRegistry
+	snapshotMu        sync.Mutex
+	snapshotHistoryMu sync.Mutex
+	snapshotHistory   map[string]snapshotRecord
+	snapshotOrder     []string
+	nextSnapshot      uint64
+	snapshotEpoch     uint64
 }
 
 // NavigationOptions controls polling and operation timeouts.
@@ -131,7 +137,7 @@ func NewNavigationService(browser Engine, page Page, options NavigationOptions) 
 	if options.NetworkIdleFor <= 0 {
 		options.NetworkIdleFor = defaultNetworkIdle
 	}
-	return &NavigationService{engine: browser, page: page, timeout: options.Timeout, pollInterval: options.PollInterval, networkIdleFor: options.NetworkIdleFor, refs: make(map[string]SnapshotRef), refRegistry: newStableRefRegistry()}
+	return &NavigationService{engine: browser, page: page, timeout: options.Timeout, pollInterval: options.PollInterval, networkIdleFor: options.NetworkIdleFor, refs: make(map[string]SnapshotRef), refRegistry: newStableRefRegistry(), snapshotHistory: make(map[string]snapshotRecord)}
 }
 
 // Open navigates to url. Goto is an explicit alias for Open.

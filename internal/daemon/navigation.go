@@ -73,6 +73,10 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 		if err := decodeArgs(frame, &options); err != nil {
 			return nil, nil, err
 		}
+		if options.Diff || options.Since != "" {
+			result, err := service.SnapshotDiff(ctx, options)
+			return result, nil, err
+		}
 		result, err := service.Snapshot(ctx, options)
 		return result, nil, err
 	case string(engine.ActionClick), string(engine.ActionDoubleClick), string(engine.ActionFill), string(engine.ActionType), string(engine.ActionPress), string(engine.ActionHover), string(engine.ActionFocus), string(engine.ActionSelect), string(engine.ActionCheck), string(engine.ActionUncheck), string(engine.ActionScroll), string(engine.ActionScrollIntoView):
