@@ -408,14 +408,19 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 	r.services[session] = service
 	_ = r.registry.SetActiveTabs(session, 1)
 	// Restore a named state into the fresh browser when the daemon was
-	// started with --restore for this session.
+	// started with --restore for this session. The restore runs with its own
+	// context so a slow browser start can never time out the first request.
 	if name := r.restoreOnStart[session]; name != "" && r.stateStore != nil {
-		stateRuntime := NewStateRuntime(r.stateStore, r)
-		if _, _, err := stateRuntime.Load(context.Background(), session, name); err != nil {
-			slog.Warn("restore state on start failed", "session", session, "state", name, "error", err)
-		} else {
-			slog.Info("restored state on start", "session", session, "state", name)
-		}
+		go func() {
+			restoreCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			defer cancel()
+			stateRuntime := NewStateRuntime(r.stateStore, r)
+			if _, _, err := stateRuntime.Load(restoreCtx, session, name); err != nil {
+				slog.Warn("restore state on start failed", "session", session, "state", name, "error", err)
+			} else {
+				slog.Info("restored state on start", "session", session, "state", name)
+			}
+		}()
 	}
 	return service, nil
 }

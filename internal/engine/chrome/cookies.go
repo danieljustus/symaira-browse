@@ -41,7 +41,8 @@ func (e *Engine) Cookies(ctx context.Context, page engine.Page, urls []string) (
 }
 
 // SetCookie writes one cookie scoped to url. Chrome derives domain/path from
-// the URL unless the cookie carries explicit domain/path fields.
+// the URL unless the cookie carries explicit domain/path fields. Rejections
+// (invalid domain, scheme mismatch) surface as CDP errors.
 func (e *Engine) SetCookie(ctx context.Context, page engine.Page, cookie engine.Cookie, url string) error {
 	param := &network.CookieParam{
 		Name:     cookie.Name,
@@ -60,14 +61,8 @@ func (e *Engine) SetCookie(ctx context.Context, page engine.Page, cookie engine.
 	params := network.SetCookiesParams{
 		Cookies: []*network.CookieParam{param},
 	}
-	var result struct {
-		Success bool `json:"success"`
-	}
-	if err := e.call(ctx, page.SessionID, cdproto.CommandNetworkSetCookies, params, &result); err != nil {
+	if err := e.call(ctx, page.SessionID, cdproto.CommandNetworkSetCookies, params, nil); err != nil {
 		return fmt.Errorf("set cookie %q: %w", cookie.Name, err)
-	}
-	if !result.Success {
-		return fmt.Errorf("set cookie %q was rejected by Chrome", cookie.Name)
 	}
 	return nil
 }
