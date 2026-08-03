@@ -52,6 +52,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newSetCommand())
 	root.AddCommand(newJournalCommand())
 	root.AddCommand(newPolicyCommand())
+	root.AddCommand(newTraceCommand())
 	return root
 }
 

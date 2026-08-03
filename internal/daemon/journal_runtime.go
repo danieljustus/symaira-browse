@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/journal"
+	"github.com/danieljustus/symaira-browse/internal/trace"
 )
 
 // JournalRuntime wraps the navigation runtime and appends one journal entry
@@ -127,6 +128,23 @@ func (r *JournalRuntime) HandleJournal(ctx context.Context, frame Frame) (any, [
 			return nil, nil, err
 		}
 		return map[string]any{"schema_version": journal.SchemaVersion, "session": j.Session(), "entries": entries}, nil, nil
+	case "trace.replay":
+		var request struct {
+			Steps []trace.Step `json:"steps"`
+		}
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, nil, err
+		}
+		if len(request.Steps) == 0 {
+			return nil, nil, errors.New("trace contains no replayable steps")
+		}
+		service, err := r.nav.service(ctx, frame.Session)
+		if err != nil {
+			return nil, nil, err
+		}
+		file := &trace.File{SchemaVersion: trace.SchemaVersion, Session: frame.Session, Steps: request.Steps}
+		result := trace.Replay(ctx, service, file)
+		return result, nil, nil
 	default:
 		return nil, nil, errors.New("unknown journal command")
 	}

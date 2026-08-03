@@ -161,7 +161,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 				return stateRuntime.Handle(ctx, frame)
 			case "auth.login":
 				return authRuntime.Handle(ctx, frame)
-			case "journal.tail", "journal.show":
+			case "journal.tail", "journal.show", "trace.replay":
 				return journalRuntime.HandleJournal(ctx, frame)
 			case "policy.explain":
 				return policyRuntime.Handle(ctx, frame)
