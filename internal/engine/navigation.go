@@ -110,6 +110,7 @@ type NavigationService struct {
 	networkIdleFor time.Duration
 	refMu          sync.RWMutex
 	refs           map[string]SnapshotRef
+	refRegistry    *stableRefRegistry
 }
 
 // NavigationOptions controls polling and operation timeouts.
@@ -130,7 +131,7 @@ func NewNavigationService(browser Engine, page Page, options NavigationOptions) 
 	if options.NetworkIdleFor <= 0 {
 		options.NetworkIdleFor = defaultNetworkIdle
 	}
-	return &NavigationService{engine: browser, page: page, timeout: options.Timeout, pollInterval: options.PollInterval, networkIdleFor: options.NetworkIdleFor, refs: make(map[string]SnapshotRef)}
+	return &NavigationService{engine: browser, page: page, timeout: options.Timeout, pollInterval: options.PollInterval, networkIdleFor: options.NetworkIdleFor, refs: make(map[string]SnapshotRef), refRegistry: newStableRefRegistry()}
 }
 
 // Open navigates to url. Goto is an explicit alias for Open.
@@ -165,6 +166,7 @@ func (s *NavigationService) navigate(ctx context.Context, action, url string) (N
 	if _, err := s.engine.Navigate(ctx, s.page, url); err != nil {
 		return NavigationOutcome{}, fmt.Errorf("%s %q: %w", action, url, err)
 	}
+	s.invalidateSnapshotRefs("navigated")
 	return s.finishNavigation(ctx, action)
 }
 
@@ -176,6 +178,7 @@ func (s *NavigationService) history(ctx context.Context, action, expression stri
 	if result.ExceptionText != "" {
 		return NavigationOutcome{}, fmt.Errorf("%s: %s", action, result.ExceptionText)
 	}
+	s.invalidateSnapshotRefs("navigated")
 	return s.finishNavigation(ctx, action)
 }
 

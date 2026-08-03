@@ -98,7 +98,16 @@ func (s *NavigationService) resolveInteractionTarget(ctx context.Context, intera
 		ref := strings.TrimPrefix(strings.TrimSpace(selector), "@")
 		s.refMu.RLock()
 		snapshotRef, found := s.refs[ref]
+		var tombstone *RefTombstone
+		if s.refRegistry != nil {
+			if registryRef, registryTombstone, registryFound := s.refRegistry.resolve(ref); registryFound {
+				snapshotRef, tombstone, found = registryRef, registryTombstone, true
+			}
+		}
 		s.refMu.RUnlock()
+		if tombstone != nil {
+			return InteractionTarget{}, "", &InteractionError{Code: "stale_ref", Message: staleRefMessage(selector, tombstone), Hint: staleRefHint}
+		}
 		if !found {
 			return InteractionTarget{}, "", &InteractionError{
 				Code:    "unknown_ref",
