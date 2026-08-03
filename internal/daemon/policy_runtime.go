@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"errors"
-	"os"
 	"path/filepath"
 
 	"github.com/danieljustus/symaira-browse/internal/policy"
@@ -59,9 +58,3 @@ func (r *PolicyRuntime) Policy() *policy.Policy { return r.policy }
 
 // PolicyFilePath returns where the policy file is expected.
 func (r *PolicyRuntime) PolicyFilePath() string { return r.policy.Source }
-
-// policyFileExists reports whether the user has a custom policy file.
-func (r *PolicyRuntime) policyFileExists() bool {
-	_, err := os.Stat(r.policy.Source)
-	return err == nil
-}

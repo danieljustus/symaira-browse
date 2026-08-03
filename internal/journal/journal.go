@@ -201,7 +201,7 @@ func appendLine(path string, line []byte) error {
 	if err != nil {
 		return fmt.Errorf("open journal for append: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	if _, err := file.Write(append(line, '\n')); err != nil {
 		return fmt.Errorf("append journal entry: %w", err)
 	}

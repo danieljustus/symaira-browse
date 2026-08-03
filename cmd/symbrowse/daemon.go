@@ -20,6 +20,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/oob"
 	"github.com/danieljustus/symaira-browse/internal/policy"
 	"github.com/danieljustus/symaira-browse/internal/profiles"
+	"github.com/danieljustus/symaira-browse/internal/sessionid"
 	"github.com/danieljustus/symaira-browse/internal/state"
 )
 
@@ -106,7 +107,13 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	}
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
-	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{})
+	// Sessions record where they were created (worktree/repo/cwd scope) so
+	// `session list` shows scope and origin path (issue B-37).
+	scopeInfo, _ := sessionid.ID(sessionid.ScopeWorktree, "", "")
+	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{
+		Scope:      string(scopeInfo.Scope),
+		OriginPath: scopeInfo.OriginPath,
+	})
 
 	// State store: named cookie/storage snapshots under <state-dir>/states.
 	// A KeyResolver is attached when SYMBROWSE_ENCRYPTION_KEY is set so state

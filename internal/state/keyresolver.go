@@ -112,7 +112,8 @@ func (r *KeyResolver) vaultKey() ([]byte, error) {
 // firstHexToken finds the first 64-character hex run in a string.
 func firstHexToken(raw string) string {
 	fields := strings.FieldsFunc(raw, func(r rune) bool {
-		return !(r >= '0' && r <= '9' || r >= 'a' && r <= 'f' || r >= 'A' && r <= 'F')
+		isHex := (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
+		return !isHex
 	})
 	for _, field := range fields {
 		if len(field) >= 64 {

@@ -258,7 +258,7 @@ func importCurlCookies(cmd *cobra.Command, session, path string) error {
 	if err != nil {
 		return fmt.Errorf("open curl cookie jar: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	var imported, skipped int
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 4096), 1<<20)

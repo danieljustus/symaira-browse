@@ -80,9 +80,7 @@ func TestRedactSecrets(t *testing.T) {
 
 // fakeAuthEngine records interaction calls and reports a login form.
 type fakeAuthEngine struct {
-	fields       map[string]string
-	fillCalls    []string
-	originResult string
+	fillCalls []string
 }
 
 func (f *fakeAuthEngine) Launch(context.Context) error { return nil }

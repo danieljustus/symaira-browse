@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -159,17 +158,4 @@ func journalDir(j *journal.Journal) string {
 		}
 	}
 	return "."
-}
-
-// journalPayload helper keeps JSON decoding consistent.
-func journalPayload(data any) (map[string]any, error) {
-	raw, err := json.Marshal(data)
-	if err != nil {
-		return nil, err
-	}
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, err
-	}
-	return payload, nil
 }
