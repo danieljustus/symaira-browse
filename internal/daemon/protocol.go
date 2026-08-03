@@ -39,11 +39,15 @@ func (e *Error) ErrorCode() string {
 	return e.Code
 }
 
-// Warning is a non-fatal diagnostic attached to a response.
+// Warning is a non-fatal diagnostic attached to a response. Ref and Excerpt
+// carry the optional element locator and evidence excerpt of prompt-injection
+// detections (issue #28).
 type Warning struct {
 	Kind     string `json:"kind"`
 	Severity string `json:"severity,omitempty"`
 	Message  string `json:"message"`
+	Ref      string `json:"ref,omitempty"`
+	Excerpt  string `json:"excerpt,omitempty"`
 }
 
 // Response is one newline-delimited response returned by the daemon.

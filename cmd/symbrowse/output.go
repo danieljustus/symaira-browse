@@ -35,7 +35,7 @@ func writeEnvelopeFromResponse(cmd *cobra.Command, response daemon.Response, _ b
 	}
 	warnings := make([]output.Warning, 0, len(response.Warnings))
 	for _, warning := range response.Warnings {
-		warnings = append(warnings, output.Warning{Kind: warning.Kind, Severity: warning.Severity, Message: warning.Message})
+		warnings = append(warnings, output.Warning{Kind: warning.Kind, Severity: warning.Severity, Message: warning.Message, Ref: warning.Ref, Excerpt: warning.Excerpt})
 	}
 	return writeEnvelope(cmd, output.OK(response.Data, warnings))
 }
