@@ -124,6 +124,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	defer func() { _ = navigation.Close() }()
 	stateRuntime := daemon.NewStateRuntime(stateStore, navigation)
 	stateRuntime.ReportExpired()
+	authRuntime := daemon.NewAuthRuntime(navigation, nil)
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:  path,
 		Session:     session,
@@ -137,6 +138,8 @@ func runDaemon(cmd *cobra.Command, session string) error {
 				return navigation.Handle(ctx, frame)
 			case "state.save", "state.load", "state.list", "state.show", "state.clear", "state.clean":
 				return stateRuntime.Handle(ctx, frame)
+			case "auth.login":
+				return authRuntime.Handle(ctx, frame)
 			default:
 				return nil, nil, daemon.NewError(daemon.ErrorUnknownCommand, "command is not implemented by the daemon")
 			}
