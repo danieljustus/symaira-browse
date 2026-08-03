@@ -1,0 +1,100 @@
+version: 2
+
+project_name: symbrowse
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: symbrowse
+    main: ./cmd/symbrowse
+    binary: symbrowse
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+    hooks:
+      post:
+        - cmd: sh -c 'if [ "{{ .Os }}" = "darwin" ] && [ -n "${CODESIGN_IDENTITY:-}" ]; then codesign -s "$CODESIGN_IDENTITY" --timestamp --options runtime "{{ .Path }}"; echo "Signed {{ .Path }}"; fi'
+
+archives:
+  - id: default
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - README.md
+      - AGENTS.md
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+# Syft-generated SPDX SBOMs attached to every archive.
+sboms:
+  - artifacts: archive
+    documents:
+      - "{{ .ArtifactName }}.sbom"
+
+# Keyless Cosign signatures (identity token comes from the release workflow's
+# id-token permission). Certificates are published next to the artifacts.
+signs:
+  - cmd: cosign
+    env:
+      - COSIGN_EXPERIMENTAL=1
+    certificate: '${artifact}.pem'
+    args:
+      - sign-blob
+      - --yes
+      - '${artifact}'
+    artifacts: all
+    output: true
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  use: github
+  groups:
+    - title: Features
+      regexp: '^feat'
+      order: 0
+    - title: Fixes
+      regexp: '^fix'
+      order: 10
+    - title: Other
+      order: 999
+
+release:
+  github:
+    owner: danieljustus
+    name: symaira-browse
+  draft: false
+  prerelease: auto
+  name_template: "v{{.Version}}"
+
+brews:
+  - name: symbrowse
+    repository:
+      owner: danieljustus
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Formula
+    homepage: https://github.com/danieljustus/symaira-browse
+    description: Agent-operable browser automation over Chrome DevTools Protocol
+    license: Apache-2.0
+    test: |
+      system "#{bin}/symbrowse", "version"
