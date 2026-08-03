@@ -67,6 +67,13 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 		}
 		result, err := service.Wait(ctx, condition)
 		return result, nil, err
+	case "snapshot":
+		var options engine.SnapshotOptions
+		if err := decodeArgs(frame, &options); err != nil {
+			return nil, nil, err
+		}
+		result, err := service.Snapshot(ctx, options)
+		return result, nil, err
 	default:
 		return nil, nil, fmt.Errorf("unknown navigation command %q", frame.Cmd)
 	}
