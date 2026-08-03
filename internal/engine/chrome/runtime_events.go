@@ -21,14 +21,24 @@ const (
 )
 
 // handleEvent dispatches protocol events from the read loop into the
-// per-session console and error buffers. It runs on the read-loop goroutine
-// and must not block.
+// per-session console, error and network buffers. It runs on the read-loop
+// goroutine and must not block.
 func (e *Engine) handleEvent(sessionID, method string, params json.RawMessage) {
 	switch method {
 	case "Runtime.consoleAPICalled":
 		e.recordConsole(sessionID, params)
 	case "Runtime.exceptionThrown":
 		e.recordException(sessionID, params)
+	case "Network.requestWillBeSent":
+		e.recordRequestWillBeSent(sessionID, params)
+	case "Network.responseReceived":
+		e.recordResponseReceived(sessionID, params)
+	case "Network.loadingFinished":
+		e.recordLoadingFinished(sessionID, params)
+	case "Network.loadingFailed":
+		e.recordLoadingFailed(sessionID, params)
+	case "Fetch.requestPaused":
+		e.recordRequestPaused(sessionID, params)
 	}
 }
 

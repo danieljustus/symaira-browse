@@ -68,6 +68,14 @@ type Engine struct {
 	runtimeEnabled map[string]bool
 	console        map[string][]engine.ConsoleEntry
 	errors         map[string][]engine.ErrorEntry
+
+	// network capture and routing (issue #59).
+	networkMu       sync.Mutex
+	networkEnabled  map[string]bool
+	networkRequests map[string][]engine.NetworkRequest
+	networkByID     map[string]map[string]engine.NetworkRequest
+	networkRoutes   map[string]map[string]engine.NetworkRoute
+	networkBodies   map[string]map[string]string
 }
 
 // New creates an unlaunched Chrome engine.
@@ -83,6 +91,9 @@ func New(options Options) *Engine {
 		runtimeEnabled: make(map[string]bool),
 		console:        make(map[string][]engine.ConsoleEntry),
 		errors:         make(map[string][]engine.ErrorEntry),
+		networkEnabled: make(map[string]bool),
+		networkByID:    make(map[string]map[string]engine.NetworkRequest),
+		networkBodies:  make(map[string]map[string]string),
 	}
 }
 

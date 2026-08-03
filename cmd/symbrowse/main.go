@@ -48,6 +48,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newConsoleCommand())
 	root.AddCommand(newErrorsCommand())
 	root.AddCommand(newEvalCommand())
+	root.AddCommand(newNetworkCommand())
 	for _, command := range newInspectionCommands() {
 		root.AddCommand(command)
 	}
