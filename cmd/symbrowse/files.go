@@ -1,0 +1,109 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+
+	"github.com/spf13/cobra"
+)
+
+func newUploadCommand() *cobra.Command {
+	var session string
+	command := &cobra.Command{
+		Use:   "upload <selector> <files...>",
+		Short: "Upload files into a file input (path-guarded, issue #63)",
+		Args:  cobra.MinimumNArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, _ := json.Marshal(map[string]any{"selector": args[0], "files": args[1:]})
+			response, err := stateRequest(cmd.Context(), session, "upload", payload)
+			if err != nil {
+				return err
+			}
+			if !response.Success {
+				return responseError(response)
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "uploaded %d file(s)\n", len(args)-1)
+			return err
+		},
+	}
+	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
+	return command
+}
+
+func newDownloadsCommand() *cobra.Command {
+	var session string
+	command := &cobra.Command{
+		Use:   "downloads",
+		Short: "Show download events (origin URL, size, checksum) or set the download directory",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if dir, _ := cmd.Flags().GetString("dir"); dir != "" {
+				payload, _ := json.Marshal(map[string]any{"dir": dir})
+				response, err := stateRequest(cmd.Context(), session, "download.setdir", payload)
+				if err != nil {
+					return err
+				}
+				if !response.Success {
+					return responseError(response)
+				}
+				if _, err := fmt.Fprintf(cmd.OutOrStdout(), "download directory set to %s\n", dir); err != nil {
+					return err
+				}
+			}
+			response, err := stateRequest(cmd.Context(), session, "downloads.list", nil)
+			if err != nil {
+				return err
+			}
+			if !response.Success {
+				return responseError(response)
+			}
+			jsonOutput, _ := cmd.Flags().GetBool("json")
+			if jsonOutput {
+				raw, _ := json.MarshalIndent(response.Data, "", "  ")
+				_, err := fmt.Fprintln(cmd.OutOrStdout(), string(raw))
+				return err
+			}
+			payload, _ := response.Data.(map[string]any)
+			downloads, _ := payload["downloads"].([]any)
+			for _, entry := range downloads {
+				fields, _ := entry.(map[string]any)
+				state, _ := fields["state"].(string)
+				filename, _ := fields["filename"].(string)
+				url, _ := fields["url"].(string)
+				sha256, _ := fields["sha256"].(string)
+				line := fmt.Sprintf("[%s] %s (%s)", state, filename, url)
+				if state == "completed" && sha256 != "" {
+					line += fmt.Sprintf(" sha256:%s", sha256)
+				}
+				if _, err := fmt.Fprintln(cmd.OutOrStdout(), line); err != nil {
+					return err
+				}
+			}
+			return nil
+		},
+	}
+	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
+	command.Flags().String("dir", "", "set the download directory first")
+	command.Flags().Bool("json", false, "print the raw JSON payload")
+	return command
+}
+
+// uploadDirsFromEnv resolves the allowed upload roots: SYMBROWSE_UPLOAD_DIRS
+// (comma-separated) or the daemon's working directory as a safe default.
+func uploadDirsFromEnv() []string {
+	if raw := strings.TrimSpace(os.Getenv("SYMBROWSE_UPLOAD_DIRS")); raw != "" {
+		var dirs []string
+		for _, dir := range strings.Split(raw, ",") {
+			if dir = strings.TrimSpace(dir); dir != "" {
+				dirs = append(dirs, dir)
+			}
+		}
+		return dirs
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return []string{cwd}
+	}
+	return nil
+}

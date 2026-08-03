@@ -34,6 +34,7 @@ type NavigationRuntime struct {
 	stateStore     *state.Store
 	lastAutosave   map[string]time.Time
 	restoreOnStart map[string]string // session -> state name to restore
+	uploadDirs     []string          // allowed upload roots (issue #63)
 }
 
 // NavigationRuntimeOptions configures the browser engines created per session.
@@ -61,6 +62,9 @@ type NavigationRuntimeOptions struct {
 	// Headless launches Chrome headless (no GUI session); used in CI and
 	// agent contexts.
 	Headless bool
+	// UploadDirs are the allowed roots for file uploads (issue #63);
+	// paths outside are rejected by the path guard.
+	UploadDirs []string
 }
 
 // NewNavigationRuntime creates a runtime. Chrome is not started until the
@@ -79,6 +83,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		headless:       options.Headless,
 		services:       make(map[string]*engine.NavigationService),
 		engines:        make(map[string]engine.Engine),
+		uploadDirs:     options.UploadDirs,
 		autosave:       options.Autosave,
 		stateStore:     options.StateStore,
 		lastAutosave:   make(map[string]time.Time),
@@ -126,6 +131,10 @@ func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, err
 		return r.handleNetworkReadFrame(ctx, frame)
 	case "network.route", "network.unroute", "network.har":
 		return r.handleNetworkControlFrame(ctx, frame)
+	case "upload":
+		return r.handleUploadFrame(ctx, frame)
+	case "downloads.list", "download.setdir":
+		return r.handleDownloadFrame(ctx, frame)
 	}
 	service, err := r.service(ctx, frame.Session)
 	if err != nil {
@@ -833,5 +842,68 @@ func (r *NavigationRuntime) handleNetworkControlFrame(ctx context.Context, frame
 		}
 	default:
 		return nil, fmt.Errorf("unknown network control command %q", frame.Cmd)
+	}
+}
+
+// handleUploadFrame uploads files into the selected file input. Every file
+// is path-guarded against the runtime's allowed upload directories
+// (issue #63 AC: traversal, symlink escapes and outside paths fail).
+func (r *NavigationRuntime) handleUploadFrame(ctx context.Context, frame Frame) (any, error) {
+	var request engine.UploadRequest
+	if err := decodeArgs(frame, &request); err != nil {
+		return nil, err
+	}
+	if len(request.AllowedDirs) == 0 {
+		request.AllowedDirs = r.uploadDirs
+	}
+	service, err := r.service(ctx, frame.Session)
+	if err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	browser := r.engines[frame.Session]
+	r.mu.Unlock()
+	transfer, ok := browser.(engine.FileTransfer)
+	if !ok {
+		return nil, fmt.Errorf("browser engine does not support uploads")
+	}
+	result, err := transfer.UploadFiles(ctx, service.Page(), request)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"uploaded": result.Uploaded}, nil
+}
+
+// handleDownloadFrame serves the downloads.list and download.setdir frames
+// (issue #63). Download events carry origin URL, size and checksum.
+func (r *NavigationRuntime) handleDownloadFrame(ctx context.Context, frame Frame) (any, error) {
+	service, err := r.service(ctx, frame.Session)
+	if err != nil {
+		return nil, err
+	}
+	r.mu.Lock()
+	browser := r.engines[frame.Session]
+	r.mu.Unlock()
+	transfer, ok := browser.(engine.FileTransfer)
+	if !ok {
+		return nil, fmt.Errorf("browser engine does not support downloads")
+	}
+	switch frame.Cmd {
+	case "download.setdir":
+		var request struct {
+			Dir string `json:"dir"`
+		}
+		if err := decodeArgs(frame, &request); err != nil {
+			return nil, err
+		}
+		if err := transfer.SetDownloadBehavior(ctx, service.Page(), engine.DownloadConfig{Dir: request.Dir}); err != nil {
+			return nil, err
+		}
+		return map[string]any{"download_dir": request.Dir}, nil
+	case "downloads.list":
+		events := transfer.DownloadEvents(service.Page())
+		return map[string]any{"downloads": events, "count": len(events)}, nil
+	default:
+		return nil, fmt.Errorf("unknown download command %q", frame.Cmd)
 	}
 }
