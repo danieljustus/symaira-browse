@@ -103,11 +103,11 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@dfbc6164313353db46c80e2fcfd38820bd2c3c46 # v3.37.4
+        uses: github/codeql-action/init@a2983b8bed1923f44751c5c43237f479442827b3 # v3.37.4
         with:
           languages: go
           build-mode: autobuild
       - name: Autobuild
-        uses: github/codeql-action/autobuild@dfbc6164313353db46c80e2fcfd38820bd2c3c46 # v3.37.4
+        uses: github/codeql-action/autobuild@a2983b8bed1923f44751c5c43237f479442827b3 # v3.37.4
       - name: Analyze
-        uses: github/codeql-action/analyze@dfbc6164313353db46c80e2fcfd38820bd2c3c46 # v3.37.4
+        uses: github/codeql-action/analyze@a2983b8bed1923f44751c5c43237f479442827b3 # v3.37.4
