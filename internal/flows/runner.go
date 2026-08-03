@@ -49,16 +49,16 @@ type RunPlanItem struct {
 
 // RunReport is the overall flow run result.
 type RunReport struct {
-	FlowID    string            `json:"flow_id"`
-	Name      string            `json:"name"`
-	Version   int               `json:"version"`
-	DryRun    bool              `json:"dry_run,omitempty"`
-	Steps     []StepRun         `json:"steps,omitempty"`
-	Plan      []RunPlanItem     `json:"plan,omitempty"`
-	Outputs   map[string]string `json:"outputs,omitempty"`
-	Success   bool              `json:"success"`
-	Error     string            `json:"error,omitempty"`
-	DurationMS int64            `json:"duration_ms"`
+	FlowID     string            `json:"flow_id"`
+	Name       string            `json:"name"`
+	Version    int               `json:"version"`
+	DryRun     bool              `json:"dry_run,omitempty"`
+	Steps      []StepRun         `json:"steps,omitempty"`
+	Plan       []RunPlanItem     `json:"plan,omitempty"`
+	Outputs    map[string]string `json:"outputs,omitempty"`
+	Success    bool              `json:"success"`
+	Error      string            `json:"error,omitempty"`
+	DurationMS int64             `json:"duration_ms"`
 }
 
 // RunError is a structured flow-run failure: the step index and a diagnosis
