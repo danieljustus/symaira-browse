@@ -44,11 +44,13 @@ func newOOBTestRuntime(t *testing.T, p *policy.Policy) (*NavigationRuntime, *OOB
 	runtime := &NavigationRuntime{
 		registry:   registry,
 		executable: "/fake/chrome",
-		services:   make(map[string]*engine.NavigationService),
+		tabs:       make(map[string][]*sessionTab),
+		activeTab:  make(map[string]int),
 		engines:    make(map[string]engine.Engine),
 	}
 	service := engine.NewNavigationService(fake, engine.Page{ID: "page"}, engine.NavigationOptions{})
-	runtime.services["default"] = service
+	runtime.tabs["default"] = []*sessionTab{{Label: "t1", Service: service, Page: engine.Page{ID: "page"}}}
+	runtime.activeTab["default"] = 0
 	runtime.engines["default"] = fake
 	oobRuntime := NewOOBRuntime(oob.NewManager(), testNotifier(), runtime, p, policy.ModeMCP)
 	return runtime, oobRuntime

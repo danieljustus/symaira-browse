@@ -57,12 +57,14 @@ func newCookieRuntime(t *testing.T) (*NavigationRuntime, *fakeCookieEngine) {
 	runtime := &NavigationRuntime{
 		registry:   registry,
 		executable: "/fake/chrome",
-		services:   make(map[string]*engine.NavigationService),
+		tabs:       make(map[string][]*sessionTab),
+		activeTab:  make(map[string]int),
 		engines:    make(map[string]engine.Engine),
 	}
 	// Pre-seed the service so no real Chrome launch happens.
 	service := engine.NewNavigationService(fake, engine.Page{ID: "page"}, engine.NavigationOptions{})
-	runtime.services["default"] = service
+	runtime.tabs["default"] = []*sessionTab{{Label: "t1", Service: service, Page: engine.Page{ID: "page"}}}
+	runtime.activeTab["default"] = 0
 	runtime.engines["default"] = fake
 	return runtime, fake
 }
