@@ -25,6 +25,7 @@ func newFlowCommand() *cobra.Command {
 	command.AddCommand(newFlowValidateCommand())
 	command.AddCommand(newFlowRunCommand())
 	command.AddCommand(newFlowRecordCommand())
+	command.AddCommand(newFlowListCommand())
 	return command
 }
 
