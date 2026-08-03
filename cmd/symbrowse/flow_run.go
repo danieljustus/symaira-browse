@@ -55,12 +55,16 @@ func newFlowRunCommand() *cobra.Command {
 				var runErr *flows.RunError
 				if errors.As(err, &runErr) {
 					envelope := output.Failure(string(output.CodeFlowFailed), "flow run failed")
-					envelope.Error.Details = map[string]any{
+					details := map[string]any{
 						"step_index": runErr.StepIndex,
 						"action":     runErr.Action,
 						"message":    runErr.Message,
 						"hint":       runErr.Hint,
 					}
+					if runErr.Diagnosis != nil {
+						details["diagnosis"] = runErr.Diagnosis
+					}
+					envelope.Error.Details = details
 					_ = writeEnvelope(cmd, envelope)
 					return err
 				}

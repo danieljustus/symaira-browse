@@ -64,10 +64,11 @@ type RunReport struct {
 // RunError is a structured flow-run failure: the step index and a diagnosis
 // that is understandable without access to the page.
 type RunError struct {
-	StepIndex int    `json:"step_index"`
-	Action    string `json:"action"`
-	Message   string `json:"message"`
-	Hint      string `json:"hint,omitempty"`
+	StepIndex int        `json:"step_index"`
+	Action    string     `json:"action"`
+	Message   string     `json:"message"`
+	Hint      string     `json:"hint,omitempty"`
+	Diagnosis *Diagnosis `json:"diagnosis,omitempty"`
 }
 
 func (e *RunError) Error() string {
@@ -98,6 +99,11 @@ func Run(ctx context.Context, executor Executor, options RunOptions) (*RunReport
 		return report, nil
 	}
 	if err := enforceDomains(flow, resolved); err != nil {
+		var runErr *RunError
+		if errors.As(err, &runErr) {
+			diagnosis := diagnoseFailure(ctx, executor, options.Session, runErr.StepIndex, &flow.Steps[runErr.StepIndex], err)
+			runErr.Diagnosis = &diagnosis
+		}
 		return nil, err
 	}
 	for index := range flow.Steps {
@@ -114,7 +120,14 @@ func Run(ctx context.Context, executor Executor, options RunOptions) (*RunReport
 			report.Success = false
 			report.Error = stepErr.Error()
 			report.DurationMS = time.Since(started).Milliseconds()
-			return report, &RunError{StepIndex: index, Action: step.Action(), Message: stepErr.Error(), Hint: diagnosisHint(step, stepErr)}
+			diagnosis := diagnoseFailure(ctx, executor, options.Session, index, step, stepErr)
+			return report, &RunError{
+				StepIndex: index,
+				Action:    step.Action(),
+				Message:   stepErr.Error(),
+				Hint:      diagnosis.RepairSuggestion,
+				Diagnosis: &diagnosis,
+			}
 		}
 		stepRun.Success = true
 		report.Steps = append(report.Steps, stepRun)
@@ -616,23 +629,4 @@ func globMatch(pattern, value string) bool {
 	builder.WriteString("$")
 	matched, err := regexp.MatchString(builder.String(), value)
 	return err == nil && matched
-}
-
-// diagnosisHint produces a repair suggestion for a failed step.
-func diagnosisHint(step *Step, err error) string {
-	message := err.Error()
-	switch {
-	case step.Find != nil || step.Click != nil || step.Fill != nil:
-		if strings.Contains(message, "no match") || strings.Contains(message, "no element") || strings.Contains(message, "not found") {
-			return "the semantic selector matched no element; check the label/role/text against the current page"
-		}
-		if strings.Contains(message, "multiple") || strings.Contains(message, "ambiguous") {
-			return "the selector matched several elements; make it more specific (label, role, name)"
-		}
-	case step.Assert != nil:
-		return "the asserted condition was not met; run snapshot --diff to see the current state"
-	case step.Wait != nil:
-		return "the wait condition timed out; the page may need a longer wait or a different condition"
-	}
-	return ""
 }
