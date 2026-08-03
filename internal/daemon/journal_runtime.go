@@ -84,6 +84,34 @@ func errorKind(err error) string {
 	return "failed"
 }
 
+// HandleOOB runs an OOB frame through the given handler and journals it, so
+// granted/denied approvals and handoffs land in the journal with their scope
+// and outcome (issue B-46).
+func (r *JournalRuntime) HandleOOB(ctx context.Context, frame Frame, handler func(context.Context, Frame) (any, []Warning, error)) (any, []Warning, error) {
+	if r.journal == nil {
+		return handler(ctx, frame)
+	}
+	started := time.Now()
+	data, warnings, err := handler(ctx, frame)
+	entry := journal.Entry{
+		Session:    frame.Session,
+		Command:    frame.Cmd,
+		Args:       frame.Args,
+		RiskClass:  riskClassOf(frame.Cmd),
+		Decider:    "human",
+		DurationMS: time.Since(started).Milliseconds(),
+	}
+	if err != nil {
+		entry.Result = "error:" + errorKind(err)
+	} else {
+		entry.Result = "ok"
+	}
+	if _, appendErr := r.journal.Append(entry); appendErr != nil {
+		warnings = append(warnings, Warning{Kind: "journal", Severity: "warning", Message: fmt.Sprintf("journal append failed: %v", appendErr)})
+	}
+	return data, warnings, err
+}
+
 // HandleJournal executes journal inspection frames: tail and show.
 func (r *JournalRuntime) HandleJournal(ctx context.Context, frame Frame) (any, []Warning, error) {
 	if r.journal == nil {

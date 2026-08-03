@@ -182,7 +182,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			case "policy.explain":
 				return policyRuntime.Handle(ctx, frame)
 			case "oob.status", "oob.complete", "oob.cancel", "handoff":
-				return oobRuntime.Handle(ctx, frame)
+				return journalRuntime.HandleOOB(ctx, frame, oobRuntime.Handle)
 			default:
 				return nil, nil, daemon.NewError(daemon.ErrorUnknownCommand, "command is not implemented by the daemon")
 			}
