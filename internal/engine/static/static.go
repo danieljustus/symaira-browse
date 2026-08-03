@@ -71,6 +71,12 @@ func (e *Engine) NewPage(context.Context, engine.Context, string) (engine.Page, 
 
 // Navigate fetches the URL over HTTP and parses the HTML document.
 func (e *Engine) Navigate(ctx context.Context, _ engine.Page, target string) (engine.NavigationResult, error) {
+	e.mu.Lock()
+	closed := e.closed
+	e.mu.Unlock()
+	if closed {
+		return engine.NavigationResult{}, errors.New("static engine: engine is closed")
+	}
 	parsed, err := url.Parse(target)
 	if err != nil {
 		return engine.NavigationResult{}, fmt.Errorf("static engine: invalid URL %q: %w", target, err)

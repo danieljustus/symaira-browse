@@ -59,10 +59,12 @@ func (r *NavigationRuntime) tabList(ctx context.Context, session string) (any, e
 
 	result := make([]engine.TabInfo, 0, len(tabs))
 	for index, tab := range tabs {
-		url, err := tab.Service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectURL})
 		urlValue := ""
-		if err == nil {
-			urlValue = inspectionValue(url)
+		if tab.Service != nil {
+			url, err := tab.Service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectURL})
+			if err == nil {
+				urlValue = inspectionValue(url)
+			}
 		}
 		result = append(result, engine.TabInfo{
 			ID:     fmt.Sprintf("t%d", index+1),

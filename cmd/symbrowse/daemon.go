@@ -132,6 +132,14 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			idle = time.Duration(seconds) * time.Second
 		}
 	}
+	operation := time.Duration(daemon.DefaultOperationTimeout)
+	if raw := os.Getenv("SYMBROWSE_OPERATION_TIMEOUT"); raw != "" {
+		seconds, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || seconds <= 0 {
+			return fmt.Errorf("invalid SYMBROWSE_OPERATION_TIMEOUT %q", raw)
+		}
+		operation = time.Duration(seconds) * time.Second
+	}
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	// Sessions record where they were created (worktree/repo/cwd scope) so
@@ -195,10 +203,11 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		slog.Info("symguard delegation active", "executable", policyRuntime.Guard().Executable)
 	}
 	server := daemon.NewServer(daemon.Options{
-		SocketPath:  path,
-		Session:     session,
-		Registry:    registry,
-		IdleTimeout: idle,
+		SocketPath:       path,
+		Session:          session,
+		Registry:         registry,
+		IdleTimeout:      idle,
+		OperationTimeout: operation,
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
 			case "daemon.ping":
