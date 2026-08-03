@@ -513,6 +513,11 @@ func TestSSRFGuardBlocksPrivateSubresource(t *testing.T) {
 		blocked := eng.BlockedRequests()
 		return len(blocked) == 1 && blocked[0].Count == 1
 	})
+	// The blocked count is recorded before the CDP fail command is written,
+	// so wait for the command itself before reading it.
+	waitFor(t, "ssrf failRequest command", func() bool {
+		return len(server.commandsFor("Fetch.failRequest")) >= 1
+	})
 	failed := server.commandsFor("Fetch.failRequest")[0]
 	var failParams fetchFailParams
 	if err := json.Unmarshal(failed.params, &failParams); err != nil {

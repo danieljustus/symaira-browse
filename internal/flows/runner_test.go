@@ -92,15 +92,15 @@ func TestRunSuccessWithInputs(t *testing.T) {
 			t.Errorf("Steps[%d].Action = %q, want %q", index, got, want)
 		}
 	}
-	// Risk classes: open low, fill medium, assert none, click medium, wait low
-	if report.Steps[0].RiskClass != policy.RiskLow {
-		t.Errorf("open risk = %q, want low", report.Steps[0].RiskClass)
+	// Risk classes: open navigate, fill interact, assert read, click interact, wait interact
+	if report.Steps[0].RiskClass != policy.ClassNavigate {
+		t.Errorf("open risk = %q, want navigate", report.Steps[0].RiskClass)
 	}
-	if report.Steps[1].RiskClass != policy.RiskMedium {
-		t.Errorf("fill risk = %q, want medium", report.Steps[1].RiskClass)
+	if report.Steps[1].RiskClass != policy.ClassInteract {
+		t.Errorf("fill risk = %q, want interact", report.Steps[1].RiskClass)
 	}
-	if report.Steps[3].RiskClass != policy.RiskNone {
-		t.Errorf("assert risk = %q, want none", report.Steps[3].RiskClass)
+	if report.Steps[3].RiskClass != policy.ClassRead {
+		t.Errorf("assert risk = %q, want read", report.Steps[3].RiskClass)
 	}
 	// Outputs extracted
 	if report.Outputs["final_url"] != "http://fixture.local/done" {
@@ -154,7 +154,7 @@ func TestRunDryRunReturnsPlanWithoutExecuting(t *testing.T) {
 	if len(report.Plan) != 6 {
 		t.Fatalf("len(Plan) = %d, want 6", len(report.Plan))
 	}
-	if report.Plan[0].RiskClass != policy.RiskLow || report.Plan[1].RiskClass != policy.RiskMedium {
+	if report.Plan[0].RiskClass != policy.ClassNavigate || report.Plan[1].RiskClass != policy.ClassInteract {
 		t.Errorf("plan risk classes wrong: %+v", report.Plan)
 	}
 	if len(executor.frames) != 0 {

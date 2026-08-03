@@ -159,9 +159,9 @@ func riskForStep(step *Step) policy.RiskClass {
 	case "find", "click", "fill":
 		return policy.ClassForCommand("click")
 	case "assert", "snapshot":
-		return policy.RiskNone
+		return policy.ClassRead
 	default:
-		return policy.RiskNone
+		return policy.ClassRead
 	}
 }
 
