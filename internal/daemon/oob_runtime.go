@@ -19,11 +19,20 @@ type OOBRuntime struct {
 	nav      *NavigationRuntime
 	policy   *policy.Policy
 	mode     policy.Mode
+	// decide is the optional guard-aware decision hook (issue #52). When set
+	// it replaces the local policy decision in the approval gate.
+	decide func(ctx context.Context, command, url string, mode policy.Mode, warnings []string) (policy.Decision, string, string, error)
 }
 
 // NewOOBRuntime creates the OOB channel for one daemon.
 func NewOOBRuntime(manager *oob.Manager, notifier *oob.Notifier, nav *NavigationRuntime, p *policy.Policy, mode policy.Mode) *OOBRuntime {
 	return &OOBRuntime{manager: manager, notifier: notifier, nav: nav, policy: p, mode: mode}
+}
+
+// SetDecider installs the guard-aware decision hook used by the approval
+// gate (see PolicyRuntime.Decide).
+func (r *OOBRuntime) SetDecider(decide func(ctx context.Context, command, url string, mode policy.Mode, warnings []string) (policy.Decision, string, string, error)) {
+	r.decide = decide
 }
 
 // StartHandoff runs the B-45 handoff: show the overlay with the reason,
@@ -85,23 +94,49 @@ func (r *OOBRuntime) RequestApproval(ctx context.Context, session, command, url 
 
 // DecideAndConfirm is the policy gate used before executing a frame: when the
 // effective decision is deny, the frame is refused; when it is confirm, the
-// human is asked via the OOB channel. Returns (allowed, decision, error).
-func (r *OOBRuntime) DecideAndConfirm(ctx context.Context, session, command, url string, timeout time.Duration) (bool, policy.Decision, error) {
-	class, err := policy.Classify(command)
-	if err != nil {
-		return false, "", err
+// human is asked via the OOB channel. Returns (allowed, decision, decider,
+// error); the decider is "guard" when symguard decided and "policy"
+// otherwise (issue #52).
+func (r *OOBRuntime) DecideAndConfirm(ctx context.Context, session, command, url string, timeout time.Duration) (bool, policy.Decision, string, error) {
+	var decision policy.Decision
+	var decider string
+	if r.decide != nil {
+		var err error
+		decision, decider, _, err = r.decide(ctx, command, url, r.mode, nil)
+		if err != nil {
+			return false, "", "", err
+		}
+	} else {
+		class, err := policy.Classify(command)
+		if err != nil {
+			return false, "", "", err
+		}
+		decision, _ = r.policy.Decide(class, hostOfURL(url), r.mode)
+		decider = "policy"
 	}
-	decision, _ := r.policy.Decide(class, hostOfURL(url), r.mode)
 	switch decision {
 	case policy.Allow:
-		return true, decision, nil
+		return true, decision, decider, nil
 	case policy.Deny:
-		return false, decision, nil
+		return false, decision, decider, nil
 	case policy.Confirm:
-		allowed, _, err := r.RequestApproval(ctx, session, command, url, class, nil, timeout)
-		return allowed, decision, err
+		allowed, _, err := r.RequestApproval(ctx, session, command, url, classOf(r, command), nil, timeout)
+		if allowed {
+			decider = "human"
+		}
+		return allowed, decision, decider, err
 	}
-	return false, decision, nil
+	return false, decision, decider, nil
+}
+
+// classOf resolves the risk class for an approval prompt, falling back to
+// the classification table.
+func classOf(r *OOBRuntime, command string) policy.RiskClass {
+	class, err := policy.Classify(command)
+	if err != nil {
+		return policy.ClassInteract
+	}
+	return class
 }
 
 func hostOfURL(raw string) string {

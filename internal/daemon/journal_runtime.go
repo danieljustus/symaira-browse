@@ -28,6 +28,12 @@ func NewJournalRuntime(j *journal.Journal, nav *NavigationRuntime) *JournalRunti
 // the action completes so the result is accurate; a failed frame still gets
 // an entry with result "error:<kind>".
 func (r *JournalRuntime) Handle(ctx context.Context, frame Frame) (any, []Warning, error) {
+	return r.HandleWithDecider(ctx, frame, "policy")
+}
+
+// HandleWithDecider is Handle with an explicit decider for the journal entry
+// ("policy", "guard" or "human" — issue #52).
+func (r *JournalRuntime) HandleWithDecider(ctx context.Context, frame Frame, decider string) (any, []Warning, error) {
 	if r.journal == nil {
 		return r.nav.Handle(ctx, frame)
 	}
@@ -42,7 +48,7 @@ func (r *JournalRuntime) Handle(ctx context.Context, frame Frame) (any, []Warnin
 		Args:       frame.Args,
 		URLBefore:  urlBefore,
 		RiskClass:  riskClassOf(frame.Cmd),
-		Decider:    "policy",
+		Decider:    decider,
 		DurationMS: duration,
 	}
 	if err != nil {

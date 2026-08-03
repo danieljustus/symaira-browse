@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -176,6 +177,12 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	journalRuntime := daemon.NewJournalRuntime(journalFor(cfg, session), navigation)
 	policyRuntime := daemon.NewPolicyRuntime(cfg.StateDir, policyMode())
 	oobRuntime := daemon.NewOOBRuntime(oob.NewManager(), oob.NewNotifier(), navigation, policyRuntime.Policy(), policyMode())
+	// symguard delegation (issue #52): the guard decides when it is present
+	// and configured; the decider lands in the journal for every action.
+	oobRuntime.SetDecider(policyRuntime.Decide)
+	if policyRuntime.Guard() != nil && policyRuntime.Guard().Active() {
+		slog.Info("symguard delegation active", "executable", policyRuntime.Guard().Executable)
+	}
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:  path,
 		Session:     session,
@@ -186,14 +193,14 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
 			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "read", "find", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear", "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent":
-				allowed, decision, gateErr := oobRuntime.DecideAndConfirm(ctx, frame.Session, frame.Cmd, frameURL(frame), approvalTimeout())
+				allowed, decision, decider, gateErr := oobRuntime.DecideAndConfirm(ctx, frame.Session, frame.Cmd, frameURL(frame), approvalTimeout())
 				if gateErr != nil {
 					return nil, nil, gateErr
 				}
 				if !allowed {
 					return nil, nil, daemon.NewError(daemon.ErrorPeerDenied, fmt.Sprintf("policy decision %s denied %s", decision, frame.Cmd))
 				}
-				return journalRuntime.Handle(ctx, frame)
+				return journalRuntime.HandleWithDecider(ctx, frame, decider)
 			case "state.save", "state.load", "state.list", "state.show", "state.clear", "state.clean":
 				return stateRuntime.Handle(ctx, frame)
 			case "auth.login":
