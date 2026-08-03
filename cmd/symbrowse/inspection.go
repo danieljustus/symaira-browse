@@ -38,7 +38,6 @@ func newIsCommand() *cobra.Command {
 }
 
 func newInspectionLeafCommand(group string, kind engine.InspectionKind, session *string, stateCheck bool) *cobra.Command {
-	var jsonOutput bool
 	use := string(kind) + " <selector>"
 	if kind == engine.InspectTitle || kind == engine.InspectURL {
 		use = string(kind) + " [selector]"
@@ -91,10 +90,9 @@ func newInspectionLeafCommand(group string, kind engine.InspectionKind, session 
 			if err != nil {
 				return err
 			}
-			return writeInspectionResponse(cmd, response, jsonOutput, stateCheck)
+			return writeInspectionResponse(cmd, response, stateCheck)
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable inspection result")
 	return command
 }
 
@@ -118,15 +116,12 @@ func inspectionRequest(cmd *cobra.Command, session, group string, request engine
 	return response, nil
 }
 
-func writeInspectionResponse(cmd *cobra.Command, response daemon.Response, jsonOutput, stateCheck bool) error {
+func writeInspectionResponse(cmd *cobra.Command, response daemon.Response, stateCheck bool) error {
 	if !response.Success {
-		if response.Error == nil {
-			return errors.New("inspection request failed")
-		}
-		return errors.New(response.Error.Message)
+		return responseError(response)
 	}
-	if jsonOutput {
-		return writeDaemonResponse(cmd, response, true)
+	if jsonOutputFlag(cmd) {
+		return writeDaemonResponse(cmd, response, false)
 	}
 	var result struct {
 		Kind  engine.InspectionKind `json:"kind"`
