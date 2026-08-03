@@ -21,6 +21,8 @@ type NavigationRuntime struct {
 	registry       *SessionRegistry
 	executable     string
 	allowedDomains []string
+	ssrfEnabled    bool
+	allowPrivate   bool
 	services       map[string]*engine.NavigationService
 	engines        map[string]engine.Engine
 }
@@ -30,6 +32,11 @@ type NavigationRuntimeOptions struct {
 	// AllowedDomains activates the domain allowlist network policy for every
 	// session engine (see chrome.Options.AllowedDomains).
 	AllowedDomains []string
+	// SSRFEnabled activates the SSRF guard for every session engine (see
+	// chrome.Options.SSRFEnabled). It is the MCP-mode default.
+	SSRFEnabled bool
+	// AllowPrivate relaxes the SSRF guard (--allow-private).
+	AllowPrivate bool
 }
 
 // NewNavigationRuntime creates a runtime. Chrome is not started until the
@@ -38,7 +45,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 	if executable == "" {
 		executable = os.Getenv("SYMBROWSE_EXECUTABLE_PATH")
 	}
-	return &NavigationRuntime{registry: registry, executable: executable, allowedDomains: options.AllowedDomains, services: make(map[string]*engine.NavigationService), engines: make(map[string]engine.Engine)}
+	return &NavigationRuntime{registry: registry, executable: executable, allowedDomains: options.AllowedDomains, ssrfEnabled: options.SSRFEnabled, allowPrivate: options.AllowPrivate, services: make(map[string]*engine.NavigationService), engines: make(map[string]engine.Engine)}
 }
 
 // Handle executes one navigation frame and returns JSON-serializable data
@@ -213,7 +220,7 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 	if r.executable == "" {
 		return nil, errors.New("browser executable is not configured; set SYMBROWSE_EXECUTABLE_PATH")
 	}
-	browser := chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: info.UserDataDir, AllowedDomains: r.allowedDomains})
+	browser := chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: info.UserDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate})
 	if err := browser.Launch(ctx); err != nil {
 		return nil, err
 	}

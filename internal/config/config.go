@@ -28,6 +28,11 @@ type Config struct {
 	// AllowedDomains activates the domain allowlist network policy. Patterns
 	// are bare hostnames, optionally prefixed with "*." (see internal/policy).
 	AllowedDomains []string `json:"allowed_domains"`
+	// SSRFEnabled activates the SSRF guard (RFC1918, loopback, link-local,
+	// .local, IPv6-ULA denied). MCP mode defaults it to true.
+	SSRFEnabled bool `json:"ssrf_enabled"`
+	// AllowPrivate relaxes the SSRF guard for private targets.
+	AllowPrivate bool `json:"allow_private"`
 }
 
 // Paths contains the default XDG directories used by symbrowse.

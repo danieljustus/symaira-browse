@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -33,6 +34,8 @@ func showFields(result Result) map[string]Field {
 		"state_dir":       {Value: result.Config.StateDir, Source: result.Sources["state_dir"]},
 		"executable_path": {Value: result.Config.ExecutablePath, Source: result.Sources["executable_path"]},
 		"allowed_domains": {Value: strings.Join(result.Config.AllowedDomains, ","), Source: result.Sources["allowed_domains"]},
+		"ssrf_enabled":    {Value: strconv.FormatBool(result.Config.SSRFEnabled), Source: result.Sources["ssrf_enabled"]},
+		"allow_private":   {Value: strconv.FormatBool(result.Config.AllowPrivate), Source: result.Sources["allow_private"]},
 	}
 }
 

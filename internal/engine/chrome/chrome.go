@@ -36,6 +36,13 @@ type Options struct {
 	// When non-empty, every request outside the allowlist is denied on the
 	// CDP network path and WebRTC is disabled.
 	AllowedDomains []string
+	// SSRFEnabled activates the SSRF guard (issue #34): RFC1918, loopback,
+	// link-local, .local, and IPv6-ULA targets are denied on the CDP network
+	// path. It is the MCP-mode default; the regular daemon stays opt-in.
+	SSRFEnabled bool
+	// AllowPrivate relaxes the SSRF guard (--allow-private). Without it the
+	// guard denies every private target.
+	AllowPrivate bool
 }
 
 // Engine is a private Chrome process plus its CDP browser connection.
@@ -74,9 +81,9 @@ func (e *Engine) Launch(ctx context.Context) error {
 	if e.options.ExecutablePath == "" {
 		return errors.New("chrome executable path is empty")
 	}
-	policy, err := newNetworkPolicy(e.options.AllowedDomains, e.call)
+	policy, err := newNetworkPolicy(e.options.AllowedDomains, e.options.SSRFEnabled, e.options.AllowPrivate, e.call)
 	if err != nil {
-		return fmt.Errorf("parse allowed domains: %w", err)
+		return fmt.Errorf("parse network policy: %w", err)
 	}
 	dataDir := e.options.UserDataDir
 	removeDataDir := false
@@ -274,8 +281,10 @@ func (e *Engine) enableNetworkPolicy(ctx context.Context, sessionID string) erro
 
 // Navigate navigates a page to url.
 func (e *Engine) Navigate(ctx context.Context, page engine.Page, url string) (engine.NavigationResult, error) {
-	if e.policy != nil && e.policy.active() && !e.policy.allowsURL(url) {
-		return engine.NavigationResult{}, fmt.Errorf("navigation to %q is blocked by the domain allowlist (allowed: %s)", url, e.policy.describe())
+	if e.policy != nil && e.policy.active() {
+		if allowed, reason := e.policy.allowsURL(url); !allowed {
+			return engine.NavigationResult{}, fmt.Errorf("navigation to %q is blocked by the network policy (%s; active: %s)", url, reason, e.policy.describe())
+		}
 	}
 	params := struct {
 		URL string `json:"url"`

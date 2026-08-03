@@ -47,11 +47,13 @@ type EvaluationResult struct {
 type AXNode struct{ Raw json.RawMessage }
 
 // BlockedRequest describes one distinct URL denied by the active network
-// policy and how often it was denied.
+// policy and how often it was denied. Reason names the denying policy
+// (domain allowlist or SSRF guard) for the warnings[] payload.
 type BlockedRequest struct {
 	URL          string `json:"url"`
 	ResourceType string `json:"resource_type"`
 	Count        int    `json:"count"`
+	Reason       string `json:"reason,omitempty"`
 }
 
 // NetworkPolicyReporter is an optional engine extension. It lets callers
