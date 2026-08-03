@@ -143,8 +143,9 @@ func (e *Engine) mouse(ctx context.Context, page engine.Page, target engine.Inte
 		return err
 	}
 	params := struct {
-		Type       string `json:"type"`
-		X, Y       float64
+		Type       string  `json:"type"`
+		X          float64 `json:"x"`
+		Y          float64 `json:"y"`
 		Button     string  `json:"button,omitempty"`
 		ClickCount int64   `json:"clickCount,omitempty"`
 		DeltaY     float64 `json:"deltaY,omitempty"`

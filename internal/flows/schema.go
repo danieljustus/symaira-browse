@@ -79,6 +79,7 @@ type FindStep struct {
 	TestID      string `yaml:"testid,omitempty" json:"testid,omitempty"`
 	Action      string `yaml:"action,omitempty" json:"action,omitempty"`
 	Value       string `yaml:"value,omitempty" json:"value,omitempty"`
+	Exact       bool   `yaml:"exact,omitempty" json:"exact,omitempty"`
 }
 
 // SelectorStep clicks an element identified by a semantic selector.
@@ -87,6 +88,7 @@ type SelectorStep struct {
 	Role  string `yaml:"role,omitempty" json:"role,omitempty"`
 	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
 	Name  string `yaml:"name,omitempty" json:"name,omitempty"`
+	Exact bool   `yaml:"exact,omitempty" json:"exact,omitempty"`
 }
 
 // FillStep fills a form field identified by a semantic selector.
@@ -96,6 +98,7 @@ type FillStep struct {
 	Text  string `yaml:"text,omitempty" json:"text,omitempty"`
 	Name  string `yaml:"name,omitempty" json:"name,omitempty"`
 	Value string `yaml:"value" json:"value"`
+	Exact bool   `yaml:"exact,omitempty" json:"exact,omitempty"`
 }
 
 // WaitStep waits for a condition (url glob, visible element or fixed ms).
@@ -332,13 +335,29 @@ func hasSelector(values ...string) bool {
 	return false
 }
 
-// validDomainPattern accepts plain hostnames and *.subdomain wildcards.
+// validDomainPattern accepts plain hostnames, *.subdomain wildcards, IPv4
+// addresses and host:port forms (ports are used by local fixture servers).
 func validDomainPattern(pattern string) bool {
 	trimmed := strings.TrimSpace(pattern)
 	if trimmed == "" {
 		return false
 	}
-	parts := strings.Split(trimmed, ".")
+	host := trimmed
+	if colon := strings.LastIndex(host, ":"); colon > 0 && !strings.Contains(host[colon:], "]") {
+		port := host[colon+1:]
+		if port != "" {
+			for _, char := range port {
+				if char < '0' || char > '9' {
+					return false
+				}
+			}
+		}
+		host = host[:colon]
+	}
+	if isIPv4(host) {
+		return true
+	}
+	parts := strings.Split(host, ".")
 	for index, part := range parts {
 		if part == "*" && index == 0 {
 			continue
@@ -348,6 +367,25 @@ func validDomainPattern(pattern string) bool {
 		}
 		for _, char := range part {
 			if !isDomainChar(char) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// isIPv4 reports whether host is a dotted-quad IPv4 address.
+func isIPv4(host string) bool {
+	parts := strings.Split(host, ".")
+	if len(parts) != 4 {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" || len(part) > 3 {
+			return false
+		}
+		for _, char := range part {
+			if char < '0' || char > '9' {
 				return false
 			}
 		}
