@@ -12,13 +12,14 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/exitcodes"
+	"github.com/danieljustus/symaira-browse/internal/injection"
 	"github.com/danieljustus/symaira-browse/internal/output"
 	"github.com/danieljustus/symaira-browse/internal/render"
 )
 
 func newReadCommand() *cobra.Command {
 	var session, selector, filter string
-	var outline, raw bool
+	var outline, raw, contentBoundaries bool
 	command := &cobra.Command{
 		Use:   "read [url]",
 		Short: "Render the page as markdown (or JSON) in the symfetch output schema",
@@ -63,6 +64,13 @@ func newReadCommand() *cobra.Command {
 			if err != nil {
 				return exitcodes.Wrapf(err, exitcodes.ExitNoInput, exitcodes.KindValidation, "%s", err)
 			}
+			if contentBoundaries && material.URL != "" {
+				boundary, err := injection.New(material.URL)
+				if err != nil {
+					return err
+				}
+				document.ContentBoundaries = &boundary
+			}
 			if jsonOutputFlag(cmd) {
 				return writeEnvelope(cmd, output.OK(document, nil))
 			}
@@ -74,6 +82,7 @@ func newReadCommand() *cobra.Command {
 	command.Flags().StringVar(&filter, "filter", "", "remove every subtree matching this CSS selector before rendering")
 	command.Flags().BoolVar(&outline, "outline", false, "return only the heading structure")
 	command.Flags().BoolVar(&raw, "raw", false, "return the page HTML instead of markdown")
+	command.Flags().BoolVar(&contentBoundaries, "content-boundaries", false, "wrap page content in unforgeable boundary markers (default on in MCP mode)")
 	return command
 }
 
@@ -93,7 +102,20 @@ func writeReadHuman(cmd *cobra.Command, document render.Document) error {
 	default:
 		builder.WriteString(document.Markdown)
 	}
-	_, err := fmt.Fprintln(cmd.OutOrStdout(), strings.TrimRight(builder.String(), "\n"))
+	output := strings.TrimRight(builder.String(), "\n")
+	if document.ContentBoundaries != nil {
+		// The boundary encloses only the page-derived body; the frontmatter
+		// metadata stays outside it.
+		bodyStart := strings.Index(output, "\n---\n\n")
+		if bodyStart >= 0 {
+			head := output[:bodyStart+5]
+			body := output[bodyStart+5:]
+			output = head + document.ContentBoundaries.WrapText(body)
+		} else {
+			output = document.ContentBoundaries.WrapText(output)
+		}
+	}
+	_, err := fmt.Fprintln(cmd.OutOrStdout(), output)
 	return err
 }
 

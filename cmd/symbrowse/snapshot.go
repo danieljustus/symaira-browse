@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -9,11 +10,12 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/injection"
 )
 
 func newSnapshotCommand() *cobra.Command {
 	var session, selector, since string
-	var interactive, compact, urls, diff bool
+	var interactive, compact, urls, diff, contentBoundaries bool
 	var depth int
 	command := &cobra.Command{
 		Use:   "snapshot",
@@ -34,6 +36,21 @@ func newSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if !response.Success {
+				return responseError(response)
+			}
+			if contentBoundaries && !jsonOutputFlag(cmd) {
+				origin, originErr := currentPageOrigin(cmd.Context(), session)
+				if originErr != nil {
+					return originErr
+				}
+				boundary, boundaryErr := injection.New(origin)
+				if boundaryErr != nil {
+					return boundaryErr
+				}
+				text := fmt.Sprint(response.Data)
+				response.Data = boundary.WrapText(text)
+			}
 			return writeSnapshotResponse(cmd, response, diff || since != "")
 		},
 	}
@@ -45,7 +62,40 @@ func newSnapshotCommand() *cobra.Command {
 	command.Flags().BoolVarP(&urls, "urls", "u", false, "include link URLs")
 	command.Flags().BoolVar(&diff, "diff", false, "show changes since the previous snapshot")
 	command.Flags().StringVar(&since, "since", "", "show changes since a specific snapshot ID")
+	command.Flags().BoolVar(&contentBoundaries, "content-boundaries", false, "wrap page content in unforgeable boundary markers (default on in MCP mode)")
 	return command
+}
+
+// currentPageOrigin fetches the current page URL from the daemon for use as
+// the content-boundary origin.
+func currentPageOrigin(ctx context.Context, session string) (string, error) {
+	path, err := daemon.SocketPath(session)
+	if err != nil {
+		return "", err
+	}
+	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
+	response, err := client.Request(ctx, daemon.Frame{Cmd: "get.url", Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+	if err != nil {
+		return "", err
+	}
+	if !response.Success {
+		return "", responseError(response)
+	}
+	raw, err := json.Marshal(response.Data)
+	if err != nil {
+		return "", err
+	}
+	var result struct {
+		Value json.RawMessage `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return "", err
+	}
+	var origin string
+	if err := json.Unmarshal(result.Value, &origin); err != nil {
+		return "", err
+	}
+	return origin, nil
 }
 
 func writeSnapshotResponse(cmd *cobra.Command, response daemon.Response, _ bool) error {

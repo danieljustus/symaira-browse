@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"golang.org/x/net/html"
+
+	"github.com/danieljustus/symaira-browse/internal/injection"
 )
 
 // Options controls one read render.
@@ -26,21 +28,24 @@ type Options struct {
 // (url, final_url, title, lang, fetched_at, tokens_est, schema_type) and the
 // frontmatter keys are identical to symfetch; the content fields (markdown,
 // outline, raw) are the browse-specific body carriers (see
-// testdata/fetch-schema.json and docs/output-schema.md).
+// testdata/fetch-schema.json and docs/output-schema.md). ContentBoundaries
+// carries the unforgeable boundary markers as an own JSON field when the
+// --content-boundaries flag is active.
 type Document struct {
-	URL        string       `json:"url"`
-	FinalURL   string       `json:"final_url,omitempty"`
-	Title      string       `json:"title,omitempty"`
-	Lang       string       `json:"lang,omitempty"`
-	FetchedAt  string       `json:"fetched_at"`
-	TokensEst  int          `json:"tokens_est"`
-	SchemaType string       `json:"schema_type,omitempty"`
-	Markdown   string       `json:"markdown,omitempty"`
-	Raw        string       `json:"raw,omitempty"`
-	Outline    []Heading    `json:"outline,omitempty"`
-	Truncated  bool         `json:"truncated"`
-	CharCount  int          `json:"char_count"`
-	Meta       DocumentMeta `json:"meta,omitempty"`
+	URL               string              `json:"url"`
+	FinalURL          string              `json:"final_url,omitempty"`
+	Title             string              `json:"title,omitempty"`
+	Lang              string              `json:"lang,omitempty"`
+	FetchedAt         string              `json:"fetched_at"`
+	TokensEst         int                 `json:"tokens_est"`
+	SchemaType        string              `json:"schema_type,omitempty"`
+	Markdown          string              `json:"markdown,omitempty"`
+	Raw               string              `json:"raw,omitempty"`
+	Outline           []Heading           `json:"outline,omitempty"`
+	Truncated         bool                `json:"truncated"`
+	CharCount         int                 `json:"char_count"`
+	Meta              DocumentMeta        `json:"meta,omitempty"`
+	ContentBoundaries *injection.Boundary `json:"content_boundaries,omitempty"`
 }
 
 // DocumentMeta carries the fetch-style response metadata (subset of
