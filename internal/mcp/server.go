@@ -27,6 +27,10 @@ type Options struct {
 	// AllowPrivate relaxes the SSRF guard for the daemon this server
 	// starts (the --allow-private opt-in).
 	AllowPrivate bool
+	// Profiles selects the tool profiles to register (issue #31):
+	// comma-separated names from core|nav|state|network|debug|flows|all.
+	// The empty value registers the default profile (core).
+	Profiles string
 	// SocketPath resolves the daemon socket path for a session. It
 	// defaults to daemon.SocketPath.
 	SocketPath func(session string) (string, error)
@@ -39,8 +43,9 @@ type Server struct {
 	verifyOnce sync.Once
 }
 
-// New builds the MCP server and registers the full tool table.
-func New(options Options) *Server {
+// New builds the MCP server and registers the tools of the selected
+// profiles. An empty Profiles option registers the default core profile.
+func New(options Options) (*Server, error) {
 	if options.Session == "" {
 		options.Session = "default"
 	}
@@ -51,11 +56,11 @@ func New(options Options) *Server {
 		options.SocketPath = daemon.SocketPath
 	}
 	server := &Server{core: mcpserver.New("symbrowse", options.Version), options: options}
-	for _, tool := range tools {
-		server.core.RegisterTool(server.proxyTool(tool))
+	if err := server.RegisterSelection(options.Profiles); err != nil {
+		return nil, err
 	}
 	server.core.SetInstructions(instructions)
-	return server
+	return server, nil
 }
 
 // Core returns the underlying corekit server (used by ServeIO tests).
