@@ -24,7 +24,9 @@ type Handler func(context.Context, Frame) (any, []Warning, error)
 // Options configures a Server. Zero durations use the production defaults.
 type Options struct {
 	SocketPath       string
+	Session          string
 	Handler          Handler
+	Registry         *SessionRegistry
 	IdleTimeout      time.Duration
 	OperationTimeout time.Duration
 	ReadTimeout      time.Duration
@@ -39,6 +41,7 @@ type Server struct {
 	mu               sync.RWMutex
 	startedAt        time.Time
 	lastRequestNanos atomic.Int64
+	registry         *SessionRegistry
 }
 
 // NewServer constructs a daemon server without binding its socket.
@@ -55,11 +58,20 @@ func NewServer(options Options) *Server {
 	if options.PeerValidator == nil {
 		options.PeerValidator = validatePeerUID
 	}
-	return &Server{options: options}
+	if options.Session == "" {
+		options.Session = "default"
+	}
+	if options.Registry == nil {
+		options.Registry = NewSessionRegistry(SessionRegistryOptions{})
+	}
+	return &Server{options: options, registry: options.Registry}
 }
 
 // SocketPath returns the configured socket path.
 func (s *Server) SocketPath() string { return s.options.SocketPath }
+
+// Registry returns the daemon-local session registry.
+func (s *Server) Registry() *SessionRegistry { return s.registry }
 
 // ListenAndServe binds the socket and serves until ctx is canceled, Close is
 // called, or the configured idle timeout expires.
@@ -87,10 +99,16 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		_ = os.Remove(s.options.SocketPath)
 		return fmt.Errorf("secure socket: %w", err)
 	}
+	startedAt := time.Now()
+	if _, err := s.registry.Ensure(s.options.Session); err != nil {
+		_ = listener.Close()
+		_ = os.Remove(s.options.SocketPath)
+		return err
+	}
 	s.mu.Lock()
 	s.listener = listener
-	s.startedAt = time.Now()
-	s.lastRequestNanos.Store(s.startedAt.UnixNano())
+	s.startedAt = startedAt
+	s.lastRequestNanos.Store(startedAt.UnixNano())
 	s.mu.Unlock()
 	defer func() {
 		_ = listener.Close()
@@ -98,6 +116,7 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 		s.mu.Lock()
 		s.listener = nil
 		s.mu.Unlock()
+		s.registry.Clear()
 	}()
 
 	for {
@@ -173,6 +192,30 @@ func (s *Server) handleLine(line []byte) Response {
 	if err != nil {
 		return ErrorResponse(ErrorMalformedRequest, err.Error())
 	}
+	if frame.Session == "" {
+		frame.Session = s.options.Session
+	}
+	if !validSession.MatchString(frame.Session) {
+		return ErrorResponse(ErrorInvalidSession, fmt.Sprintf("invalid session %q", frame.Session))
+	}
+	switch frame.Cmd {
+	case "session.list":
+		_ = s.registry.Touch(frame.Session)
+		return SuccessResponse(s.registry.ListData(), nil)
+	case "session.info":
+		if err := s.registry.Touch(frame.Session); err != nil {
+			return sessionErrorResponse(err)
+		}
+		info, err := s.registry.Get(frame.Session)
+		if err != nil {
+			return sessionErrorResponse(err)
+		}
+		return SuccessResponse(info, nil)
+	}
+	if _, err := s.registry.Ensure(frame.Session); err != nil {
+		return ErrorResponse(ErrorInvalidSession, err.Error())
+	}
+	_ = s.registry.Touch(frame.Session)
 	if frame.Cmd == "daemon.status" {
 		return SuccessResponse(s.statusData(), nil)
 	}
@@ -210,6 +253,17 @@ func handlerErrorResponse(err error) Response {
 		return Response{Success: false, Error: protocolErr}
 	}
 	return ErrorResponse("operation_failed", err.Error())
+}
+
+func sessionErrorResponse(err error) Response {
+	switch {
+	case errors.Is(err, ErrSessionNotFound):
+		return ErrorResponse(ErrorSessionNotFound, err.Error())
+	case errors.Is(err, ErrInvalidSession):
+		return ErrorResponse(ErrorInvalidSession, err.Error())
+	default:
+		return handlerErrorResponse(err)
+	}
 }
 
 func (s *Server) statusData() map[string]any {
