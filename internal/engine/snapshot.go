@@ -65,7 +65,12 @@ func (s *NavigationService) Snapshot(ctx context.Context, options SnapshotOption
 	if err != nil {
 		return SnapshotResult{}, fmt.Errorf("read accessibility tree: %w", err)
 	}
-	return RenderSnapshot(nodes, options)
+	result, err := RenderSnapshot(nodes, options)
+	if err != nil {
+		return SnapshotResult{}, err
+	}
+	s.setSnapshotRefs(result.Refs)
+	return result, nil
 }
 
 // RenderSnapshot renders protocol-neutral AXNode payloads into deterministic

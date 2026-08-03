@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -107,6 +108,8 @@ type NavigationService struct {
 	timeout        time.Duration
 	pollInterval   time.Duration
 	networkIdleFor time.Duration
+	refMu          sync.RWMutex
+	refs           map[string]SnapshotRef
 }
 
 // NavigationOptions controls polling and operation timeouts.
@@ -127,7 +130,7 @@ func NewNavigationService(browser Engine, page Page, options NavigationOptions) 
 	if options.NetworkIdleFor <= 0 {
 		options.NetworkIdleFor = defaultNetworkIdle
 	}
-	return &NavigationService{engine: browser, page: page, timeout: options.Timeout, pollInterval: options.PollInterval, networkIdleFor: options.NetworkIdleFor}
+	return &NavigationService{engine: browser, page: page, timeout: options.Timeout, pollInterval: options.PollInterval, networkIdleFor: options.NetworkIdleFor, refs: make(map[string]SnapshotRef)}
 }
 
 // Open navigates to url. Goto is an explicit alias for Open.
