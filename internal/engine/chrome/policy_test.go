@@ -144,6 +144,12 @@ func waitFor(t *testing.T, what string, condition func() bool) {
 // pre-populated with a DevToolsActivePort file pointing at the fake server.
 func newTestEngine(t *testing.T, allowedDomains []string, lockProfile bool) (*Engine, *fakeCDPServer) {
 	t.Helper()
+	return newTestEnginePolicy(t, allowedDomains, false, false, lockProfile)
+}
+
+// newTestEnginePolicy is newTestEngine with the SSRF-guard options.
+func newTestEnginePolicy(t *testing.T, allowedDomains []string, ssrfEnabled, allowPrivate, lockProfile bool) (*Engine, *fakeCDPServer) {
+	t.Helper()
 	server, endpoint := newFakeCDPServer(t)
 	profile := t.TempDir()
 	if lockProfile {
@@ -163,6 +169,8 @@ func newTestEngine(t *testing.T, allowedDomains []string, lockProfile bool) (*En
 		StartupTimeout: 3 * time.Second,
 		RequestTimeout: 3 * time.Second,
 		AllowedDomains: allowedDomains,
+		SSRFEnabled:    ssrfEnabled,
+		AllowPrivate:   allowPrivate,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(func() {
@@ -427,7 +435,7 @@ func TestNetworkPolicyRejectsInvalidPatternsAtLaunch(t *testing.T) {
 	defer cancel()
 	if err := engine.Launch(ctx); err == nil {
 		t.Fatal("Launch with invalid pattern succeeded, want error")
-	} else if !strings.Contains(err.Error(), "allowed domains") {
+	} else if !strings.Contains(err.Error(), "network policy") {
 		t.Errorf("Launch error = %q, want pattern validation message", err)
 	}
 }
@@ -435,12 +443,134 @@ func TestNetworkPolicyRejectsInvalidPatternsAtLaunch(t *testing.T) {
 func TestNetworkPolicyWarningsShape(t *testing.T) {
 	// The daemon converts engine.BlockedRequest entries into protocol
 	// warnings; this guards the JSON field names of the shared type.
-	blocked := []engine.BlockedRequest{{URL: "https://evil.example.org/x", ResourceType: "Image", Count: 2}}
+	blocked := []engine.BlockedRequest{{URL: "https://evil.example.org/x", ResourceType: "Image", Count: 2, Reason: "denied by the SSRF guard"}}
 	raw, err := json.Marshal(blocked)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(string(raw), `"resource_type"`) || !strings.Contains(string(raw), `"url"`) {
 		t.Errorf("BlockedRequest JSON = %s, want stable field names", raw)
+	}
+}
+
+// TestSSRFGuardBlocksPrivateNavigation verifies the fail-fast Navigate gate:
+// with the SSRF guard active, navigating to a loopback target fails before a
+// single CDP navigation command is sent (MCP mode cannot open localhost
+// without opt-in).
+func TestSSRFGuardBlocksPrivateNavigation(t *testing.T) {
+	helperChromeProcess(t)
+	eng, server := newTestEnginePolicy(t, nil, true, false, false)
+
+	ctx := context.Background()
+	if _, err := eng.NewContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	page, err := eng.NewPage(ctx, engine.Context{ID: "ctx-1"}, "about:blank")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The guard arms interception and auto-attach just like the allowlist.
+	if got := server.commandsFor("Fetch.enable"); len(got) != 1 {
+		t.Errorf("Fetch.enable count = %d, want 1", len(got))
+	}
+	if got := server.commandsFor("Target.setAutoAttach"); len(got) != 1 {
+		t.Errorf("Target.setAutoAttach count = %d, want 1", len(got))
+	}
+	if _, err := eng.Navigate(ctx, page, "http://127.0.0.1:8080/"); err == nil {
+		t.Fatal("Navigate to loopback succeeded, want SSRF block")
+	} else if !strings.Contains(err.Error(), "SSRF") {
+		t.Errorf("Navigate error = %q, want SSRF mention", err)
+	}
+	// No navigation command must have reached the browser.
+	if got := server.commandsFor("Page.navigate"); len(got) != 0 {
+		t.Errorf("Page.navigate sent despite SSRF gate: %+v", got)
+	}
+	if blocked := eng.BlockedRequests(); len(blocked) != 0 {
+		t.Errorf("BlockedRequests() = %+v, want empty (gate denies before interception)", blocked)
+	}
+}
+
+// TestSSRFGuardBlocksPrivateSubresource verifies the interception path: a
+// paused request to a private address is failed with blockedByClient, counted
+// per URL, and reported with the SSRF reason.
+func TestSSRFGuardBlocksPrivateSubresource(t *testing.T) {
+	helperChromeProcess(t)
+	eng, server := newTestEnginePolicy(t, nil, true, false, false)
+
+	ctx := context.Background()
+	if _, err := eng.NewContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := eng.NewPage(ctx, engine.Context{ID: "ctx-1"}, "about:blank"); err != nil {
+		t.Fatal(err)
+	}
+	server.emit("page-session", "Fetch.requestPaused", map[string]any{
+		"requestId":    "req-private",
+		"request":      map[string]any{"url": "http://169.254.169.254/latest/meta-data"},
+		"resourceType": "XHR",
+	})
+	waitFor(t, "ssrf block", func() bool {
+		blocked := eng.BlockedRequests()
+		return len(blocked) == 1 && blocked[0].Count == 1
+	})
+	failed := server.commandsFor("Fetch.failRequest")[0]
+	var failParams fetchFailParams
+	if err := json.Unmarshal(failed.params, &failParams); err != nil {
+		t.Fatal(err)
+	}
+	if failParams.RequestID != "req-private" || failParams.ErrorReason != "blockedByClient" {
+		t.Errorf("failRequest = %+v, want req-private blockedByClient", failParams)
+	}
+	blocked := eng.BlockedRequests()
+	if len(blocked) != 1 || blocked[0].URL != "http://169.254.169.254/latest/meta-data" {
+		t.Fatalf("BlockedRequests() = %+v", blocked)
+	}
+	if !strings.Contains(blocked[0].Reason, "SSRF") {
+		t.Errorf("blocked reason = %q, want SSRF mention", blocked[0].Reason)
+	}
+}
+
+// TestSSRFGuardAllowPrivateOptIn verifies that --allow-private relaxes the
+// guard: the same loopback navigation proceeds.
+func TestSSRFGuardAllowPrivateOptIn(t *testing.T) {
+	helperChromeProcess(t)
+	eng, _ := newTestEnginePolicy(t, nil, true, true, false)
+
+	ctx := context.Background()
+	if _, err := eng.NewContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	page, err := eng.NewPage(ctx, engine.Context{ID: "ctx-1"}, "about:blank")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := eng.Navigate(ctx, page, "http://127.0.0.1:8080/"); err != nil {
+		t.Fatalf("Navigate with allow-private: %v", err)
+	}
+	if blocked := eng.BlockedRequests(); len(blocked) != 0 {
+		t.Errorf("BlockedRequests() = %+v, want empty", blocked)
+	}
+}
+
+// TestSSRFGuardInactiveWithoutOption verifies the regular daemon default:
+// without SSRFEnabled the network layer stays open to private targets (no
+// regression for existing local workflows and fixture tests).
+func TestSSRFGuardInactiveWithoutOption(t *testing.T) {
+	helperChromeProcess(t)
+	eng, server := newTestEnginePolicy(t, nil, false, false, false)
+
+	ctx := context.Background()
+	if _, err := eng.NewContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	page, err := eng.NewPage(ctx, engine.Context{ID: "ctx-1"}, "about:blank")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := server.commandsFor("Fetch.enable"); len(got) != 0 {
+		t.Errorf("Fetch.enable sent without SSRF option: %+v", got)
+	}
+	if _, err := eng.Navigate(ctx, page, "http://127.0.0.1:8080/"); err != nil {
+		t.Fatalf("Navigate without SSRF guard: %v", err)
 	}
 }

@@ -73,6 +73,7 @@ type targetAttachedToTargetParams struct {
 // with "blockedByClient" and counted for the warnings[] report.
 type networkPolicy struct {
 	allowlist *policy.Allowlist
+	ssrf      *policy.SSRFGuard
 	call      func(ctx context.Context, sessionID, method string, params, result any) error
 	mu        sync.Mutex
 	blocked   map[string]*blockedEntry
@@ -83,36 +84,57 @@ type networkPolicy struct {
 type blockedEntry struct {
 	url          string
 	resourceType string
+	reason       string
 	count        int
 }
 
-func newNetworkPolicy(patterns []string, call func(ctx context.Context, sessionID, method string, params, result any) error) (*networkPolicy, error) {
+// newNetworkPolicy builds the combined network policy. The allowlist
+// activates when patterns are supplied; the SSRF guard activates when
+// ssrfEnabled is set (the MCP-mode default). Either active component arms the
+// CDP interception and the fail-fast navigation gate.
+func newNetworkPolicy(patterns []string, ssrfEnabled, allowPrivate bool, call func(ctx context.Context, sessionID, method string, params, result any) error) (*networkPolicy, error) {
 	allowlist, err := policy.ParseAllowlist(patterns)
 	if err != nil {
 		return nil, err
 	}
+	var ssrf *policy.SSRFGuard
+	if ssrfEnabled {
+		ssrf = policy.NewSSRFGuard(allowPrivate)
+	}
 	return &networkPolicy{
 		allowlist: allowlist,
+		ssrf:      ssrf,
 		call:      call,
 		blocked:   make(map[string]*blockedEntry),
 	}, nil
 }
 
+// active reports whether any policy component requires enforcement.
 func (p *networkPolicy) active() bool {
-	return p != nil && p.allowlist.Active()
+	if p == nil {
+		return false
+	}
+	return p.allowlist.Active() || (p.ssrf != nil && p.ssrf.Enabled())
 }
 
 // allowsURL applies the deny-by-default policy to one request URL. Unparsable
 // URLs are denied: a request the policy cannot understand must not proceed.
-func (p *networkPolicy) allowsURL(rawURL string) bool {
+// The returned reason explains which policy denied the request.
+func (p *networkPolicy) allowsURL(rawURL string) (bool, string) {
 	if !p.active() {
-		return true
+		return true, ""
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return false
+		return false, "unparsable URL"
 	}
-	return p.allowlist.AllowsURL(u)
+	if !p.allowlist.AllowsURL(u) {
+		return false, "denied by the domain allowlist"
+	}
+	if err := p.ssrf.AllowsURL(u); err != nil {
+		return false, "denied by the SSRF guard"
+	}
+	return true, ""
 }
 
 // handleEvent routes protocol events relevant to the policy. It runs on the
@@ -136,14 +158,15 @@ func (p *networkPolicy) handleRequestPaused(sessionID string, params json.RawMes
 	if err := json.Unmarshal(params, &paused); err != nil {
 		slog.Debug("network policy: undecodable Fetch.requestPaused", "error", err)
 		// Fail closed: an undecodable request must not proceed.
-		p.respondBlocked(sessionID, "", "", "")
+		p.respondBlocked(sessionID, "", "", "", "undecodable request")
 		return
 	}
 	if paused.RequestID == "" {
 		return
 	}
-	if !p.allowsURL(paused.Request.URL) {
-		p.respondBlocked(sessionID, paused.RequestID, paused.Request.URL, paused.ResourceType)
+	allowed, reason := p.allowsURL(paused.Request.URL)
+	if !allowed {
+		p.respondBlocked(sessionID, paused.RequestID, paused.Request.URL, paused.ResourceType, reason)
 		return
 	}
 	ctx := context.Background()
@@ -155,8 +178,8 @@ func (p *networkPolicy) handleRequestPaused(sessionID string, params json.RawMes
 }
 
 // respondBlocked fails one intercepted request and counts it.
-func (p *networkPolicy) respondBlocked(sessionID, requestID, rawURL, resourceType string) {
-	p.record(rawURL, resourceType)
+func (p *networkPolicy) respondBlocked(sessionID, requestID, rawURL, resourceType, reason string) {
+	p.record(rawURL, resourceType, reason)
 	ctx := context.Background()
 	if err := p.call(ctx, sessionID, cdpCommandFetchFail, fetchFailParams{RequestID: requestID, ErrorReason: "blockedByClient"}, nil); err != nil {
 		slog.Debug("network policy: failRequest failed", "error", err)
@@ -192,13 +215,14 @@ func (p *networkPolicy) handleAttachedToTarget(params json.RawMessage) {
 	}
 }
 
-// record counts one blocked request, deduplicated per URL.
-func (p *networkPolicy) record(rawURL, resourceType string) {
+// record counts one blocked request, deduplicated per URL. The first deny
+// reason for a URL is kept; it explains the block in the warnings[] payload.
+func (p *networkPolicy) record(rawURL, resourceType, reason string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	entry := p.blocked[rawURL]
 	if entry == nil {
-		entry = &blockedEntry{url: rawURL, resourceType: resourceType}
+		entry = &blockedEntry{url: rawURL, resourceType: resourceType, reason: reason}
 		p.blocked[rawURL] = entry
 	}
 	entry.count++
@@ -214,16 +238,24 @@ func (p *networkPolicy) blockedRequests() []engine.BlockedRequest {
 	defer p.mu.Unlock()
 	result := make([]engine.BlockedRequest, 0, len(p.blocked))
 	for _, entry := range p.blocked {
-		result = append(result, engine.BlockedRequest{URL: entry.url, ResourceType: entry.resourceType, Count: entry.count})
+		result = append(result, engine.BlockedRequest{URL: entry.url, ResourceType: entry.resourceType, Count: entry.count, Reason: entry.reason})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].URL < result[j].URL })
 	return result
 }
 
-// describe returns the configured patterns for error and warning messages.
+// describe returns the configured allowlist patterns for error and warning
+// messages. The SSRF guard is reported separately when active.
 func (p *networkPolicy) describe() string {
 	if p == nil {
 		return ""
 	}
-	return strings.Join(p.allowlist.Patterns(), ",")
+	var parts []string
+	if patterns := p.allowlist.Patterns(); len(patterns) > 0 {
+		parts = append(parts, strings.Join(patterns, ","))
+	}
+	if p.ssrf != nil && p.ssrf.Enabled() {
+		parts = append(parts, "ssrf-guard")
+	}
+	return strings.Join(parts, ",")
 }

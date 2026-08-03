@@ -18,18 +18,20 @@ import (
 )
 
 func newDaemonCommand() *cobra.Command {
-	var session string
-	var allowedDomains string
+	var session, allowedDomains string
+	var ssrf, allowPrivate bool
 	command := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run or inspect the symbrowse daemon",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runDaemon(cmd, session, allowedDomains)
+			return runDaemon(cmd, session, allowedDomains, ssrf, allowPrivate)
 		},
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
 	command.Flags().StringVar(&allowedDomains, "allowed-domains", "", "comma-separated domain allowlist (e.g. \"example.com,*.example.com\"); denies every other domain on the network layer")
+	command.Flags().BoolVar(&ssrf, "ssrf", false, "enable the SSRF guard: RFC1918, loopback, link-local, .local, and IPv6-ULA targets are denied (default on in MCP mode)")
+	command.Flags().BoolVar(&allowPrivate, "allow-private", false, "allow private and loopback targets when the SSRF guard is active")
 	command.AddCommand(newDaemonStatusCommand(&session))
 	command.AddCommand(newDaemonStopCommand(&session))
 	return command
@@ -67,12 +69,14 @@ func newDaemonStopCommand(session *string) *cobra.Command {
 	return command
 }
 
-func runDaemon(cmd *cobra.Command, session, allowedDomainsFlag string) error {
+func runDaemon(cmd *cobra.Command, session, allowedDomainsFlag string, ssrfFlag, allowPrivateFlag bool) error {
 	path, err := daemon.SocketPath(session)
 	if err != nil {
 		return err
 	}
 	allowedDomains := resolveAllowedDomains(allowedDomainsFlag)
+	ssrfEnabled := resolveBoolPolicy("SYMBROWSE_SSRF", ssrfFlag, func(cfg *config.Config) bool { return cfg.SSRFEnabled })
+	allowPrivate := resolveBoolPolicy("SYMBROWSE_ALLOW_PRIVATE", allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate })
 	idle := time.Duration(daemon.DefaultIdleTimeout)
 	if raw := os.Getenv("SYMBROWSE_IDLE_TIMEOUT"); raw != "" {
 		seconds, parseErr := strconv.Atoi(raw)
@@ -88,13 +92,18 @@ func runDaemon(cmd *cobra.Command, session, allowedDomainsFlag string) error {
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{})
-	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"), daemon.NavigationRuntimeOptions{AllowedDomains: allowedDomains})
+	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"), daemon.NavigationRuntimeOptions{AllowedDomains: allowedDomains, SSRFEnabled: ssrfEnabled, AllowPrivate: allowPrivate})
 	defer func() { _ = navigation.Close() }()
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:  path,
 		Session:     session,
 		Registry:    registry,
 		IdleTimeout: idle,
+		Policy: daemon.PolicyStatus{
+			AllowedDomains: allowedDomains,
+			SSRFEnabled:    ssrfEnabled,
+			AllowPrivate:   allowPrivate,
+		},
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
 			case "daemon.ping":
@@ -128,6 +137,28 @@ func resolveAllowedDomains(flagValue string) []string {
 		return nil
 	}
 	return cfg.AllowedDomains
+}
+
+// resolveBoolPolicy applies the same precedence chain for boolean policy
+// options (SSRF guard, allow-private): flag, then environment variable, then
+// the config.toml setting. Environment values follow strconv.ParseBool
+// semantics ("1", "t", "true", "0", "f", "false").
+func resolveBoolPolicy(envName string, flagValue bool, fromConfig func(*config.Config) bool) bool {
+	if flagValue {
+		return true
+	}
+	if envValue := os.Getenv(envName); envValue != "" {
+		parsed, err := strconv.ParseBool(envValue)
+		if err != nil {
+			return false
+		}
+		return parsed
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		return false
+	}
+	return fromConfig(cfg)
 }
 
 // splitDomains splits a comma-separated allowlist value, preserving each

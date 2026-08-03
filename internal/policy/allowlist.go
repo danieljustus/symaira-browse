@@ -1,5 +1,6 @@
 // Package policy implements the protocol-neutral security policies of
-// symbrowse: the domain allowlist enforced at the network layer.
+// symbrowse: the domain allowlist and the SSRF guard enforced at the network
+// layer.
 package policy
 
 import (

@@ -21,6 +21,15 @@ var ErrIdleTimeout = errors.New("daemon idle timeout")
 // after an operation timeout can stop expensive work.
 type Handler func(context.Context, Frame) (any, []Warning, error)
 
+// PolicyStatus reports the network-policy configuration of a running daemon.
+// It is part of the daemon.status payload so clients (notably the MCP server)
+// can verify that a pre-existing daemon enforces the policy they require.
+type PolicyStatus struct {
+	AllowedDomains []string `json:"allowed_domains,omitempty"`
+	SSRFEnabled    bool     `json:"ssrf_enabled"`
+	AllowPrivate   bool     `json:"allow_private"`
+}
+
 // Options configures a Server. Zero durations use the production defaults.
 type Options struct {
 	SocketPath       string
@@ -31,6 +40,7 @@ type Options struct {
 	OperationTimeout time.Duration
 	ReadTimeout      time.Duration
 	PeerValidator    func(net.Conn) error
+	Policy           PolicyStatus
 }
 
 // Server serves newline-delimited JSON frames over a protected Unix socket.
@@ -276,6 +286,7 @@ func (s *Server) statusData() map[string]any {
 		"socket":        s.options.SocketPath,
 		"started_at":    startedAt.UTC().Format(time.RFC3339Nano),
 		"last_activity": time.Unix(0, s.lastRequestNanos.Load()).UTC().Format(time.RFC3339Nano),
+		"policy":        s.options.Policy,
 	}
 }
 

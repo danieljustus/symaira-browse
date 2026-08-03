@@ -47,6 +47,7 @@ The repository is standalone-first. Future integrations with other Symaira tools
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
 - [SECURITY.md](SECURITY.md) — security reporting policy
 - [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
+- [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
 
 ## License
 
