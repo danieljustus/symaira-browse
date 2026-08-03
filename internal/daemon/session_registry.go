@@ -19,11 +19,14 @@ var (
 
 // SessionRegistryOptions configures the in-memory registry and its private
 // browser-profile root. UserDataRoot is injectable so tests never need to
-// touch a real browser profile.
+// touch a real browser profile. Scope and OriginPath record where the session
+// was created (issue B-37: worktree-scoped session ids).
 type SessionRegistryOptions struct {
 	UserDataRoot string
 	PID          int
 	Now          func() time.Time
+	Scope        string
+	OriginPath   string
 }
 
 // SessionInfo is the stable machine-readable shape used by session list/info.
@@ -36,6 +39,8 @@ type SessionInfo struct {
 	UserDataDir      string `json:"user_data_dir"`
 	BrowserContextID string `json:"browser_context_id"`
 	RefCount         int    `json:"ref_count"`
+	Scope            string `json:"scope,omitempty"`
+	OriginPath       string `json:"origin_path,omitempty"`
 }
 
 // SessionListData is the stable payload returned by session.list.
@@ -56,6 +61,8 @@ type Session struct {
 	lastActivity     time.Time
 	activeTabs       int
 	refs             map[string]string
+	scope            string
+	originPath       string
 }
 
 // SessionRegistry owns all session state for one daemon instance. The current
@@ -68,6 +75,8 @@ type SessionRegistry struct {
 	userDataRoot string
 	pid          int
 	now          func() time.Time
+	scope        string
+	originPath   string
 	sessions     map[string]*Session
 }
 
@@ -88,6 +97,8 @@ func NewSessionRegistry(options SessionRegistryOptions) *SessionRegistry {
 		userDataRoot: filepath.Clean(root),
 		pid:          options.PID,
 		now:          options.Now,
+		scope:        options.Scope,
+		originPath:   options.OriginPath,
 		sessions:     make(map[string]*Session),
 	}
 }
@@ -127,6 +138,8 @@ func (r *SessionRegistry) Ensure(name string) (*Session, error) {
 		startedAt:        now,
 		lastActivity:     now,
 		refs:             make(map[string]string),
+		scope:            r.scope,
+		originPath:       r.originPath,
 	}
 	r.sessions[name] = session
 	return session, nil
@@ -257,6 +270,8 @@ func (s *Session) info() SessionInfo {
 		UserDataDir:      s.UserDataDir,
 		BrowserContextID: s.BrowserContextID,
 		RefCount:         len(s.refs),
+		Scope:            s.scope,
+		OriginPath:       s.originPath,
 	}
 }
 

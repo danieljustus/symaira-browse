@@ -51,6 +51,19 @@ func newRootCommand() *cobra.Command {
 	for _, command := range newInteractionCommands() {
 		root.AddCommand(command)
 	}
+	for _, command := range newStateCommands() {
+		root.AddCommand(command)
+	}
+	root.AddCommand(newStateCommand())
+	root.AddCommand(newAuthCommand())
+	root.AddCommand(newProfilesCommand())
+	root.AddCommand(newSetCommand())
+	root.AddCommand(newJournalCommand())
+	root.AddCommand(newPolicyCommand())
+	root.AddCommand(newTraceCommand())
+	root.AddCommand(newOOBCommand())
+	root.AddCommand(newHandoffCommand())
+	root.AddCommand(newWatchCommand())
 	return root
 }
 

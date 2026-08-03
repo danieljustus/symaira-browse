@@ -84,10 +84,10 @@ func TestBatchDryRunDoesNotExecute(t *testing.T) {
 	if len(report.Plan) != 2 {
 		t.Fatalf("plan = %#v, want 2 items", report.Plan)
 	}
-	if report.Plan[0].Command != "click @e1" || report.Plan[0].RiskClass != policy.RiskMedium {
+	if report.Plan[0].Command != "click @e1" || report.Plan[0].RiskClass != policy.ClassInteract {
 		t.Fatalf("plan[0] = %#v", report.Plan[0])
 	}
-	if report.Plan[1].RiskClass != policy.RiskMedium {
+	if report.Plan[1].RiskClass != policy.ClassInteract {
 		t.Fatalf("plan[1] = %#v", report.Plan[1])
 	}
 	if len(report.Results) != 0 {
@@ -101,14 +101,14 @@ func TestBatchDryRunRiskClasses(t *testing.T) {
 		DryRun:   true,
 	}, func(context.Context, []string, io.Writer, io.Writer) error { return nil })
 
-	if report.Plan[0].RiskClass != policy.RiskNone {
-		t.Fatalf("read risk = %q, want none", report.Plan[0].RiskClass)
+	if report.Plan[0].RiskClass != policy.ClassRead {
+		t.Fatalf("read risk = %q, want read", report.Plan[0].RiskClass)
 	}
-	if report.Plan[1].RiskClass != policy.RiskLow {
-		t.Fatalf("open risk = %q, want low", report.Plan[1].RiskClass)
+	if report.Plan[1].RiskClass != policy.ClassNavigate {
+		t.Fatalf("open risk = %q, want navigate", report.Plan[1].RiskClass)
 	}
-	if report.Plan[2].RiskClass != policy.RiskNone {
-		t.Fatalf("version risk = %q, want none", report.Plan[2].RiskClass)
+	if report.Plan[2].RiskClass != policy.RiskClass("unknown") {
+		t.Fatalf("version risk = %q, want unknown", report.Plan[2].RiskClass)
 	}
 }
 
