@@ -7,25 +7,29 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/danieljustus/symaira-browse/internal/config"
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 )
 
 func newDaemonCommand() *cobra.Command {
 	var session string
+	var allowedDomains string
 	command := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run or inspect the symbrowse daemon",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runDaemon(cmd, session)
+			return runDaemon(cmd, session, allowedDomains)
 		},
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
+	command.Flags().StringVar(&allowedDomains, "allowed-domains", "", "comma-separated domain allowlist (e.g. \"example.com,*.example.com\"); denies every other domain on the network layer")
 	command.AddCommand(newDaemonStatusCommand(&session))
 	command.AddCommand(newDaemonStopCommand(&session))
 	return command
@@ -63,11 +67,12 @@ func newDaemonStopCommand(session *string) *cobra.Command {
 	return command
 }
 
-func runDaemon(cmd *cobra.Command, session string) error {
+func runDaemon(cmd *cobra.Command, session, allowedDomainsFlag string) error {
 	path, err := daemon.SocketPath(session)
 	if err != nil {
 		return err
 	}
+	allowedDomains := resolveAllowedDomains(allowedDomainsFlag)
 	idle := time.Duration(daemon.DefaultIdleTimeout)
 	if raw := os.Getenv("SYMBROWSE_IDLE_TIMEOUT"); raw != "" {
 		seconds, parseErr := strconv.Atoi(raw)
@@ -83,7 +88,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{})
-	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"))
+	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"), daemon.NavigationRuntimeOptions{AllowedDomains: allowedDomains})
 	defer func() { _ = navigation.Close() }()
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:  path,
@@ -106,6 +111,35 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		return nil
 	}
 	return err
+}
+
+// resolveAllowedDomains applies the configuration precedence chain for the
+// domain allowlist: daemon flag, then SYMBROWSE_ALLOWED_DOMAINS, then the
+// allowed_domains setting from config.toml.
+func resolveAllowedDomains(flagValue string) []string {
+	if strings.TrimSpace(flagValue) != "" {
+		return splitDomains(flagValue)
+	}
+	if envValue := os.Getenv("SYMBROWSE_ALLOWED_DOMAINS"); strings.TrimSpace(envValue) != "" {
+		return splitDomains(envValue)
+	}
+	cfg, err := config.Load()
+	if err != nil || len(cfg.AllowedDomains) == 0 {
+		return nil
+	}
+	return cfg.AllowedDomains
+}
+
+// splitDomains splits a comma-separated allowlist value, preserving each
+// pattern as supplied (validation happens in the engine policy layer).
+func splitDomains(value string) []string {
+	var domains []string
+	for _, part := range strings.Split(value, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			domains = append(domains, trimmed)
+		}
+	}
+	return domains
 }
 
 func daemonLifecycleRequest(ctx context.Context, session, command string, autostart bool) (daemon.Response, error) {

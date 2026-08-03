@@ -46,6 +46,7 @@ The repository is standalone-first. Future integrations with other Symaira tools
 - [AGENTS.md](AGENTS.md) — repository rules for contributors and agents
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
 - [SECURITY.md](SECURITY.md) — security reporting policy
+- [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
 
 ## License
 
