@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/journal"
 	"github.com/danieljustus/symaira-browse/internal/trace"
 )
@@ -70,7 +71,15 @@ func (r *JournalRuntime) HandleWithDecider(ctx context.Context, frame Frame, dec
 // currentURL reads the page origin without starting a browser session.
 func (r *JournalRuntime) currentURL(ctx context.Context, session string) string {
 	r.nav.mu.Lock()
-	service := r.nav.services[session]
+	tabs := r.nav.tabs[session]
+	var service *engine.NavigationService
+	if len(tabs) > 0 {
+		index := r.nav.activeTab[session]
+		if index < 0 || index >= len(tabs) {
+			index = 0
+		}
+		service = tabs[index].Service
+	}
 	r.nav.mu.Unlock()
 	if service == nil {
 		return ""

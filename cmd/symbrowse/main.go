@@ -71,6 +71,9 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newHandoffCommand())
 	root.AddCommand(newWatchCommand())
 	root.AddCommand(newFlowCommand())
+	root.AddCommand(newTabCommand())
+	root.AddCommand(newFrameCommand())
+	root.AddCommand(newDialogCommand())
 	return root
 }
 

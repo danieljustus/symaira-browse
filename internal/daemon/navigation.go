@@ -20,22 +20,33 @@ import (
 // NavigationRuntime lazily owns one protocol-neutral navigation service and
 // Chrome engine per session. CDP details remain confined to engine/chrome.
 type NavigationRuntime struct {
-	mu             sync.Mutex
-	registry       *SessionRegistry
-	executable     string
-	profile        string
-	allowedDomains []string
-	ssrfEnabled    bool
-	allowPrivate   bool
-	headless       bool
-	services       map[string]*engine.NavigationService
-	engines        map[string]engine.Engine
-	autosave       *AutosaveConfig
-	stateStore     *state.Store
-	lastAutosave   map[string]time.Time
-	restoreOnStart map[string]string // session -> state name to restore
-	uploadDirs     []string          // allowed upload roots (issue #63)
-	recorders      map[string]*recorderState
+	mu              sync.Mutex
+	registry        *SessionRegistry
+	executable      string
+	profile         string
+	allowedDomains  []string
+	ssrfEnabled     bool
+	allowPrivate    bool
+	headless        bool
+	engines         map[string]engine.Engine
+	browserContexts map[string]engine.Context
+	tabs            map[string][]*sessionTab
+	activeTab       map[string]int
+	autosave        *AutosaveConfig
+	stateStore      *state.Store
+	lastAutosave    map[string]time.Time
+	restoreOnStart  map[string]string // session -> state name to restore
+	uploadDirs      []string          // allowed upload roots (issue #63)
+	recorders       map[string]*recorderState
+}
+
+// sessionTab is one tab of a session. Every tab owns its own navigation
+// service (and therefore its own ref table), so refs stay valid per tab and
+// survive tab switches.
+type sessionTab struct {
+	Label   string
+	Service *engine.NavigationService
+	Page    engine.Page
 }
 
 // NavigationRuntimeOptions configures the browser engines created per session.
@@ -75,20 +86,22 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		executable = os.Getenv("SYMBROWSE_EXECUTABLE_PATH")
 	}
 	return &NavigationRuntime{
-		registry:       registry,
-		executable:     executable,
-		profile:        options.Profile,
-		allowedDomains: options.AllowedDomains,
-		ssrfEnabled:    options.SSRFEnabled,
-		allowPrivate:   options.AllowPrivate,
-		headless:       options.Headless,
-		services:       make(map[string]*engine.NavigationService),
-		engines:        make(map[string]engine.Engine),
-		uploadDirs:     options.UploadDirs,
-		autosave:       options.Autosave,
-		stateStore:     options.StateStore,
-		lastAutosave:   make(map[string]time.Time),
-		restoreOnStart: options.RestoreOnStart,
+		registry:        registry,
+		executable:      executable,
+		profile:         options.Profile,
+		allowedDomains:  options.AllowedDomains,
+		ssrfEnabled:     options.SSRFEnabled,
+		allowPrivate:    options.AllowPrivate,
+		headless:        options.Headless,
+		engines:         make(map[string]engine.Engine),
+		browserContexts: make(map[string]engine.Context),
+		tabs:            make(map[string][]*sessionTab),
+		activeTab:       make(map[string]int),
+		uploadDirs:      options.UploadDirs,
+		autosave:        options.Autosave,
+		stateStore:      options.StateStore,
+		lastAutosave:    make(map[string]time.Time),
+		restoreOnStart:  options.RestoreOnStart,
 	}
 }
 
@@ -115,6 +128,18 @@ func (r *NavigationRuntime) AutosaveConfig() *AutosaveConfig {
 func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []Warning, error) {
 	if strings.HasPrefix(frame.Cmd, "flow.record.") {
 		data, err := r.handleRecordFrame(ctx, frame)
+		return data, nil, err
+	}
+	if strings.HasPrefix(frame.Cmd, "tab.") || frame.Cmd == "window.new" {
+		data, err := r.handleTabFrame(ctx, frame)
+		return data, nil, err
+	}
+	if strings.HasPrefix(frame.Cmd, "frame.") {
+		data, err := r.handleFrameFrame(ctx, frame)
+		return data, nil, err
+	}
+	if strings.HasPrefix(frame.Cmd, "dialog.") {
+		data, err := r.handleDialogFrame(ctx, frame)
 		return data, nil, err
 	}
 	data, err := r.dispatch(ctx, frame)
@@ -450,15 +475,20 @@ func decodeOptionalArgs(frame Frame, target any) error {
 	return nil
 }
 
-// serviceIfReady returns the session service without launching a browser.
+// serviceIfReady returns the active tab's session service without launching a
+// browser. It reports an error when the session has no live browser yet.
 func (r *NavigationRuntime) serviceIfReady(session string) (*engine.NavigationService, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	service := r.services[session]
-	if service == nil {
+	tabs := r.tabs[session]
+	if len(tabs) == 0 {
 		return nil, errors.New("session has no live browser")
 	}
-	return service, nil
+	index := r.activeTab[session]
+	if index < 0 || index >= len(tabs) {
+		index = 0
+	}
+	return tabs[index].Service, nil
 }
 
 // policyWarnings converts the session engine's network-policy state into the
@@ -502,18 +532,26 @@ func networkPolicyWarnings(reporter engine.NetworkPolicyReporter) []Warning {
 
 func (r *NavigationRuntime) service(ctx context.Context, session string) (*engine.NavigationService, error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-	if service := r.services[session]; service != nil {
+	if tabs := r.tabs[session]; len(tabs) > 0 {
+		index := r.activeTab[session]
+		if index < 0 || index >= len(tabs) {
+			index = 0
+		}
+		service := tabs[index].Service
+		r.mu.Unlock()
 		return service, nil
 	}
 	if r.registry == nil {
+		r.mu.Unlock()
 		return nil, errors.New("session registry is required")
 	}
 	info, err := r.registry.Get(session)
 	if err != nil {
+		r.mu.Unlock()
 		return nil, err
 	}
 	if r.executable == "" {
+		r.mu.Unlock()
 		return nil, errors.New("browser executable is not configured; set SYMBROWSE_EXECUTABLE_PATH")
 	}
 	userDataDir := info.UserDataDir
@@ -521,7 +559,16 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 		userDataDir = r.profile
 		slog.Warn("chrome profile reuse", "session", session, "profile", r.profile, "warning", profiles.Warning)
 	}
-	browser := chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: userDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate, Headless: r.headless})
+	executable := r.executable
+	allowedDomains := r.allowedDomains
+	ssrfEnabled := r.ssrfEnabled
+	allowPrivate := r.allowPrivate
+	headless := r.headless
+	restoreOnStart := r.restoreOnStart[session]
+	stateStore := r.stateStore
+	r.mu.Unlock()
+
+	browser := chrome.New(chrome.Options{ExecutablePath: executable, UserDataDir: userDataDir, AllowedDomains: allowedDomains, SSRFEnabled: ssrfEnabled, AllowPrivate: allowPrivate, Headless: headless})
 	if err := browser.Launch(ctx); err != nil {
 		return nil, err
 	}
@@ -541,21 +588,25 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 		return nil, err
 	}
 	service := engine.NewNavigationService(browser, page, engine.NavigationOptions{ProbeContext: browserContext})
+	r.mu.Lock()
 	r.engines[session] = browser
-	r.services[session] = service
+	r.browserContexts[session] = browserContext
+	r.tabs[session] = []*sessionTab{{Label: "t1", Service: service, Page: page}}
+	r.activeTab[session] = 0
+	r.mu.Unlock()
 	_ = r.registry.SetActiveTabs(session, 1)
 	// Restore a named state into the fresh browser when the daemon was
 	// started with --restore for this session. The restore runs with its own
 	// context so a slow browser start can never time out the first request.
-	if name := r.restoreOnStart[session]; name != "" && r.stateStore != nil {
+	if restoreOnStart != "" && stateStore != nil {
 		go func() {
 			restoreCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
-			stateRuntime := NewStateRuntime(r.stateStore, r)
-			if _, _, err := stateRuntime.Load(restoreCtx, session, name); err != nil {
-				slog.Warn("restore state on start failed", "session", session, "state", name, "error", err)
+			stateRuntime := NewStateRuntime(stateStore, r)
+			if _, _, err := stateRuntime.Load(restoreCtx, session, restoreOnStart); err != nil {
+				slog.Warn("restore state on start failed", "session", session, "state", restoreOnStart, "error", err)
 			} else {
-				slog.Info("restored state on start", "session", session, "state", name)
+				slog.Info("restored state on start", "session", session, "state", restoreOnStart)
 			}
 		}()
 	}
@@ -618,7 +669,9 @@ func (r *NavigationRuntime) Close() error {
 		}
 	}
 	r.engines = make(map[string]engine.Engine)
-	r.services = make(map[string]*engine.NavigationService)
+	r.tabs = make(map[string][]*sessionTab)
+	r.activeTab = make(map[string]int)
+	r.browserContexts = make(map[string]engine.Context)
 	return first
 }
 
@@ -651,6 +704,22 @@ func inspectionValue(result engine.InspectionResult) string {
 		return ""
 	}
 	return value
+}
+
+// tabHandle returns the current tab's page handle (for tab/frame/dialog
+// engine operations).
+func (r *NavigationRuntime) tabHandle(session string) (engine.Page, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	tabs := r.tabs[session]
+	if len(tabs) == 0 {
+		return engine.Page{}, false
+	}
+	index := r.activeTab[session]
+	if index < 0 || index >= len(tabs) {
+		index = 0
+	}
+	return tabs[index].Page, true
 }
 
 func decodeArgs(frame Frame, target any) error {

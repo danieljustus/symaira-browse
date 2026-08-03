@@ -131,11 +131,13 @@ func TestAuthLoginEndToEnd(t *testing.T) {
 	runtime := &NavigationRuntime{
 		registry:   registry,
 		executable: "/fake/chrome",
-		services:   make(map[string]*engine.NavigationService),
+		tabs:       make(map[string][]*sessionTab),
+		activeTab:  make(map[string]int),
 		engines:    make(map[string]engine.Engine),
 	}
 	service := engine.NewNavigationService(fake, engine.Page{ID: "page"}, engine.NavigationOptions{})
-	runtime.services["default"] = service
+	runtime.tabs["default"] = []*sessionTab{{Label: "t1", Service: service, Page: engine.Page{ID: "page"}}}
+	runtime.activeTab["default"] = 0
 	runtime.engines["default"] = fake
 
 	vault := &VaultResolver{
@@ -170,15 +172,18 @@ func TestAuthLoginRedactsErrors(t *testing.T) {
 	runtime := &NavigationRuntime{
 		registry:   registry,
 		executable: "/fake/chrome",
-		services:   make(map[string]*engine.NavigationService),
+		tabs:       make(map[string][]*sessionTab),
+		activeTab:  make(map[string]int),
 		engines:    make(map[string]engine.Engine),
 	}
 	service := engine.NewNavigationService(fake, engine.Page{ID: "page"}, engine.NavigationOptions{})
-	runtime.services["default"] = service
+	runtime.tabs["default"] = []*sessionTab{{Label: "t1", Service: service, Page: engine.Page{ID: "page"}}}
+	runtime.activeTab["default"] = 0
 	runtime.engines["default"] = fake
 
 	failing := &failingFillEngine{fakeAuthEngine: fake}
-	runtime.services["default"] = engine.NewNavigationService(failing, engine.Page{ID: "page"}, engine.NavigationOptions{})
+	runtime.tabs["default"] = []*sessionTab{{Label: "t1", Service: engine.NewNavigationService(failing, engine.Page{ID: "page"}, engine.NavigationOptions{})}}
+	runtime.activeTab["default"] = 0
 	runtime.engines["default"] = failing
 
 	vault := &VaultResolver{

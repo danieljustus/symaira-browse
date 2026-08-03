@@ -214,6 +214,10 @@ func runDaemon(cmd *cobra.Command, session string) error {
 				return journalRuntime.HandleOOB(ctx, frame, oobRuntime.Handle)
 			case "flow.record.start", "flow.record.stop", "flow.record.status":
 				return navigation.Handle(ctx, frame)
+			case "tab.list", "tab.new", "tab.switch", "tab.close", "window.new",
+				"frame.tree", "frame.main", "frame.select",
+				"dialog.status", "dialog.accept", "dialog.dismiss", "dialog.auto":
+				return navigation.Handle(ctx, frame)
 			default:
 				return nil, nil, daemon.NewError(daemon.ErrorUnknownCommand, "command is not implemented by the daemon")
 			}

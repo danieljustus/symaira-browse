@@ -81,6 +81,14 @@ type Engine struct {
 	downloadMu     sync.Mutex
 	downloadDir    map[string]string
 	downloadEvents map[string][]engine.DownloadEvent
+
+	// active frame addressing (FrameManager)
+	activeFrame        string
+	activeFrameContext int64
+
+	// dialog handling (DialogController)
+	dialogMu sync.Mutex
+	dialog   dialogState
 }
 
 // New creates an unlaunched Chrome engine.
@@ -175,6 +183,7 @@ func (e *Engine) Launch(ctx context.Context) error {
 	}
 	conn.addHandler(policy.handleEvent)
 	conn.addHandler(e.handleEvent)
+	conn.addHandler(e.handleDialogEvent)
 	e.mu.Lock()
 	e.cmd, e.conn, e.dataDir, e.removeDataDir, e.policy = cmd, conn, dataDir, removeDataDir, policy
 	e.mu.Unlock()
@@ -357,10 +366,11 @@ func (e *Engine) Navigate(ctx context.Context, page engine.Page, url string) (en
 // Evaluate evaluates JavaScript with a value result.
 func (e *Engine) Evaluate(ctx context.Context, page engine.Page, expression string) (engine.EvaluationResult, error) {
 	params := struct {
-		Expression    string `json:"expression"`
-		ReturnByValue bool   `json:"returnByValue"`
-		AwaitPromise  bool   `json:"awaitPromise"`
-	}{expression, true, true}
+		Expression         string `json:"expression"`
+		ReturnByValue      bool   `json:"returnByValue"`
+		AwaitPromise       bool   `json:"awaitPromise"`
+		ExecutionContextID int64  `json:"contextId,omitempty"`
+	}{expression, true, true, e.ActiveFrameContext()}
 	var result struct {
 		Result struct {
 			Type        string          `json:"type"`
