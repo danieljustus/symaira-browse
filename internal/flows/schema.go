@@ -347,12 +347,20 @@ func validDomainPattern(pattern string) bool {
 			return false
 		}
 		for _, char := range part {
-			if !(char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '-') {
+			if !isDomainChar(char) {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+// isDomainChar reports whether c is allowed inside a domain label.
+func isDomainChar(c rune) bool {
+	if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' {
+		return true
+	}
+	return false
 }
 
 // fieldLine returns the YAML line of a top-level field, or 0 when absent.

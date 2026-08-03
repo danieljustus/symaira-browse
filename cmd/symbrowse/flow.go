@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -68,33 +67,4 @@ func newFlowValidateCommand() *cobra.Command {
 	}
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable validation payload")
 	return command
-}
-
-// findFlowFile resolves a flow name to a file using the same precedence as
-// discovery: project-local ./.symbrowse/flows, then the global flows
-// directory. It is shared by validate and run.
-func findFlowFile(name string) (string, error) {
-	if filepath.Ext(name) == ".yaml" || filepath.Ext(name) == ".yml" {
-		if _, err := os.Stat(name); err == nil {
-			return name, nil
-		}
-	}
-	candidates := []string{
-		filepath.Join(".symbrowse", "flows", name+".yaml"),
-		filepath.Join(".symbrowse", "flows", name+".yml"),
-	}
-	home, err := os.UserHomeDir()
-	if err == nil {
-		global := filepath.Join(home, ".config", "symbrowse", "flows")
-		candidates = append(candidates,
-			filepath.Join(global, name+".yaml"),
-			filepath.Join(global, name+".yml"),
-		)
-	}
-	for _, candidate := range candidates {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
-		}
-	}
-	return "", fmt.Errorf("flow %q not found (looked in ./.symbrowse/flows and ~/.config/symbrowse/flows)", name)
 }
