@@ -9,6 +9,7 @@ These repository rules are derived from [PLANUNG.md §0](PLANUNG.md#0-auftrag-an
 - Follow the standalone-first boundary: do not add compile-time imports of sibling Symaira repositories. Integrations must be runtime-detected and have a fallback.
 - Every new output must provide a JSON mode with a stable field schema.
 - Every new action receives a risk class. Enforcement starts in milestone M4; before then, prepare the risk class in code as a constant.
+- `version --json` is the versionkit handshake payload (`{tool, version, schema_version}`) and deliberately bypasses the unified output envelope. Bump `SchemaVersion` in `internal/version` on every incompatible change to any machine-readable JSON output; never add, rename, or reorder fields of the payload itself.
 
 ## Architecture and configuration
 

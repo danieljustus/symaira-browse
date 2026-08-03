@@ -174,7 +174,9 @@ func TestResolveBatchCommandsFromStdin(t *testing.T) {
 }
 
 func TestBatchJSONItemDecodesEnvelope(t *testing.T) {
-	// The real cobra runner emits the unified envelope for version --json.
+	// version --json emits the raw versionkit handshake payload (issue
+	// #32: {tool, version, schema_version}, no envelope), and batch
+	// reports it as decoded JSON data.
 	report := runBatch(context.Background(), newRootCommand(), batchOptions{
 		Commands: []string{"version --json"},
 	}, runBatchItem)
@@ -186,7 +188,7 @@ func TestBatchJSONItemDecodesEnvelope(t *testing.T) {
 	if !ok {
 		t.Fatalf("data = %#v, want decoded JSON object", report.Results[0].Data)
 	}
-	if payload["success"] != true {
+	if payload["tool"] != "symbrowse" || payload["schema_version"] != float64(1) {
 		t.Fatalf("payload = %#v", payload)
 	}
 }
