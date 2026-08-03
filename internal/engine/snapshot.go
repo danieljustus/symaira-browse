@@ -19,13 +19,17 @@ type SnapshotOptions struct {
 	Depth       int    `json:"depth,omitempty"`
 	Selector    string `json:"selector,omitempty"`
 	URLs        bool   `json:"urls,omitempty"`
+	Diff        bool   `json:"diff,omitempty"`
+	Since       string `json:"since,omitempty"`
 	RootNodeID  string `json:"-"`
 }
 
 // SnapshotResult is the stable output shape for snapshot --json.
 type SnapshotResult struct {
-	Tree string                 `json:"tree"`
-	Refs map[string]SnapshotRef `json:"refs"`
+	SnapshotID string                 `json:"snapshot_id,omitempty"`
+	Tree       string                 `json:"tree"`
+	Refs       map[string]SnapshotRef `json:"refs"`
+	Hint       string                 `json:"hint,omitempty"`
 }
 
 // SnapshotRef describes the protocol-neutral target behind one rendered ref.
@@ -34,6 +38,9 @@ type SnapshotRef struct {
 	BackendNodeID  int64  `json:"backend_node_id,omitempty"`
 	Role           string `json:"role"`
 	Name           string `json:"name,omitempty"`
+	Value          string `json:"value,omitempty"`
+	State          string `json:"state,omitempty"`
+	Visible        bool   `json:"visible"`
 	Interactive    bool   `json:"interactive"`
 	URL            string `json:"url,omitempty"`
 	RefKey         string `json:"refkey,omitempty"`
@@ -50,29 +57,9 @@ type AXSelectorResolver interface {
 
 // Snapshot retrieves and renders the current page accessibility tree.
 func (s *NavigationService) Snapshot(ctx context.Context, options SnapshotOptions) (SnapshotResult, error) {
-	if options.Depth < 0 {
-		return SnapshotResult{}, errors.New("snapshot depth cannot be negative")
-	}
-	if strings.TrimSpace(options.Selector) != "" {
-		resolver, ok := s.engine.(AXSelectorResolver)
-		if !ok {
-			return SnapshotResult{}, errors.New("snapshot selector is not supported by this engine")
-		}
-		rootID, err := resolver.AXNodeForSelector(ctx, s.page, options.Selector)
-		if err != nil {
-			return SnapshotResult{}, fmt.Errorf("resolve snapshot selector %q: %w", options.Selector, err)
-		}
-		options.RootNodeID = rootID
-	}
-	nodes, err := s.engine.AXTree(ctx, s.page)
-	if err != nil {
-		return SnapshotResult{}, fmt.Errorf("read accessibility tree: %w", err)
-	}
-	result, err := RenderSnapshot(nodes, options)
-	if err != nil {
-		return SnapshotResult{}, err
-	}
-	return s.applyStableSnapshot(result), nil
+	s.snapshotMu.Lock()
+	defer s.snapshotMu.Unlock()
+	return s.captureSnapshot(ctx, options)
 }
 
 // RenderSnapshot renders protocol-neutral AXNode payloads into deterministic
@@ -164,6 +151,8 @@ type snapshotNode struct {
 	iframe         bool
 	shadowRoot     bool
 	backendNodeID  int64
+	state          map[string]string
+	visible        bool
 	childIDs       []string
 	children       []string
 	domPath        string
@@ -196,6 +185,7 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 			Name  string          `json:"name"`
 			Value json.RawMessage `json:"value"`
 		} `json:"properties"`
+		Visible *bool `json:"visible"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		return nil, err
@@ -216,6 +206,8 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 		value:         value,
 		ignored:       payload.Ignored,
 		backendNodeID: rawInt64(payload.BackendNodeID),
+		state:         make(map[string]string),
+		visible:       !payload.Ignored,
 		childIDs:      make([]string, 0, len(payload.ChildIDs)),
 		detached:      payload.Detached || payload.IsDetached,
 		iframe:        payload.IsFrameOwner || strings.Contains(role, "iframe") || role == "frame" || strings.Contains(strings.ToLower(rawValue(payload.Role)), "frame"),
@@ -229,6 +221,9 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 			node.childIDs = append(node.childIDs, id)
 		}
 	}
+	if payload.Visible != nil {
+		node.visible = *payload.Visible
+	}
 	for _, property := range payload.Properties {
 		propertyName := strings.ToLower(strings.TrimSpace(property.Name))
 		propertyValue := rawValue(property.Value)
@@ -237,7 +232,10 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 			if node.url == "" {
 				node.url = propertyValue
 			}
-		case "focusable", "editable", "checked", "expanded", "selected":
+		case "focusable", "editable", "checked", "expanded", "selected", "disabled", "pressed":
+			if propertyName != "focusable" && propertyName != "editable" || propertyBoolean(property.Value) {
+				node.state[propertyName] = propertyValue
+			}
 			if propertyBoolean(property.Value) && propertyName != "expanded" {
 				node.interactive = true
 			}
@@ -272,7 +270,7 @@ func renderSnapshotNode(parsed map[string]*snapshotNode, id string, options Snap
 		ref := fmt.Sprintf("e%d", *refNumber)
 		refs[ref] = SnapshotRef{
 			NodeID: node.id, BackendNodeID: node.backendNodeID, Role: node.role, Name: node.name,
-			Interactive: node.interactive, URL: node.url, RefKey: RefKey(node.role, node.name, node.domPath, node.siblingOrdinal),
+			Value: node.value, State: snapshotState(node.state), Visible: node.visible, Interactive: node.interactive, URL: node.url, RefKey: RefKey(node.role, node.name, node.domPath, node.siblingOrdinal),
 			DOMPath: node.domPath, SiblingOrdinal: node.siblingOrdinal,
 		}
 		line := strings.Repeat("  ", depth) + "- " + node.role

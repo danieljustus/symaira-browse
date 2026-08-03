@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -13,15 +12,15 @@ import (
 )
 
 func newSnapshotCommand() *cobra.Command {
-	var session, selector string
-	var interactive, compact, urls, jsonOutput bool
+	var session, selector, since string
+	var interactive, compact, urls, diff, jsonOutput bool
 	var depth int
 	command := &cobra.Command{
 		Use:   "snapshot",
 		Short: "Render the accessibility tree",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			options := engine.SnapshotOptions{Interactive: interactive, Compact: compact, Depth: depth, Selector: selector, URLs: urls}
+			options := engine.SnapshotOptions{Interactive: interactive, Compact: compact, Depth: depth, Selector: selector, URLs: urls, Diff: diff || since != "", Since: since}
 			args, err := json.Marshal(options)
 			if err != nil {
 				return err
@@ -35,13 +34,7 @@ func newSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !response.Success {
-				if response.Error == nil {
-					return errors.New("snapshot request failed")
-				}
-				return errors.New(response.Error.Message)
-			}
-			return writeDaemonResponse(cmd, response, jsonOutput)
+			return writeSnapshotResponse(cmd, response, jsonOutput, diff || since != "")
 		},
 	}
 	command.Flags().StringVar(&session, "session", "default", "session name")
@@ -50,6 +43,12 @@ func newSnapshotCommand() *cobra.Command {
 	command.Flags().IntVarP(&depth, "depth", "d", 0, "maximum tree depth; zero means unlimited")
 	command.Flags().StringVarP(&selector, "selector", "s", "", "select an accessibility subtree")
 	command.Flags().BoolVarP(&urls, "urls", "u", false, "include link URLs")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable tree and ref map")
+	command.Flags().BoolVar(&diff, "diff", false, "show changes since the previous snapshot")
+	command.Flags().StringVar(&since, "since", "", "show changes since a specific snapshot ID")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable snapshot payload")
 	return command
+}
+
+func writeSnapshotResponse(cmd *cobra.Command, response daemon.Response, jsonOutput, _ bool) error {
+	return writeDaemonResponse(cmd, response, jsonOutput)
 }

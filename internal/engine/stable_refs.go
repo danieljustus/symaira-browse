@@ -84,6 +84,7 @@ func (s *NavigationService) invalidateSnapshotRefs(reason string) {
 		s.refRegistry = newStableRefRegistry()
 	}
 	s.refRegistry.invalidate(reason)
+	s.snapshotEpoch++
 	s.refs = make(map[string]SnapshotRef)
 }
 
