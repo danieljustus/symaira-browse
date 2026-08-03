@@ -48,6 +48,8 @@ const (
 	CodeValidation Code = "validation"
 	// CodeNoInput: required input was not provided.
 	CodeNoInput Code = "no_input"
+	// CodeFlowFailed: a flow step or the flow run failed.
+	CodeFlowFailed Code = "flow_failed"
 	// CodeConfig: configuration is invalid or unreadable.
 	CodeConfig Code = "config"
 	// CodeConflict: the operation conflicts with the current state.
@@ -66,7 +68,7 @@ var allCodes = map[Code]bool{
 	CodeOperationFailed: true, CodeOperationTimeout: true, CodePeerDenied: true,
 	CodeDaemonUnavailable: true, CodeInvalidSession: true, CodeSessionNotFound: true,
 	CodeNotFound: true, CodeAuth: true, CodePermission: true, CodeValidation: true,
-	CodeNoInput: true, CodeConfig: true, CodeConflict: true, CodeUnavailable: true,
+	CodeNoInput: true, CodeFlowFailed: true, CodeConfig: true, CodeConflict: true, CodeUnavailable: true,
 	CodeInternal: true,
 }
 
@@ -116,6 +118,8 @@ func kindFromCode(code Code) exitcodes.ErrorKind {
 		return exitcodes.KindConfig
 	case CodeStaleRef, CodeConflict:
 		return exitcodes.KindConflict
+	case CodeFlowFailed:
+		return exitcodes.KindInternal
 	case CodeDaemonUnavailable, CodeUnavailable, CodeOperationTimeout, CodeOperationFailed:
 		return exitcodes.KindUnavailable
 	default:

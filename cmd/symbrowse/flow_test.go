@@ -106,3 +106,63 @@ func writeFlowFixture(t *testing.T, name, content string) string {
 	}
 	return path
 }
+
+func TestFlowRunCommandDryRun(t *testing.T) {
+	path := writeFlowFixture(t, "dryrun", `name: dry-flow
+version: 1
+domains: ["example.com"]
+inputs: [user]
+steps:
+  - open: { url: "https://example.com" }
+  - fill: { label: "User", value: "{{user}}" }
+`)
+	root := newRootCommand()
+	buffer := new(bytes.Buffer)
+	root.SetOut(buffer)
+	root.SetErr(buffer)
+	root.SetArgs([]string{"flow", "run", "--dry-run", "--json", "--input", "user=alice", path})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("flow run --dry-run returned error: %v", err)
+	}
+	var envelope output.Envelope
+	if err := json.Unmarshal(buffer.Bytes(), &envelope); err != nil {
+		t.Fatalf("output is not JSON: %v\n%s", err, buffer.String())
+	}
+	if !envelope.Success {
+		t.Fatalf("envelope.Success = false: %+v", envelope)
+	}
+	data, ok := envelope.Data.(map[string]any)
+	if !ok {
+		t.Fatalf("data type = %T", envelope.Data)
+	}
+	if data["dry_run"] != true {
+		t.Errorf("dry_run = %v, want true", data["dry_run"])
+	}
+	plan, ok := data["plan"].([]any)
+	if !ok || len(plan) != 2 {
+		t.Fatalf("plan = %v, want 2 items", data["plan"])
+	}
+}
+
+func TestFlowRunCommandMissingInput(t *testing.T) {
+	path := writeFlowFixture(t, "missing-input", `name: needs-input
+version: 1
+domains: ["example.com"]
+inputs: [user]
+steps:
+  - open: { url: "https://example.com" }
+  - fill: { label: "User", value: "{{user}}" }
+`)
+	root := newRootCommand()
+	buffer := new(bytes.Buffer)
+	root.SetOut(buffer)
+	root.SetErr(buffer)
+	root.SetArgs([]string{"flow", "run", path})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("flow run accepted missing input")
+	}
+	if !strings.Contains(err.Error(), "missing required inputs") {
+		t.Errorf("error = %v, want missing inputs message", err)
+	}
+}

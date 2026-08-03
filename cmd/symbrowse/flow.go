@@ -23,6 +23,7 @@ func newFlowCommand() *cobra.Command {
 			"hard domain constraints and op://…-only secret references.",
 	}
 	command.AddCommand(newFlowValidateCommand())
+	command.AddCommand(newFlowRunCommand())
 	return command
 }
 
