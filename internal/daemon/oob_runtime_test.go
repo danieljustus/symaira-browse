@@ -116,7 +116,7 @@ func TestDecideAndConfirmGate(t *testing.T) {
 	// deny via policy file rule
 	p := &policy.Policy{Rules: []policy.Rule{{Class: policy.ClassNetworkMock, Domain: "x.com", Decision: policy.Deny}}}
 	_, oobRuntime := newOOBTestRuntime(t, p)
-	allowed, decision, err := oobRuntime.DecideAndConfirm(context.Background(), "default", "network.route", "https://x.com", time.Second)
+	allowed, decision, _, err := oobRuntime.DecideAndConfirm(context.Background(), "default", "network.route", "https://x.com", time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ func TestDecideAndConfirmGate(t *testing.T) {
 		t.Fatalf("allowed=%v decision=%s", allowed, decision)
 	}
 	// confirm: timeout => deny
-	allowed, decision, err = oobRuntime.DecideAndConfirm(context.Background(), "default", "eval", "https://x.com", 100*time.Millisecond)
+	allowed, decision, _, err = oobRuntime.DecideAndConfirm(context.Background(), "default", "eval", "https://x.com", 100*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestDecideAndConfirmGate(t *testing.T) {
 		t.Fatalf("allowed=%v decision=%s", allowed, decision)
 	}
 	// read: allow without prompting
-	allowed, decision, err = oobRuntime.DecideAndConfirm(context.Background(), "default", "snapshot", "https://x.com", time.Second)
+	allowed, decision, _, err = oobRuntime.DecideAndConfirm(context.Background(), "default", "snapshot", "https://x.com", time.Second)
 	if err != nil {
 		t.Fatal(err)
 	}
