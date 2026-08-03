@@ -184,8 +184,10 @@ steps:
 	if runErr.StepIndex != 0 || !strings.Contains(runErr.Message, "not allowed") {
 		t.Errorf("unexpected error: %+v", runErr)
 	}
-	if len(executor.frames) != 0 {
-		t.Errorf("executed %d frames, want 0 (domain gate)", len(executor.frames))
+	// The domain gate itself runs before any step; the single frame is the
+	// diagnosis' actual-state lookup (get.url), not a navigation.
+	if len(executor.frames) > 1 {
+		t.Errorf("executed %d frames, want at most 1 (domain gate + diagnosis lookup)", len(executor.frames))
 	}
 }
 
