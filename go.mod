@@ -15,4 +15,6 @@ require (
 	github.com/go-json-experiment/json v0.0.0-20260623181947-01eb4420fa68 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

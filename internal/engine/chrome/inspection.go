@@ -91,7 +91,7 @@ func inspectionExpression(request engine.InspectionRequest) (string, error) {
 	if request.Kind == engine.InspectCount {
 		return "document.querySelectorAll(" + string(selector) + ").length", nil
 	}
-	if request.Selector == "" && (request.Kind == engine.InspectTitle || request.Kind == engine.InspectURL) {
+	if request.Selector == "" && (request.Kind == engine.InspectTitle || request.Kind == engine.InspectURL || request.Kind == engine.InspectHTML) {
 		return value, nil
 	}
 	return "(function(){const e=document.querySelector(" + string(selector) + ");if(!e)throw new Error(" + selectorError(request.Selector) + ");return " + value + ";})()", nil
@@ -123,6 +123,9 @@ func inspectionValueExpression(kind engine.InspectionKind, element, attribute, p
 	}
 	if pageValue && kind == engine.InspectURL {
 		return "location.href"
+	}
+	if pageValue && kind == engine.InspectHTML {
+		return "document.documentElement.outerHTML"
 	}
 	switch kind {
 	case engine.InspectText:
