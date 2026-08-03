@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -43,6 +45,9 @@ type Options struct {
 	// AllowPrivate relaxes the SSRF guard (--allow-private). Without it the
 	// guard denies every private target.
 	AllowPrivate bool
+	// Headless launches Chrome in headless mode (no GUI session). Needed
+	// for CI and agent contexts where a windowed Chrome cannot start.
+	Headless bool
 }
 
 // Engine is a private Chrome process plus its CDP browser connection.
@@ -110,7 +115,7 @@ func (e *Engine) Launch(ctx context.Context) error {
 			return fmt.Errorf("create Chrome profile: %w", err)
 		}
 	}
-	args := chromeArgs(dataDir, policy.active())
+	args := chromeArgs(dataDir, policy.active(), e.options.Headless)
 	cmd := exec.Command(e.options.ExecutablePath, args...)
 	cmd.Stdin = nil
 	cmd.Stdout = nil
@@ -146,7 +151,7 @@ func (e *Engine) Launch(ctx context.Context) error {
 	return nil
 }
 
-func chromeArgs(dataDir string, disableWebRTC bool) []string {
+func chromeArgs(dataDir string, disableWebRTC, headless bool) []string {
 	args := []string{
 		"--user-data-dir=" + dataDir,
 		"--remote-debugging-port=0",
@@ -164,6 +169,11 @@ func chromeArgs(dataDir string, disableWebRTC bool) []string {
 		// the Fetch domain, so the allowlist disables it at the process level.
 		args = append(args[:len(args)-1], "--disable-webrtc", "about:blank")
 	}
+	if headless {
+		// Headless mode runs Chrome without a GUI session; required for
+		// CI and agent contexts where the Mach bootstrap is restricted.
+		args = append(args[:len(args)-1], "--headless=new", "about:blank")
+	}
 	return args
 }
 
@@ -177,10 +187,24 @@ func waitForEndpoint(ctx context.Context, dataDir string) (string, error) {
 				port, parseErr := strconv.Atoi(lines[0])
 				if parseErr == nil && port > 0 && port < 65536 {
 					path := lines[1]
-					if strings.HasPrefix(path, "ws://") || strings.HasPrefix(path, "wss://") {
-						return path, nil
+					endpoint := path
+					dialPort := port
+					if !strings.HasPrefix(path, "ws://") && !strings.HasPrefix(path, "wss://") {
+						endpoint = fmt.Sprintf("ws://127.0.0.1:%d%s", port, path)
+					} else if u, urlErr := url.Parse(path); urlErr == nil && u.Port() != "" {
+						if p, atoiErr := strconv.Atoi(u.Port()); atoiErr == nil {
+							dialPort = p
+						}
 					}
-					return fmt.Sprintf("ws://127.0.0.1:%d%s", port, path), nil
+					// A reused session profile can carry a stale
+					// DevToolsActivePort from a previous Chrome instance.
+					// Verify the endpoint actually accepts connections and
+					// keep waiting for a fresh file otherwise.
+					conn, dialErr := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", dialPort), 150*time.Millisecond)
+					if dialErr == nil {
+						_ = conn.Close()
+						return endpoint, nil
+					}
 				}
 			}
 		}

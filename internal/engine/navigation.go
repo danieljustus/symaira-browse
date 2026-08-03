@@ -105,6 +105,7 @@ type NavigationStateProvider interface {
 type NavigationService struct {
 	engine            Engine
 	page              Page
+	probeContext      Context
 	timeout           time.Duration
 	pollInterval      time.Duration
 	networkIdleFor    time.Duration
@@ -124,6 +125,25 @@ type NavigationOptions struct {
 	Timeout        time.Duration
 	PollInterval   time.Duration
 	NetworkIdleFor time.Duration
+	// ProbeContext is the browser context used for side-by-side probe
+	// loads (the --engine-hint comparison). When empty, JSRequired
+	// cannot run and reports an error.
+	ProbeContext Context
+}
+
+// JSRequiredResult is the engine-hint payload: whether JavaScript was
+// actually needed to render the page, with the reason (issue #35,
+// ARCHITEKTUR.md §6.1).
+type JSRequiredResult struct {
+	Required bool   `json:"js_required"`
+	Reason   string `json:"js_required_reason,omitempty"`
+}
+
+// ScriptDisabler is an optional engine extension. It disables JavaScript
+// execution for one page session so a probe load can render what a static
+// fetch (Tier 0) would see.
+type ScriptDisabler interface {
+	DisableScripts(context.Context, Page) error
 }
 
 // NewNavigationService creates a controller for one page.
@@ -137,7 +157,7 @@ func NewNavigationService(browser Engine, page Page, options NavigationOptions) 
 	if options.NetworkIdleFor <= 0 {
 		options.NetworkIdleFor = defaultNetworkIdle
 	}
-	return &NavigationService{engine: browser, page: page, timeout: options.Timeout, pollInterval: options.PollInterval, networkIdleFor: options.NetworkIdleFor, refs: make(map[string]SnapshotRef), refRegistry: newStableRefRegistry(), snapshotHistory: make(map[string]snapshotRecord)}
+	return &NavigationService{engine: browser, page: page, probeContext: options.ProbeContext, timeout: options.Timeout, pollInterval: options.PollInterval, networkIdleFor: options.NetworkIdleFor, refs: make(map[string]SnapshotRef), refRegistry: newStableRefRegistry(), snapshotHistory: make(map[string]snapshotRecord)}
 }
 
 // Open navigates to url. Goto is an explicit alias for Open.

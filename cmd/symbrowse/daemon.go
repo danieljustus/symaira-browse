@@ -19,19 +19,20 @@ import (
 
 func newDaemonCommand() *cobra.Command {
 	var session, allowedDomains string
-	var ssrf, allowPrivate bool
+	var ssrf, allowPrivate, headless bool
 	command := &cobra.Command{
 		Use:   "daemon",
 		Short: "Run or inspect the symbrowse daemon",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runDaemon(cmd, session, allowedDomains, ssrf, allowPrivate)
+			return runDaemon(cmd, session, allowedDomains, ssrf, allowPrivate, headless)
 		},
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
 	command.Flags().StringVar(&allowedDomains, "allowed-domains", "", "comma-separated domain allowlist (e.g. \"example.com,*.example.com\"); denies every other domain on the network layer")
 	command.Flags().BoolVar(&ssrf, "ssrf", false, "enable the SSRF guard: RFC1918, loopback, link-local, .local, and IPv6-ULA targets are denied (default on in MCP mode)")
 	command.Flags().BoolVar(&allowPrivate, "allow-private", false, "allow private and loopback targets when the SSRF guard is active")
+	command.Flags().BoolVar(&headless, "headless", false, "launch Chrome in headless mode (no GUI session; also via SYMBROWSE_HEADLESS=1)")
 	command.AddCommand(newDaemonStatusCommand(&session))
 	command.AddCommand(newDaemonStopCommand(&session))
 	return command
@@ -69,7 +70,7 @@ func newDaemonStopCommand(session *string) *cobra.Command {
 	return command
 }
 
-func runDaemon(cmd *cobra.Command, session, allowedDomainsFlag string, ssrfFlag, allowPrivateFlag bool) error {
+func runDaemon(cmd *cobra.Command, session, allowedDomainsFlag string, ssrfFlag, allowPrivateFlag, headlessFlag bool) error {
 	path, err := daemon.SocketPath(session)
 	if err != nil {
 		return err
@@ -77,6 +78,7 @@ func runDaemon(cmd *cobra.Command, session, allowedDomainsFlag string, ssrfFlag,
 	allowedDomains := resolveAllowedDomains(allowedDomainsFlag)
 	ssrfEnabled := resolveBoolPolicy("SYMBROWSE_SSRF", ssrfFlag, func(cfg *config.Config) bool { return cfg.SSRFEnabled })
 	allowPrivate := resolveBoolPolicy("SYMBROWSE_ALLOW_PRIVATE", allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate })
+	headless := headlessFlag || os.Getenv("SYMBROWSE_HEADLESS") == "1"
 	idle := time.Duration(daemon.DefaultIdleTimeout)
 	if raw := os.Getenv("SYMBROWSE_IDLE_TIMEOUT"); raw != "" {
 		seconds, parseErr := strconv.Atoi(raw)
@@ -92,7 +94,7 @@ func runDaemon(cmd *cobra.Command, session, allowedDomainsFlag string, ssrfFlag,
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{})
-	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"), daemon.NavigationRuntimeOptions{AllowedDomains: allowedDomains, SSRFEnabled: ssrfEnabled, AllowPrivate: allowPrivate})
+	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"), daemon.NavigationRuntimeOptions{AllowedDomains: allowedDomains, SSRFEnabled: ssrfEnabled, AllowPrivate: allowPrivate, Headless: headless})
 	defer func() { _ = navigation.Close() }()
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:  path,
