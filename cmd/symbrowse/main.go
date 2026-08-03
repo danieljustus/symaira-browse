@@ -70,6 +70,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newOOBCommand())
 	root.AddCommand(newHandoffCommand())
 	root.AddCommand(newWatchCommand())
+	root.AddCommand(newFlowCommand())
 	return root
 }
 
