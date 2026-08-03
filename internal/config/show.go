@@ -22,11 +22,12 @@ type ShowOutput struct {
 // and line-oriented; JSON output has a stable top-level field schema.
 func WriteShow(w io.Writer, result Result, jsonOutput bool) error {
 	fields := map[string]Field{
-		"cache_dir":  {Value: result.Config.CacheDir, Source: result.Sources["cache_dir"]},
-		"config_dir": {Value: result.Config.ConfigDir, Source: result.Sources["config_dir"]},
-		"log_format": {Value: result.Config.LogFormat, Source: result.Sources["log_format"]},
-		"log_level":  {Value: result.Config.LogLevel, Source: result.Sources["log_level"]},
-		"state_dir":  {Value: result.Config.StateDir, Source: result.Sources["state_dir"]},
+		"cache_dir":       {Value: result.Config.CacheDir, Source: result.Sources["cache_dir"]},
+		"config_dir":      {Value: result.Config.ConfigDir, Source: result.Sources["config_dir"]},
+		"log_format":      {Value: result.Config.LogFormat, Source: result.Sources["log_format"]},
+		"log_level":       {Value: result.Config.LogLevel, Source: result.Sources["log_level"]},
+		"state_dir":       {Value: result.Config.StateDir, Source: result.Sources["state_dir"]},
+		"executable_path": {Value: result.Config.ExecutablePath, Source: result.Sources["executable_path"]},
 	}
 	if jsonOutput {
 		encoder := json.NewEncoder(w)
