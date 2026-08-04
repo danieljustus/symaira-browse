@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/danieljustus/symaira-browse/internal/render"
+	"github.com/danieljustus/symaira-corekit/domkit"
 )
 
 // TestWithEngineHintMergesHintFields verifies the envelope-data shape of
 // read --engine-hint: the document fields stay intact and js_required is a
 // sibling (never inside the contract-fixed frontmatter).
 func TestWithEngineHintMergesHintFields(t *testing.T) {
-	document := render.Document{
+	document := domkit.Document{
 		URL:        "https://example.com/spa",
 		Title:      "SPA",
 		Markdown:   "# SPA\n",

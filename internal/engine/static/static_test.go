@@ -172,3 +172,86 @@ func TestCapabilitiesList(t *testing.T) {
 		}
 	}
 }
+
+func TestNavigateErrors(t *testing.T) {
+	e := New()
+	ctx := context.Background()
+
+	// Invalid URL.
+	if _, err := e.Navigate(ctx, engine.Page{}, "://bad"); err == nil {
+		t.Fatal("expected invalid-URL error")
+	}
+	// Unsupported scheme.
+	if _, err := e.Navigate(ctx, engine.Page{}, "file:///etc/passwd"); err == nil {
+		t.Fatal("expected unsupported-scheme error")
+	}
+	// HTTP error status.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "nope", http.StatusNotFound)
+	}))
+	t.Cleanup(server.Close)
+	if _, err := e.Navigate(ctx, engine.Page{}, server.URL); err == nil {
+		t.Fatal("expected HTTP-status error")
+	}
+	// Fetch error (connection refused).
+	if _, err := e.Navigate(ctx, engine.Page{}, "http://127.0.0.1:1/"); err == nil {
+		t.Fatal("expected fetch error")
+	}
+	// Closed engine.
+	_ = e.Close()
+	if _, err := e.Navigate(ctx, engine.Page{}, "http://example.com/"); err == nil {
+		t.Fatal("expected closed-engine error")
+	}
+}
+
+func TestEvaluateWithoutDocumentAndJSError(t *testing.T) {
+	e := New()
+	// No document loaded.
+	if _, err := e.Evaluate(context.Background(), engine.Page{}, "location.origin"); err == nil {
+		t.Fatal("expected no-page error")
+	}
+	// After navigation, arbitrary JS fails with a capability error.
+	e.client = &http.Client{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<html><head><title>T</title></head><body>x</body></html>`))
+	}))
+	t.Cleanup(server.Close)
+	if _, err := e.Navigate(context.Background(), engine.Page{}, server.URL); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.Evaluate(context.Background(), engine.Page{}, "alert(1)"); err == nil {
+		t.Fatal("expected capability error for arbitrary JS")
+	}
+}
+
+func TestScreenshotAndInspectErrors(t *testing.T) {
+	e := New()
+	if _, err := e.Screenshot(context.Background(), engine.Page{}); err == nil {
+		t.Fatal("expected screenshot capability error")
+	}
+	if _, err := e.Inspect(context.Background(), engine.Page{}, engine.InspectionRequest{Kind: "bogus"}, nil); err == nil {
+		t.Fatal("expected unknown-kind error")
+	}
+}
+
+func TestNavigationStateAndCapabilityError(t *testing.T) {
+	e := New()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<html><head><title>State Page</title></head><body>hi</body></html>`))
+	}))
+	t.Cleanup(server.Close)
+	if _, err := e.Navigate(context.Background(), engine.Page{}, server.URL); err != nil {
+		t.Fatal(err)
+	}
+	state, err := e.NavigationState(context.Background(), engine.Page{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.URL == "" || state.HTTPStatus != 200 {
+		t.Fatalf("state = %+v", state)
+	}
+	err = &CapabilityError{Message: "x"}
+	if err.Error() != "x" {
+		t.Fatalf("capability error = %q", err.Error())
+	}
+}

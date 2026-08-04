@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/chromedp/cdproto v0.0.0-20260719223732-95f6af754cfe
-	github.com/danieljustus/symaira-corekit v0.8.0
+	github.com/danieljustus/symaira-corekit v0.8.1-0.20260803184951-14554364bb4e
 	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.57.0
