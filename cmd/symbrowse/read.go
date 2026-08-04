@@ -14,7 +14,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/exitcodes"
 	"github.com/danieljustus/symaira-browse/internal/injection"
 	"github.com/danieljustus/symaira-browse/internal/output"
-	"github.com/danieljustus/symaira-browse/internal/render"
+	"github.com/danieljustus/symaira-corekit/domkit"
 )
 
 func newReadCommand() *cobra.Command {
@@ -59,7 +59,7 @@ func newReadCommand() *cobra.Command {
 			if err := json.Unmarshal(materialJSON, &material); err != nil {
 				return fmt.Errorf("decode read material: %w", err)
 			}
-			document, err := render.Render(material.HTML, material.Title, material.URL, render.Options{
+			document, err := domkit.Render(material.HTML, material.Title, material.URL, domkit.Options{
 				Selector: selector,
 				Filter:   filter,
 				Outline:  outline,
@@ -73,7 +73,7 @@ func newReadCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				document.ContentBoundaries = &boundary
+				document.ContentBoundaries = (*domkit.Boundary)(&boundary)
 			}
 			if jsonOutputFlag(cmd) {
 				data := any(document)
@@ -103,7 +103,7 @@ func newReadCommand() *cobra.Command {
 
 // withEngineHint merges the engine-hint fields into the envelope data while
 // keeping the document fields intact.
-func withEngineHint(document render.Document, required bool, reason string) any {
+func withEngineHint(document domkit.Document, required bool, reason string) any {
 	raw, err := json.Marshal(document)
 	if err != nil {
 		return document
@@ -121,7 +121,7 @@ func withEngineHint(document render.Document, required bool, reason string) any 
 
 // writeReadHumanWithHint prints the document followed by the engine-hint
 // line, so a Tier-0 agent sees the recommendation immediately.
-func writeReadHumanWithHint(cmd *cobra.Command, document render.Document, required bool, reason string) error {
+func writeReadHumanWithHint(cmd *cobra.Command, document domkit.Document, required bool, reason string) error {
 	if err := writeReadHuman(cmd, document); err != nil {
 		return err
 	}
@@ -133,9 +133,9 @@ func writeReadHumanWithHint(cmd *cobra.Command, document render.Document, requir
 	return err
 }
 
-func writeReadHuman(cmd *cobra.Command, document render.Document) error {
+func writeReadHuman(cmd *cobra.Command, document domkit.Document) error {
 	var builder strings.Builder
-	builder.WriteString(render.Frontmatter(document))
+	builder.WriteString(domkit.Frontmatter(document))
 	switch {
 	case len(document.Outline) > 0:
 		for _, heading := range document.Outline {
