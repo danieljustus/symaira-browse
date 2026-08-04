@@ -80,8 +80,17 @@ jobs:
           go test -coverprofile=/tmp/coverage.out ./... >/dev/null 2>&1
           total=$(go tool cover -func=/tmp/coverage.out | tail -1 | awk '{gsub(/%/,"",$NF); print $NF}')
           refs=$(go tool cover -func=/tmp/coverage.out | grep 'stable_refs.go' | awk '{gsub(/%/,"",$NF); sum+=$NF; n++} END {print (n>0 ? sum/n : 0)}')
-          policy=$(go test -coverprofile=/tmp/policy.out ./internal/policy/ >/dev/null 2>&1 && go tool cover -func=/tmp/policy.out | tail -1 | awk '{gsub(/%/,"",$NF); print $NF}')
-          injection=$(go test -coverprofile=/tmp/injection.out ./internal/injection/ >/dev/null 2>&1 && go tool cover -func=/tmp/injection.out | tail -1 | awk '{gsub(/%/,"",$NF); print $NF}')
+          # Per-package coverage is derived from the same profile (no extra
+          # test runs): coverprofile lines carry the full package path, and
+          # the default -coverpkg scopes each test binary to its own package,
+          # so filtering by path == running the package tests separately.
+          pkg_cov() {
+            { head -1 /tmp/coverage.out; grep "$1" /tmp/coverage.out || true; } > /tmp/pkg.out
+            if [ "$(wc -l < /tmp/pkg.out)" -le 1 ]; then echo 0; return; fi
+            go tool cover -func=/tmp/pkg.out | tail -1 | awk '{gsub(/%/,"",$NF); print $NF}'
+          }
+          policy=$(pkg_cov '/internal/policy/')
+          injection=$(pkg_cov '/internal/injection/')
           echo "total=${total}% refs=${refs}% policy=${policy}% injection=${injection}%"
           echo "total=${total}" >> "$GITHUB_OUTPUT"
           echo "refs=${refs}" >> "$GITHUB_OUTPUT"
