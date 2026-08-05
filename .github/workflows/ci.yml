@@ -200,8 +200,10 @@ jobs:
         run: go test ./...
 
   codeql:
-    name: CodeQL / scheduled
-    if: github.event_name == 'schedule'
+    name: CodeQL / analysis
+    # Weekly on main plus on every pull request that touches code, so
+    # security findings surface on the branch before merge.
+    if: github.event_name == 'schedule' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       actions: read
