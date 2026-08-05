@@ -103,6 +103,9 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 	if c.options.SocketPath == "" {
 		return Response{}, errors.New("socket path is required")
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if err := ctx.Err(); err != nil {
 		return Response{}, err
 	}
