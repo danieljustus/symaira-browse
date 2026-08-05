@@ -1,5 +1,8 @@
 # Symaira Browse (`symbrowse`)
 
+[![CI](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml/badge.svg)](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 ![Symaira Browse social preview](docs/assets/social-preview.png)
 
 > The browser an agent can operate while a person can take over at any time — without losing the session.
@@ -31,6 +34,12 @@ Build and inspect the command:
 make build
 ./symbrowse --help
 ./symbrowse version
+```
+
+Or install the latest release directly with Go:
+
+```sh
+go install github.com/danieljustus/symaira-browse/cmd/symbrowse@latest
 ```
 
 The build is CGO-free by default. The `VERSION` variable can be overridden for a local build:
@@ -76,13 +85,9 @@ handoff to a person for login, 2FA, CAPTCHA, and approval workflows.
 - [docs/output-schema.md](docs/output-schema.md) — read/output schema
 - [docs/benchmarks.md](docs/benchmarks.md) — benchmark results
 - [docs/tabs.md](docs/tabs.md) — tabs, windows, frames, dialogs
-- [docs/ssrf.md](docs/ssrf.md) — SSRF guard
-- [docs/injection.md](docs/injection.md) — prompt-injection heuristic scan
-- [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
 - [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
-- [docs/mcp.md](docs/mcp.md) — MCP server: configuration snippets for Claude Code, Cursor, OpenCode, Claude Desktop, tool profiles, security defaults
 - [docs/injection.md](docs/injection.md) — prompt-injection scan (`snapshot`, `--no-injection-scan`, pattern list)
-- [docs/tiers.md](docs/tiers.md) — the fetch/browse escalation contract (`read --engine-hint`, `js_required`, decision tree)
+- [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
 
 ## License
 
