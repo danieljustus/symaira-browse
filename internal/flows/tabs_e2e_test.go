@@ -27,7 +27,7 @@ func TestTabsKeepRefsPerTabEndToEnd(t *testing.T) {
 	if _, err := registry.Ensure("e2e-tabs"); err != nil {
 		t.Fatalf("Ensure session: %v", err)
 	}
-	runtime := daemon.NewNavigationRuntime(registry, executable, daemon.NavigationRuntimeOptions{})
+	runtime := daemon.NewNavigationRuntime(registry, executable, e2eRuntimeOptions())
 	defer func() { _ = runtime.Close() }()
 	executor := runtimeExecutor(runtime)
 
@@ -95,7 +95,7 @@ func TestFramesNestedIframesEndToEnd(t *testing.T) {
 	if _, err := registry.Ensure("e2e-frames"); err != nil {
 		t.Fatalf("Ensure session: %v", err)
 	}
-	runtime := daemon.NewNavigationRuntime(registry, executable, daemon.NavigationRuntimeOptions{})
+	runtime := daemon.NewNavigationRuntime(registry, executable, e2eRuntimeOptions())
 	defer func() { _ = runtime.Close() }()
 	executor := runtimeExecutor(runtime)
 
@@ -142,7 +142,7 @@ func TestDialogBeforeUnloadDoesNotBlockEndToEnd(t *testing.T) {
 	if _, err := registry.Ensure("e2e-dialog"); err != nil {
 		t.Fatalf("Ensure session: %v", err)
 	}
-	runtime := daemon.NewNavigationRuntime(registry, executable, daemon.NavigationRuntimeOptions{})
+	runtime := daemon.NewNavigationRuntime(registry, executable, e2eRuntimeOptions())
 	defer func() { _ = runtime.Close() }()
 	executor := runtimeExecutor(runtime)
 

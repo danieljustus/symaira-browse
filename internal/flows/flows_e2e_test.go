@@ -31,7 +31,7 @@ func TestRunAgainstFormFixtureEndToEnd(t *testing.T) {
 	if _, err := registry.Ensure("e2e"); err != nil {
 		t.Fatalf("Ensure session: %v", err)
 	}
-	runtime := daemon.NewNavigationRuntime(registry, executable, daemon.NavigationRuntimeOptions{})
+	runtime := daemon.NewNavigationRuntime(registry, executable, e2eRuntimeOptions())
 	defer func() { _ = runtime.Close() }()
 
 	executor := func(ctx context.Context, frame daemon.Frame) (daemon.Response, error) {
@@ -98,7 +98,7 @@ func TestRunRejectsForeignDomainEndToEnd(t *testing.T) {
 	if _, err := registry.Ensure("e2e-domains"); err != nil {
 		t.Fatalf("Ensure session: %v", err)
 	}
-	runtime := daemon.NewNavigationRuntime(registry, executable, daemon.NavigationRuntimeOptions{})
+	runtime := daemon.NewNavigationRuntime(registry, executable, e2eRuntimeOptions())
 	defer func() { _ = runtime.Close() }()
 
 	executor := func(ctx context.Context, frame daemon.Frame) (daemon.Response, error) {
@@ -140,13 +140,13 @@ func freshUserDataRoot(t *testing.T) string {
 	return dir
 }
 
-// chromeExecutable resolves the browser binary used by the E2E tests. In CI
-// (GitHub Actions) it returns "" so the E2E tests skip: Chrome is present on
-// runners but cannot start headless without a sandbox setup; the dedicated
-// E2E smoke job (issue #67) owns the real in-CI browser run.
+// chromeExecutable resolves the browser binary used by the E2E tests. The
+// tests run on developer machines by default (Chrome present, no CI env)
+// and in the dedicated CI E2E job, which opts in via SYMBROWSE_E2E=1 (like
+// e2e/smoke_test.go). The regular CI test jobs skip them.
 func chromeExecutable(t *testing.T) string {
 	t.Helper()
-	if os.Getenv("CI") != "" {
+	if os.Getenv("CI") != "" && os.Getenv("SYMBROWSE_E2E") != "1" {
 		return ""
 	}
 	if path := os.Getenv("SYMBROWSE_EXECUTABLE_PATH"); path != "" {
@@ -164,6 +164,19 @@ func chromeExecutable(t *testing.T) string {
 		return path
 	}
 	return ""
+}
+
+// e2eRuntimeOptions returns the navigation runtime options used by the
+// real-Chrome E2E tests: a generous per-command CDP budget (Chrome
+// round-trips can stall for seconds on loaded machines right after a
+// sibling tab is created, which previously made these tests flaky) and
+// headless mode when the environment demands it (CI runs without a
+// display).
+func e2eRuntimeOptions() daemon.NavigationRuntimeOptions {
+	return daemon.NavigationRuntimeOptions{
+		RequestTimeout: 30 * time.Second,
+		Headless:       os.Getenv("SYMBROWSE_HEADLESS") == "1",
+	}
 }
 
 // fixtureHost extracts the host:port from a fixture URL for the flow's
@@ -192,7 +205,7 @@ func TestRecordThenReplayEndToEnd(t *testing.T) {
 	if _, err := registry.Ensure("e2e-record"); err != nil {
 		t.Fatalf("Ensure session: %v", err)
 	}
-	runtime := daemon.NewNavigationRuntime(registry, executable, daemon.NavigationRuntimeOptions{})
+	runtime := daemon.NewNavigationRuntime(registry, executable, e2eRuntimeOptions())
 	defer func() { _ = runtime.Close() }()
 	executor := runtimeExecutor(runtime)
 
@@ -264,7 +277,7 @@ steps:
 	if _, err := registry2.Ensure("e2e-replay"); err != nil {
 		t.Fatalf("Ensure replay session: %v", err)
 	}
-	runtime2 := daemon.NewNavigationRuntime(registry2, executable, daemon.NavigationRuntimeOptions{})
+	runtime2 := daemon.NewNavigationRuntime(registry2, executable, e2eRuntimeOptions())
 	defer func() { _ = runtime2.Close() }()
 	executor2 := runtimeExecutor(runtime2)
 	inputs := make(map[string]string, len(draft.Inputs))
