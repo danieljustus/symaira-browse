@@ -7,8 +7,8 @@ import (
 	"errors"
 	"net"
 	"os"
-	"runtime"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
