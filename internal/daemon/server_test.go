@@ -27,8 +27,13 @@ func startTestServer(t *testing.T, handler Handler) (*Server, string, context.Ca
 	go func() { ready <- server.ListenAndServe(ctx) }()
 	deadline := time.Now().Add(time.Second)
 	for {
-		if _, err := os.Stat(path); err == nil {
-			break
+		if info, err := os.Stat(path); err == nil {
+			// Listen creates the socket before ListenAndServe applies its
+			// restrictive mode. Wait for the security boundary too, rather
+			// than racing the chmod in the server goroutine.
+			if runtime.GOOS == "windows" || info.Mode().Perm() == 0o600 {
+				break
+			}
 		}
 		select {
 		case err := <-ready:

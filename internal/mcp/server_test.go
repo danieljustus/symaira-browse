@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -333,6 +335,138 @@ func TestEveryToolSchemaAcceptsSession(t *testing.T) {
 		if _, ok := properties["session"]; !ok {
 			t.Errorf("tool %s schema lacks the session argument", tool.Name)
 		}
+	}
+}
+
+func TestNewAppliesDefaults(t *testing.T) {
+	server, err := New(Options{Version: "test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if server.options.Session != "default" {
+		t.Fatalf("session = %q, want default", server.options.Session)
+	}
+	if server.options.Executable == "" {
+		t.Fatal("executable default is empty")
+	}
+	if server.options.SocketPath == nil {
+		t.Fatal("socket path default is nil")
+	}
+}
+
+func TestDaemonArgsRespectAllowPrivate(t *testing.T) {
+	server := &Server{options: Options{AllowPrivate: false}}
+	if got := server.daemonArgs("session"); !reflect.DeepEqual(got, []string{"daemon", "--session", "session", "--ssrf"}) {
+		t.Fatalf("default daemon args = %v", got)
+	}
+	server.options.AllowPrivate = true
+	if got := server.daemonArgs("session"); !reflect.DeepEqual(got, []string{"daemon", "--session", "session", "--ssrf", "--allow-private"}) {
+		t.Fatalf("private daemon args = %v", got)
+	}
+}
+
+func TestInspectionCommandAndArgumentHelpers(t *testing.T) {
+	for _, kind := range []string{"text", "html", "value", "attr", "title", "url", "count", "box", "styles"} {
+		if got, err := inspectionCommand(kind); err != nil || got != "get."+kind {
+			t.Errorf("inspectionCommand(%q) = %q, %v", kind, got, err)
+		}
+	}
+	for _, kind := range []string{"visible", "enabled", "checked"} {
+		if got, err := inspectionCommand(kind); err != nil || got != "is."+kind {
+			t.Errorf("inspectionCommand(%q) = %q, %v", kind, got, err)
+		}
+	}
+	if _, err := inspectionCommand("unknown"); err == nil {
+		t.Fatal("unknown inspection kind accepted")
+	}
+
+	input := map[string]any{"text": "value", "enabled": true, "count": float64(3)}
+	if got, err := requiredString(input, "text"); err != nil || got != "value" {
+		t.Fatalf("requiredString = %q, %v", got, err)
+	}
+	for _, value := range []any{"", 3, nil} {
+		if _, err := requiredString(map[string]any{"value": value}, "value"); err == nil {
+			t.Errorf("requiredString accepted %v", value)
+		}
+	}
+	if !boolValue(input, "enabled") || boolValue(input, "missing") {
+		t.Fatal("boolValue returned the wrong value")
+	}
+	if intValue(input, "count") != 3 || intValue(input, "missing") != 0 {
+		t.Fatal("intValue returned the wrong value")
+	}
+}
+
+func TestToolArgumentBuilders(t *testing.T) {
+	cases := map[string]map[string]any{
+		"open":     {"url": "https://example.com"},
+		"snapshot": {"selector": "main", "depth": float64(2), "interactive": true, "compact": true, "urls": true},
+		"click":    {"selector": "#submit"},
+		"fill":     {"selector": "#name", "value": "Ada"},
+		"type":     {"selector": "#name", "value": " Lovelace"},
+		"press":    {"selector": "#name", "key": "Enter"},
+		"wait":     {"kind": "selector", "value": "#ready", "state": "visible", "load": "networkidle", "ms": float64(10)},
+		"read":     {"url": "https://example.com"},
+		"get":      {"kind": "text", "selector": "#result", "attribute": "aria-label"},
+		"find":     {"kind": "role", "query": "button", "action": "click", "value": "ok", "name": "OK", "exact": true, "index": float64(1)},
+	}
+	for _, tool := range tools {
+		input, ok := cases[tool.Name]
+		if !ok || tool.Args == nil {
+			continue
+		}
+		args, err := tool.Args(input)
+		if err != nil {
+			t.Errorf("%s args: %v", tool.Name, err)
+			continue
+		}
+		if args == nil {
+			t.Errorf("%s args are nil", tool.Name)
+		}
+		if tool.Command != nil {
+			command, err := tool.Command(input)
+			if err != nil {
+				t.Errorf("%s command: %v", tool.Name, err)
+			} else if command == "" {
+				t.Errorf("%s command is empty", tool.Name)
+			}
+		}
+	}
+	if args, err := tools[1].Args(map[string]any{}); err != nil || args == nil {
+		t.Fatalf("snapshot defaults = %#v, %v", args, err)
+	}
+}
+
+func TestProxyToolValidationErrors(t *testing.T) {
+	server := &Server{options: Options{Session: "default"}}
+	commandErr := errors.New("command rejected")
+	tool := ProxyTool{
+		Name:    "test",
+		Command: func(map[string]any) (string, error) { return "", commandErr },
+	}
+	if _, err := server.proxyTool(tool).Handler(context.Background(), json.RawMessage(`{}`)); !errors.Is(err, commandErr) {
+		t.Fatalf("command error = %v, want %v", err, commandErr)
+	}
+	argsErr := errors.New("arguments rejected")
+	tool = ProxyTool{
+		Name: "test",
+		Args: func(map[string]any) (any, error) { return nil, argsErr },
+	}
+	if _, err := server.proxyTool(tool).Handler(context.Background(), json.RawMessage(`{}`)); !errors.Is(err, argsErr) {
+		t.Fatalf("args error = %v, want %v", err, argsErr)
+	}
+	if _, err := server.proxyTool(tool).Handler(context.Background(), json.RawMessage(`{`)); err == nil || !strings.Contains(err.Error(), "invalid arguments") {
+		t.Fatalf("invalid JSON error = %v", err)
+	}
+}
+
+func TestDaemonToolError(t *testing.T) {
+	if err := daemonToolError(daemon.Response{}); err == nil || err.Error() != "daemon request failed" {
+		t.Fatalf("nil daemon error = %v", err)
+	}
+	err := daemonToolError(daemon.Response{Error: &daemon.Error{Code: "denied", Message: "blocked"}})
+	if err == nil || err.Error() != "denied: blocked" {
+		t.Fatalf("daemon error = %v", err)
 	}
 }
 
