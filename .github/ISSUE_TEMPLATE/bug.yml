@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible bug in symbrowse
+title: "[bug] "
+labels: [bug, type:test]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in as much as you can —
+        the reproduction steps are what make the fix fast.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, architecture, Chrome version, symbrowse version (run `symbrowse version --json`).
+      placeholder: "macOS 15.3 / Apple Silicon / Chrome 133 / symbrowse 0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How badly does this affect you?
+      options:
+        - blocker (nothing works / data loss risk)
+        - high (core flow broken, workaround exists)
+        - medium (edge case broken)
+        - low (cosmetic / minor annoyance)
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Exact commands or MCP calls, in order. Include the URL(s) involved.
+      placeholder: |
+        1. Run `symbrowse daemon --session repro`
+        2. Send `open` with url ...
+        3. Send `snapshot`
+        4. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Paste the JSON-RPC error frame or stderr output (redact credentials).
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Logs, session dumps, or anything else that helps. No credentials or .env contents, please.
