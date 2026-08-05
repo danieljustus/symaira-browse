@@ -78,7 +78,10 @@ func TestMCPDocSnippetsAreValidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(raw)
+	// Git checks out text files with CRLF on Windows (core.autocrlf), so the
+	// fenced json markers arrive as "json\r\n" there. Normalize before parsing
+	// so the snippet detection is line-ending agnostic.
+	text := strings.ReplaceAll(string(raw), "\r\n", "\n")
 	blocks := 0
 	for _, fenced := range strings.Split(text, "```") {
 		if len(fenced) < 5 || !strings.HasPrefix(fenced, "json\n") {

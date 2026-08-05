@@ -4,14 +4,28 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/danieljustus/symaira-browse/internal/config"
 )
 
+// setTestHome redirects os.UserHomeDir to dir on every platform. Go reads
+// $HOME on unix but %USERPROFILE% on windows, so a bare t.Setenv("HOME", ...)
+// leaves the config loader looking at the real CI profile on windows-latest,
+// which makes the global config.toml written below unreachable.
+func setTestHome(t *testing.T, dir string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", dir)
+	} else {
+		t.Setenv("HOME", dir)
+	}
+}
+
 func TestResolveAllowedDomainsPrecedence(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 
 	t.Run("flag wins over env and config", func(t *testing.T) {
 		t.Setenv("SYMBROWSE_ALLOWED_DOMAINS", "env.example.com")
@@ -68,7 +82,7 @@ func TestSplitDomainsSkipsEmptyParts(t *testing.T) {
 
 func TestResolveBoolPolicyPrecedence(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
+	setTestHome(t, home)
 
 	t.Run("flag wins over env and config", func(t *testing.T) {
 		t.Setenv("SYMBROWSE_SSRF", "false")
