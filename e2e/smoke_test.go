@@ -97,6 +97,10 @@ func startDaemon(t *testing.T, ctx context.Context, bin, chrome string) {
 		"SYMBROWSE_IDLE_TIMEOUT=120",
 		"SYMBROWSE_OPERATION_TIMEOUT=90",
 		"SYMBROWSE_CHROME_STARTUP_TIMEOUT=30",
+		// The fixture server listens on 127.0.0.1; the daemon's SSRF guard
+		// denies loopback by default, so the test daemon opts into private
+		// targets (the smoke chain is not a policy test).
+		"SYMBROWSE_ALLOW_PRIVATE=1",
 		// The test owns the daemon lifecycle; a CLI client that gives up
 		// mid-request must not autostart a competing daemon (which would
 		// inherit this process's pipes and hang CombinedOutput forever).
