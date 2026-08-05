@@ -14,7 +14,7 @@ import (
 
 func startTestServer(t *testing.T, handler Handler) (*Server, string, context.CancelFunc) {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "sb-")
+	dir, err := os.MkdirTemp("", "sb-")
 	if err != nil {
 		t.Fatal(err)
 	}

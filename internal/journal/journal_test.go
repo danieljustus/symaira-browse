@@ -3,6 +3,7 @@ package journal
 import (
 	"encoding/json"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -68,8 +69,11 @@ func TestFilePermissions0600(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Fatalf("permissions = %o, want 600", perm)
+	// Windows has no POSIX mode bits (chmod only toggles read-only).
+	if runtime.GOOS != "windows" {
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Fatalf("permissions = %o, want 600", perm)
+		}
 	}
 }
 

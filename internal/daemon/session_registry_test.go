@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -35,7 +36,9 @@ func TestSessionRegistryIsolatesProfilesAndReferences(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if info.Mode().Perm() != 0o700 {
+		// Windows has no POSIX mode bits (chmod only toggles read-only);
+		// the restrictive-permission intent is enforced via ACLs there.
+		if runtime.GOOS != "windows" && info.Mode().Perm() != 0o700 {
 			t.Fatalf("profile mode = %o", info.Mode().Perm())
 		}
 	}

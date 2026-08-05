@@ -6,12 +6,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
 
 func TestRunJSONHasStableSchemaAndStatuses(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
 	dir := t.TempDir()
 	executable := writeExecutable(t, filepath.Join(dir, "chrome"), "#!/bin/sh\necho 'Google Chrome 123.0'\n")
 	paths := Paths{
@@ -112,6 +117,10 @@ func TestExecutableOverrideTakesPrecedenceOverPATH(t *testing.T) {
 }
 
 func TestVersionTimeoutAndErrorAreBoundedWarnings(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
 	timeoutExecutable := writeExecutable(t, filepath.Join(t.TempDir(), "slow-browser"), "#!/bin/sh\nsleep 1\n")
 	check := checkVersion(timeoutExecutable, 20*time.Millisecond)
 	if check.Status != StatusWarn || !strings.Contains(check.Message, "timed out") {

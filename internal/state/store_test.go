@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -68,8 +69,11 @@ func TestSaveIsAtomicAnd0600(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Fatalf("permissions = %o, want 600", perm)
+	// Windows has no POSIX mode bits (chmod only toggles read-only).
+	if runtime.GOOS != "windows" {
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Fatalf("permissions = %o, want 600", perm)
+		}
 	}
 	// No temp files may remain after an atomic write.
 	entries, _ := os.ReadDir(store.Dir())
