@@ -180,55 +180,21 @@ func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, err
 		return r.handleUploadFrame(ctx, frame)
 	case "downloads.list", "download.setdir":
 		return r.handleDownloadFrame(ctx, frame)
-	case "open", "goto":
+	case "open", "goto", "back", "forward", "reload", "wait":
 		return r.handleNavigationFrame(ctx, frame)
-	case "back":
-		return r.handleNavigationFrame(ctx, frame)
-	case "forward":
-		return r.handleNavigationFrame(ctx, frame)
-	case "reload":
-		return r.handleNavigationFrame(ctx, frame)
-	case "wait":
-		return r.handleNavigationFrame(ctx, frame)
-	case "snapshot":
-		return r.handleCaptureFrame(ctx, frame)
-	case "a11y":
-		return r.handleCaptureFrame(ctx, frame)
-	case "screenshot":
+	case "snapshot", "a11y", "screenshot":
 		return r.handleCaptureFrame(ctx, frame)
 	case string(engine.ActionClick), string(engine.ActionDoubleClick), string(engine.ActionFill), string(engine.ActionType), string(engine.ActionPress), string(engine.ActionHover), string(engine.ActionFocus), string(engine.ActionSelect), string(engine.ActionCheck), string(engine.ActionUncheck), string(engine.ActionScroll), string(engine.ActionScrollIntoView):
 		return r.handleInteractionFrame(ctx, frame)
 	case "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked":
 		return r.handleInspectFrame(ctx, frame)
-	case "read":
+	case "read", "find":
 		return r.handleInspectFrame(ctx, frame)
-	case "find":
-		return r.handleInspectFrame(ctx, frame)
-	case "cookies.list":
+	case "cookies.list", "cookies.set", "cookies.clear":
 		return r.handleCookiesFrame(ctx, frame)
-	case "cookies.set":
-		return r.handleCookiesFrame(ctx, frame)
-	case "cookies.clear":
-		return r.handleCookiesFrame(ctx, frame)
-	case "storage.list":
+	case "storage.list", "storage.set", "storage.clear":
 		return r.handleStorageFrame(ctx, frame)
-	case "storage.set":
-		return r.handleStorageFrame(ctx, frame)
-	case "storage.clear":
-		return r.handleStorageFrame(ctx, frame)
-	case "set.viewport":
-		return r.handleEmulationFrame(ctx, frame)
-	case "set.device":
-		return r.handleEmulationFrame(ctx, frame)
-	case "set.geo":
-		return r.handleEmulationFrame(ctx, frame)
-	case "set.offline":
-		return r.handleEmulationFrame(ctx, frame)
-	case "set.headers":
-		return r.handleEmulationFrame(ctx, frame)
-	case "set.media":
-		return r.handleEmulationFrame(ctx, frame)
-	case "set.user-agent":
+	case "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent":
 		return r.handleEmulationFrame(ctx, frame)
 	default:
 		return nil, fmt.Errorf("unknown navigation command %q", frame.Cmd)

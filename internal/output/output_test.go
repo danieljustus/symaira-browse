@@ -116,3 +116,35 @@ func TestErrorEnvelopeShape(t *testing.T) {
 		t.Fatalf("payload = %#v", payload)
 	}
 }
+
+func TestWriteHumanEnvelopeVariants(t *testing.T) {
+	cases := []struct {
+		name     string
+		envelope Envelope
+		want     string
+	}{
+		{name: "failed without payload", envelope: Envelope{Success: false}, want: "error\n"},
+		{name: "failed with message", envelope: Failure("internal", "something failed"), want: "something failed\n"},
+		{name: "successful without data", envelope: OK(nil, nil), want: "ok\n"},
+		{name: "successful string", envelope: OK("hello", nil), want: "hello\n"},
+		{name: "successful value", envelope: OK(42, nil), want: "42\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buffer bytes.Buffer
+			if err := Write(&buffer, tc.envelope, false); err != nil {
+				t.Fatal(err)
+			}
+			if got := buffer.String(); got != tc.want {
+				t.Fatalf("human output = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestErrorStringHandlesNilReceiver(t *testing.T) {
+	var err *Error
+	if got := err.Error(); got != "output envelope error" {
+		t.Fatalf("nil error string = %q", got)
+	}
+}
