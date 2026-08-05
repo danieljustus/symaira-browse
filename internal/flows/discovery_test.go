@@ -3,6 +3,7 @@ package flows
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -73,6 +74,10 @@ func TestDiscoverProjectWinsOverGlobal(t *testing.T) {
 // TestDiscoverViaSymskillsFake verifies the symskills runtime path with a
 // fake binary that emits the same JSON shape as `symskills list --json`.
 func TestDiscoverViaSymskillsFake(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
 	skillDir := filepath.Join(t.TempDir(), "library", "my-flow-skill")
 	writeFlowFile(t, filepath.Join(skillDir, "flows"), "login.yaml", discoveryFlowYAML)
 

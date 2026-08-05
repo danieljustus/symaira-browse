@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -153,7 +154,9 @@ func TestApplierRejectsHomebrew(t *testing.T) {
 	}
 	if !installmethod.IsSelfUpdateSupported(method) {
 		guidance := installmethod.Guidance(method, "symbrowse")
-		if !strings.Contains(strings.ToLower(guidance), "brew") {
+		// Homebrew guidance only applies on darwin/linux; Windows builds
+		// legitimately fall back to the source-rebuild hint.
+		if runtime.GOOS != "windows" && !strings.Contains(strings.ToLower(guidance), "brew") {
 			t.Errorf("guidance = %q, want brew upgrade hint", guidance)
 		}
 	}

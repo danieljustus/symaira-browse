@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -54,6 +55,10 @@ func TestPolicyDecideFallsBackWithoutGuard(t *testing.T) {
 }
 
 func TestPolicyDecideDelegatesToGuard(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
 	guard := &policy.Guard{Executable: fakeGuardScript(t, `{"decision":"deny","reason":"domain blocked by guard"}`, ""), Timeout: 2 * time.Second}
 	runtime := guardRuntime(t, guard)
 	decision, decider, reason, err := runtime.Decide(context.Background(), "snapshot", "https://example.com", policy.ModeTTY, nil)
@@ -79,6 +84,10 @@ func TestPolicyDecideDelegatesToGuard(t *testing.T) {
 }
 
 func TestPolicyDecideGuardFailureDenies(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
 	guard := &policy.Guard{Executable: fakeGuardScript(t, "", "guard crashed"), Timeout: 2 * time.Second}
 	runtime := guardRuntime(t, guard)
 	decision, decider, reason, err := runtime.Decide(context.Background(), "snapshot", "https://example.com", policy.ModeTTY, nil)

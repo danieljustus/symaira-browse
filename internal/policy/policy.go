@@ -7,6 +7,8 @@ package policy
 import (
 	"errors"
 	"fmt"
+	"io/fs"
+	"os"
 	"sort"
 	"strings"
 
@@ -206,7 +208,9 @@ type Policy struct {
 func LoadPolicy(path string) (*Policy, error) {
 	policy := &Policy{Source: path}
 	if _, err := toml.DecodeFile(path, policy); err != nil {
-		if strings.Contains(err.Error(), "no such file") || strings.Contains(err.Error(), "not exist") {
+		// Missing policy files use built-in defaults. os.IsNotExist covers
+		// every platform's error text (Windows: "cannot find the file").
+		if errors.Is(err, fs.ErrNotExist) || os.IsNotExist(err) {
 			return policy, nil
 		}
 		return nil, fmt.Errorf("load policy %s: %w", path, err)

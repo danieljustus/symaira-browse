@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
@@ -194,11 +195,5 @@ func (r *JournalRuntime) HandleJournal(ctx context.Context, frame Frame) (any, [
 
 // journalDir extracts the directory of a journal for reopening other sessions.
 func journalDir(j *journal.Journal) string {
-	path := j.Path()
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			return path[:i]
-		}
-	}
-	return "."
+	return filepath.Dir(j.Path())
 }

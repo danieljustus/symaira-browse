@@ -94,7 +94,8 @@ func (m *Manager) Active() (*Prompt, error) {
 		if prompt.Status != StatusPending {
 			continue
 		}
-		if newest == nil || prompt.CreatedAt.After(newest.CreatedAt) {
+		if newest == nil || prompt.CreatedAt.After(newest.CreatedAt) ||
+			(prompt.CreatedAt.Equal(newest.CreatedAt) && prompt.ID > newest.ID) {
 			newest = prompt
 		}
 	}

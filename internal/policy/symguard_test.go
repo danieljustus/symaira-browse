@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,10 @@ func fakeGuard(t *testing.T, verdict string, failWith string) string {
 }
 
 func TestDetectGuardFromPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
 	path := fakeGuard(t, `{"decision":"allow"}`, "")
 	t.Setenv(GuardEnvName, "")
 	t.Setenv("PATH", filepath.Dir(path)+string(os.PathListSeparator)+os.Getenv("PATH"))
@@ -60,6 +65,10 @@ func TestDetectGuardEnvOverrideAndDisable(t *testing.T) {
 }
 
 func TestGuardDecide(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
 	path := fakeGuard(t, `{"decision":"deny","reason":"test guard says no"}`, "")
 	guard := &Guard{Executable: path, Timeout: 2 * time.Second}
 	outcome, err := guard.Decide(context.Background(), GuardInput{Command: "eval", Class: ClassEval, Domain: "example.com"})
@@ -72,6 +81,10 @@ func TestGuardDecide(t *testing.T) {
 }
 
 func TestGuardDecideFailuresDeny(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
 	// Non-zero exit with a stderr message.
 	guard := &Guard{Executable: fakeGuard(t, "", "guard exploded"), Timeout: 2 * time.Second}
 	if _, err := guard.Decide(context.Background(), GuardInput{Command: "eval", Class: ClassEval}); err == nil {
