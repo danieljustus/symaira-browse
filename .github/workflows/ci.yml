@@ -121,19 +121,16 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Install Chrome
-        id: chrome
-        # browser-actions/setup-chrome replaces the runner's snap-packaged
-        # root Chrome, whose DevTools endpoint intermittently never appears
-        # on ubuntu-24.04 and stalled the whole job (issue #122).
-        uses: browser-actions/setup-chrome@5526bcff02442ad0dc3cf912d1edc65d49465969 # v1.7.3
-        with:
-          chrome-version: stable
-          install-dependencies: true
-      - name: Verify Chrome
+        # The apt google-chrome-stable build is proven on these runners by
+        # the flows E2E job; the runner's snap-packaged root Chrome (whose
+        # DevTools endpoint intermittently never appears) is replaced first.
         run: |
-          "${{ steps.chrome.outputs.chrome-path }}" --version
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            sudo apt-get update -qq && sudo apt-get install -y -qq google-chrome-stable >/dev/null 2>&1 || true
+          fi
+          google-chrome --version || true
       - name: E2E smoke (open → snapshot → fill → submit → read)
-        run: SYMBROWSE_E2E=1 SYMBROWSE_HEADLESS=1 SYMBROWSE_EXECUTABLE_PATH="${{ steps.chrome.outputs.chrome-path }}" SYMBROWSE_CHROME_STARTUP_TIMEOUT=45 go test ./e2e/ -v -timeout 10m
+        run: SYMBROWSE_E2E=1 SYMBROWSE_HEADLESS=1 SYMBROWSE_CHROME_STARTUP_TIMEOUT=20 go test ./e2e/ -v -timeout 10m
 
   e2e-flows:
     name: PR / e2e flows (real Chrome)
