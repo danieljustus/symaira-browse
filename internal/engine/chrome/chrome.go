@@ -25,6 +25,11 @@ import (
 const (
 	defaultStartupTimeout = 10 * time.Second
 	defaultRequestTimeout = 10 * time.Second
+	// maxEndpointAttempts bounds the DevTools endpoint discovery retry
+	// loop (issue #122): a fresh Chrome relaunch per attempt recovers
+	// from the intermittent never-exposes-DevTools state seen on CI
+	// runners (snap/AppArmor/shm environment).
+	maxEndpointAttempts = 3
 )
 
 // Options controls Chrome discovery and process isolation.
@@ -178,12 +183,40 @@ func (e *Engine) Launch(ctx context.Context) error {
 		}
 		return err
 	}
+	// Endpoint discovery retry loop (issue #122): on CI runners (root,
+	// snap/AppArmor/shm environment) Chrome occasionally never exposes its
+	// DevTools endpoint. Each failed attempt is killed and relaunched
+	// fresh — a new process reliably rewrites DevToolsActivePort.
+	var endpoint string
+	for attempt := 1; attempt <= maxEndpointAttempts; attempt++ {
+		if attempt > 1 {
+			_ = cmd.Process.Kill()
+			_, _ = cmd.Process.Wait()
+			cmd = exec.Command(e.options.ExecutablePath, args...)
+			cmd.Stdin = nil
+			cmd.Stdout = nil
+			cmd.Stderr = nil
+			if err := cmd.Start(); err != nil {
+				return fail(fmt.Errorf("start Chrome (attempt %d): %w", attempt, err))
+			}
+		}
+		startupCtx, cancel := context.WithTimeout(ctx, e.options.StartupTimeout)
+		endpoint, err = waitForEndpoint(startupCtx, dataDir)
+		cancel()
+		if err == nil {
+			break
+		}
+		// The caller's context expiring (daemon shutdown) must not burn
+		// the remaining attempts; surface the discovery error directly.
+		if ctx.Err() != nil {
+			return fail(fmt.Errorf("discover Chrome DevTools endpoint: %w", err))
+		}
+	}
+	if err != nil {
+		return fail(fmt.Errorf("discover Chrome DevTools endpoint (after %d attempts): %w", maxEndpointAttempts, err))
+	}
 	startupCtx, cancel := context.WithTimeout(ctx, e.options.StartupTimeout)
 	defer cancel()
-	endpoint, err := waitForEndpoint(startupCtx, dataDir)
-	if err != nil {
-		return fail(fmt.Errorf("discover Chrome DevTools endpoint: %w", err))
-	}
 	conn, err := dial(startupCtx, endpoint, e.options.RequestTimeout)
 	if err != nil {
 		return fail(fmt.Errorf("connect Chrome DevTools: %w", err))
@@ -223,8 +256,9 @@ func chromeArgs(dataDir string, disableWebRTC, headless bool) []string {
 	if os.Geteuid() == 0 {
 		// Root cannot use the Chrome sandbox (CI runners run as root);
 		// without this flag Chrome refuses to start there. The shared
-		// memory flag is the standard CI fix for small /dev/shm runners.
-		args = append(args[:len(args)-1], "--no-sandbox", "--disable-dev-shm-usage", "about:blank")
+		// memory and GPU flags are the standard CI fixes for small
+		// /dev/shm runners and software rendering (issue #122).
+		args = append(args[:len(args)-1], "--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu", "about:blank")
 	}
 	return args
 }

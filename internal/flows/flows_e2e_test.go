@@ -170,12 +170,14 @@ func chromeExecutable(t *testing.T) string {
 // real-Chrome E2E tests: a generous per-command CDP budget (Chrome
 // round-trips can stall for seconds on loaded machines right after a
 // sibling tab is created, which previously made these tests flaky) and
-// headless mode when the environment demands it (CI runs without a
-// display).
+// headless mode by default so automated runs never pop a visible Chrome
+// window (issue #97). Set SYMBROWSE_HEADED=1 to opt into a headed
+// browser for interactive debugging; SYMBROWSE_HEADLESS=1 still forces
+// headless (e.g. the CI E2E job) even when SYMBROWSE_HEADED is set.
 func e2eRuntimeOptions() daemon.NavigationRuntimeOptions {
 	return daemon.NavigationRuntimeOptions{
 		RequestTimeout: 30 * time.Second,
-		Headless:       os.Getenv("SYMBROWSE_HEADLESS") == "1",
+		Headless:       os.Getenv("SYMBROWSE_HEADLESS") == "1" || os.Getenv("SYMBROWSE_HEADED") != "1",
 	}
 }
 
