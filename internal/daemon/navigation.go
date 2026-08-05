@@ -39,6 +39,7 @@ type NavigationRuntime struct {
 	lastAutosave    map[string]time.Time
 	restoreOnStart  map[string]string // session -> state name to restore
 	uploadDirs      []string          // allowed upload roots (issue #63)
+	requestTimeout  time.Duration     // per-command CDP budget (0 = engine default)
 	recorders       map[string]*recorderState
 }
 
@@ -82,6 +83,11 @@ type NavigationRuntimeOptions struct {
 	// Engine selects the engine implementation: "chrome" (default) or
 	// "static" (JS-free HTML reader, issue #64).
 	Engine string
+	// RequestTimeout is the per-command CDP budget for session engines
+	// (chrome.Options.RequestTimeout; default 10s). E2E tests use a
+	// generous budget because Chrome round-trips can stall for seconds on
+	// loaded machines right after a sibling tab is created.
+	RequestTimeout time.Duration
 }
 
 // NewNavigationRuntime creates a runtime. Chrome is not started until the
@@ -104,6 +110,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		tabs:            make(map[string][]*sessionTab),
 		activeTab:       make(map[string]int),
 		uploadDirs:      options.UploadDirs,
+		requestTimeout:  options.RequestTimeout,
 		autosave:        options.Autosave,
 		stateStore:      options.StateStore,
 		lastAutosave:    make(map[string]time.Time),
@@ -558,7 +565,7 @@ func (r *NavigationRuntime) newEngine(userDataDir string) engine.Engine {
 	if r.engineKind == "static" {
 		return static.New()
 	}
-	return chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: userDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate, Headless: r.headless})
+	return chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: userDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate, Headless: r.headless, RequestTimeout: r.requestTimeout})
 }
 
 func (r *NavigationRuntime) service(ctx context.Context, session string) (*engine.NavigationService, error) {

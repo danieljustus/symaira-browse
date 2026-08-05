@@ -43,7 +43,7 @@ func TestDiffScreenshotEndToEnd(t *testing.T) {
 	if _, err := registry.Ensure("e2e-diff"); err != nil {
 		t.Fatalf("Ensure session: %v", err)
 	}
-	runtime := daemon.NewNavigationRuntime(registry, executable, daemon.NavigationRuntimeOptions{})
+	runtime := daemon.NewNavigationRuntime(registry, executable, e2eRuntimeOptions())
 	defer func() { _ = runtime.Close() }()
 	executor := runtimeExecutor(runtime)
 
@@ -148,7 +148,7 @@ func TestDiffSnapshotBaselineEndToEnd(t *testing.T) {
 	if _, err := registry.Ensure("e2e-snapdiff"); err != nil {
 		t.Fatalf("Ensure session: %v", err)
 	}
-	runtime := daemon.NewNavigationRuntime(registry, executable, daemon.NavigationRuntimeOptions{})
+	runtime := daemon.NewNavigationRuntime(registry, executable, e2eRuntimeOptions())
 	defer func() { _ = runtime.Close() }()
 	executor := runtimeExecutor(runtime)
 
