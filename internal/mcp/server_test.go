@@ -44,6 +44,9 @@ func startFakeDaemon(t *testing.T, base, session string) {
 		SocketPath: path,
 		Session:    session,
 		Registry:   registry,
+		// In-process fixture: peer-credential validation is unavailable on
+		// Windows and irrelevant for a server inside the test binary.
+		PeerValidator: func(net.Conn) error { return nil },
 		Policy: daemon.PolicyStatus{
 			SSRFEnabled:  true,
 			AllowPrivate: false,

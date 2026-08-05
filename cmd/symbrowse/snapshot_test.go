@@ -41,6 +41,9 @@ func startSnapshotTestDaemon(t *testing.T) string {
 		SocketPath: path,
 		Session:    "test",
 		Registry:   registry,
+		// The test daemon runs in-process; peer-credential validation is a
+		// production boundary check that is unavailable on Windows.
+		PeerValidator: func(net.Conn) error { return nil },
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
 			case "snapshot":
