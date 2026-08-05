@@ -9,6 +9,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -96,6 +97,10 @@ func startDaemon(t *testing.T, ctx context.Context, bin, chrome string) {
 		"SYMBROWSE_IDLE_TIMEOUT=120",
 		"SYMBROWSE_OPERATION_TIMEOUT=90",
 		"SYMBROWSE_CHROME_STARTUP_TIMEOUT=30",
+		// The test owns the daemon lifecycle; a CLI client that gives up
+		// mid-request must not autostart a competing daemon (which would
+		// inherit this process's pipes and hang CombinedOutput forever).
+		"SYMBROWSE_NO_AUTOSTART=1",
 	}
 	if os.Getenv("SYMBROWSE_HEADED") != "1" {
 		daemonEnv = append(daemonEnv, "SYMBROWSE_HEADLESS=1")
@@ -127,16 +132,20 @@ func startDaemon(t *testing.T, ctx context.Context, bin, chrome string) {
 	})
 }
 
-// waitForSocket polls until the daemon socket exists.
+// waitForSocket polls until the daemon accepts connections. Stat-ing the
+// socket file is not enough: the daemon must be past bind() and into its
+// accept loop, otherwise the first CLI request can fail and trigger the
+// client autostart path.
 func waitForSocket(t *testing.T, ctx context.Context, socket string) {
 	t.Helper()
 	for {
-		if _, err := os.Stat(socket); err == nil {
+		if conn, err := net.Dial("unix", socket); err == nil {
+			_ = conn.Close()
 			return
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("daemon socket %s never appeared: %v", socket, ctx.Err())
+			t.Fatalf("daemon socket %s never became ready: %v", socket, ctx.Err())
 		case <-time.After(100 * time.Millisecond):
 		}
 	}

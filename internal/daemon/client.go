@@ -32,7 +32,9 @@ type Client struct {
 }
 
 // NewClient constructs a client. The default starter launches the current
-// executable with the daemon subcommand.
+// executable with the daemon subcommand. Setting SYMBROWSE_NO_AUTOSTART=1
+// disables autostart entirely (useful for scripts and tests that manage
+// the daemon lifecycle themselves).
 func NewClient(options ClientOptions) *Client {
 	if options.StartupTimeout == 0 {
 		options.StartupTimeout = 5 * time.Second
@@ -40,7 +42,7 @@ func NewClient(options ClientOptions) *Client {
 	if options.ReadTimeout == 0 {
 		options.ReadTimeout = DefaultReadTimeout
 	}
-	if options.StartDaemon == nil {
+	if options.StartDaemon == nil && os.Getenv("SYMBROWSE_NO_AUTOSTART") != "1" {
 		options.StartDaemon = func(ctx context.Context) error {
 			return StartDaemonProcess(ctx, os.Args[0], options.Session)
 		}
