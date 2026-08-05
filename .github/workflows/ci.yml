@@ -10,11 +10,9 @@ on:
       - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '**.md'
-      - 'LICENSE'
-      - '.github/ISSUE_TEMPLATE/**'
+    # No paths-ignore on pull requests: the branch protection ruleset
+    # requires the PR checks, so every PR must report them (docs-only
+    # PRs are cheap to verify).
   schedule:
     - cron: '17 4 * * 0'
 
