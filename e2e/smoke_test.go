@@ -32,6 +32,11 @@ func TestE2ESmokeOpenSnapshotFillSubmitRead(t *testing.T) {
 	if os.Getenv("SYMBROWSE_E2E") != "1" {
 		t.Skip("E2E smoke is opt-in: set SYMBROWSE_E2E=1")
 	}
+	// The test owns the daemon lifecycle: a CLI client that gives up
+	// mid-request must not autostart a competing daemon (which would
+	// inherit the CLI's stdout/stderr pipes and hang CombinedOutput
+	// forever once the CLI is killed on its 60s budget).
+	t.Setenv("SYMBROWSE_NO_AUTOSTART", "1")
 	chrome := os.Getenv("SYMBROWSE_EXECUTABLE_PATH")
 	if chrome == "" {
 		chrome = "/usr/bin/google-chrome"
@@ -101,10 +106,6 @@ func startDaemon(t *testing.T, ctx context.Context, bin, chrome string) {
 		// denies loopback by default, so the test daemon opts into private
 		// targets (the smoke chain is not a policy test).
 		"SYMBROWSE_ALLOW_PRIVATE=1",
-		// The test owns the daemon lifecycle; a CLI client that gives up
-		// mid-request must not autostart a competing daemon (which would
-		// inherit this process's pipes and hang CombinedOutput forever).
-		"SYMBROWSE_NO_AUTOSTART=1",
 	}
 	if os.Getenv("SYMBROWSE_HEADED") != "1" {
 		daemonEnv = append(daemonEnv, "SYMBROWSE_HEADLESS=1")
