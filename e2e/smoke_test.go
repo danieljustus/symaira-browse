@@ -2,6 +2,8 @@
 // with a real Chrome (issue #67). The smoke test is opt-in: set
 // SYMBROWSE_E2E=1 and provide Chrome via SYMBROWSE_EXECUTABLE_PATH or the
 // default /usr/bin/google-chrome (CI runs this in the dedicated smoke job).
+// The daemon under test runs Chrome headless by default (issue #97); set
+// SYMBROWSE_HEADED=1 to debug against a visible Chrome window.
 package e2e
 
 import (
@@ -78,7 +80,9 @@ func buildBinary(t *testing.T) string {
 }
 
 // startDaemon launches the daemon for the smoke session; its output is
-// captured so failures can be diagnosed from the test log.
+// captured so failures can be diagnosed from the test log. The daemon
+// runs Chrome headless unless SYMBROWSE_HEADED=1 opts into a visible
+// browser for interactive debugging (issue #97).
 func startDaemon(t *testing.T, ctx context.Context, bin, chrome string) {
 	t.Helper()
 	logFile := filepath.Join(t.TempDir(), "daemon.log")
@@ -87,12 +91,16 @@ func startDaemon(t *testing.T, ctx context.Context, bin, chrome string) {
 		t.Fatal(err)
 	}
 	command := exec.CommandContext(ctx, bin, "daemon", "--session", sessionName)
-	command.Env = append(os.Environ(),
-		"SYMBROWSE_EXECUTABLE_PATH="+chrome,
+	daemonEnv := []string{
+		"SYMBROWSE_EXECUTABLE_PATH=" + chrome,
 		"SYMBROWSE_IDLE_TIMEOUT=120",
 		"SYMBROWSE_OPERATION_TIMEOUT=90",
 		"SYMBROWSE_CHROME_STARTUP_TIMEOUT=30",
-	)
+	}
+	if os.Getenv("SYMBROWSE_HEADED") != "1" {
+		daemonEnv = append(daemonEnv, "SYMBROWSE_HEADLESS=1")
+	}
+	command.Env = append(os.Environ(), daemonEnv...)
 	command.Stdout = logHandle
 	command.Stderr = logHandle
 	if err := command.Start(); err != nil {
