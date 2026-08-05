@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strconv"
 	"time"
 )
 
@@ -34,13 +35,20 @@ type Client struct {
 // NewClient constructs a client. The default starter launches the current
 // executable with the daemon subcommand. Setting SYMBROWSE_NO_AUTOSTART=1
 // disables autostart entirely (useful for scripts and tests that manage
-// the daemon lifecycle themselves).
+// the daemon lifecycle themselves). SYMBROWSE_READ_TIMEOUT overrides the
+// per-request socket deadline (default 30s) for slow first commands such
+// as a cold Chrome launch.
 func NewClient(options ClientOptions) *Client {
 	if options.StartupTimeout == 0 {
 		options.StartupTimeout = 5 * time.Second
 	}
 	if options.ReadTimeout == 0 {
 		options.ReadTimeout = DefaultReadTimeout
+		if raw := os.Getenv("SYMBROWSE_READ_TIMEOUT"); raw != "" {
+			if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
+				options.ReadTimeout = time.Duration(seconds) * time.Second
+			}
+		}
 	}
 	if options.StartDaemon == nil && os.Getenv("SYMBROWSE_NO_AUTOSTART") != "1" {
 		options.StartDaemon = func(ctx context.Context) error {

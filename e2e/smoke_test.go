@@ -37,6 +37,10 @@ func TestE2ESmokeOpenSnapshotFillSubmitRead(t *testing.T) {
 	// inherit the CLI's stdout/stderr pipes and hang CombinedOutput
 	// forever once the CLI is killed on its 60s budget).
 	t.Setenv("SYMBROWSE_NO_AUTOSTART", "1")
+	// A cold Chrome launch plus the first navigation can take well over
+	// the client's default 30s socket deadline on loaded CI runners; the
+	// per-command process budget in run() still bounds every command.
+	t.Setenv("SYMBROWSE_READ_TIMEOUT", "240")
 	chrome := os.Getenv("SYMBROWSE_EXECUTABLE_PATH")
 	if chrome == "" {
 		chrome = "/usr/bin/google-chrome"
@@ -106,6 +110,10 @@ func startDaemon(t *testing.T, ctx context.Context, bin, chrome string) {
 		// denies loopback by default, so the test daemon opts into private
 		// targets (the smoke chain is not a policy test).
 		"SYMBROWSE_ALLOW_PRIVATE=1",
+		// Never delegate risk decisions to a locally installed symguard; the
+		// smoke chain is not a policy test and must behave identically on
+		// developer machines and CI.
+		"SYMBROWSE_SYMGUARD=0",
 	}
 	if os.Getenv("SYMBROWSE_HEADED") != "1" {
 		daemonEnv = append(daemonEnv, "SYMBROWSE_HEADLESS=1")
