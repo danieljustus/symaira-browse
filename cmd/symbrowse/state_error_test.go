@@ -507,14 +507,24 @@ func TestRunDaemonErrorBranches(t *testing.T) {
 			t.Fatalf("err = %v, want operation timeout failure", err)
 		}
 	})
-	t.Run("state store fails without configuration", func(t *testing.T) {
-		t.Setenv("HOME", t.TempDir())
+	t.Run("state store fails when the state directory cannot be created", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		// Block the XDG state parent with a regular file so MkdirAll fails
+		// deterministically on every platform (a plain missing HOME only
+		// fails on some platforms, where the daemon then serves forever).
+		if err := os.MkdirAll(filepath.Join(home, ".local"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(home, ".local", "state"), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 		command := newRootCommand()
 		command.SetOut(&bytes.Buffer{})
 		command.SetErr(&bytes.Buffer{})
 		command.SetArgs([]string{"daemon"})
 		if err := command.Execute(); err == nil {
-			t.Fatal("expected the state store to fail without a configuration")
+			t.Fatal("expected the state store to fail when the state directory cannot be created")
 		}
 	})
 	t.Run("autosave policy rejected", func(t *testing.T) {
