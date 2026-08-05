@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a new capability or a change to an existing one
+title: "[feature] "
+labels: [feature]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a feature. A clear use case and acceptance
+        criteria make it much easier to plan and review.
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Use case
+      description: What are you trying to achieve, and why can't you achieve it today?
+      placeholder: "I want to ... because ..."
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Concrete, testable outcomes. One checkbox line per criterion.
+      placeholder: |
+        - [ ] `symbrowse <new command>` returns a JSON frame with fields X, Y
+        - [ ] Existing behavior of <command> is unchanged
+        - [ ] Covered by a test
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact / risk
+      description: Which subsystems are affected (daemon, engine, MCP, output, policy)? Any compatibility or security concerns?
+  - type: input
+    id: reference
+    attributes:
+      label: Related issues or docs
+      description: Issue numbers, PLANUNG.md sections, or docs pages that this feature builds on.
