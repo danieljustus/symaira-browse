@@ -32,3 +32,6 @@ docs/
 .omo/run-continuation/
 .omo/notepads/
 coverage.html
+
+# Local agent worktrees
+.worktrees/
