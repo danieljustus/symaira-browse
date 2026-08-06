@@ -12,6 +12,7 @@ import (
 func TestEveryRegisteredCommandHasAClass(t *testing.T) {
 	registered := []string{
 		"open", "goto", "back", "forward", "reload", "wait", "snapshot",
+		"screenshot", "a11y", "read",
 		"click", "dblclick", "fill", "type", "press", "hover", "focus",
 		"select", "check", "uncheck", "scroll", "scrollintoview",
 		"get.text", "get.html", "get.value", "get.attr", "get.title",
