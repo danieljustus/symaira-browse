@@ -35,7 +35,7 @@ func scriptedEngine(t *testing.T, script func(req rpcRequest) scriptedReply) *En
 		if err != nil {
 			return
 		}
-		defer ws.Close()
+		defer func() { _ = ws.Close() }()
 		for {
 			var req rpcRequest
 			if err := ws.ReadJSON(&req); err != nil {
