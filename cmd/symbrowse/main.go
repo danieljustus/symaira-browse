@@ -43,10 +43,12 @@ func newRootCommand() *cobra.Command {
 		root.AddCommand(command)
 	}
 	root.AddCommand(newSnapshotCommand())
+	root.AddCommand(newScreenshotCommand())
 	root.AddCommand(newReadCommand())
 	root.AddCommand(newBatchCommand())
 	root.AddCommand(newFindCommand())
 	root.AddCommand(newConsoleCommand())
+	root.AddCommand(newCacheCommand())
 	root.AddCommand(newErrorsCommand())
 	root.AddCommand(newEvalCommand())
 	root.AddCommand(newNetworkCommand())

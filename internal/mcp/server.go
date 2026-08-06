@@ -150,6 +150,18 @@ func (s *Server) proxyTool(tool ProxyTool) *mcpserver.Tool {
 					}
 				}
 			}
+			// Output-heavy tools get a stricter default token budget in MCP
+			// mode (issue #23, B-19): oversized payloads are truncated with a
+			// cache handle instead of flooding the model context. Callers can
+			// override the default per call via max_tokens.
+			var maxTokens *int
+			if mcpBudgetedCommands[command] {
+				budget := mcpDefaultMaxTokens
+				if raw, ok := decoded["max_tokens"].(float64); ok && raw > 0 {
+					budget = int(raw)
+				}
+				maxTokens = &budget
+			}
 			slog.Debug("mcp tool call", "tool", tool.Name, "session", session, "command", command)
 			client, err := s.client(session)
 			if err != nil {
@@ -160,6 +172,7 @@ func (s *Server) proxyTool(tool ProxyTool) *mcpserver.Tool {
 				Args:      frameArgs,
 				Session:   session,
 				RequestID: fmt.Sprintf("%d", time.Now().UnixNano()),
+				MaxTokens: maxTokens,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", tool.Name, err)

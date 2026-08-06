@@ -33,7 +33,7 @@ func newSnapshotCommand() *cobra.Command {
 				return err
 			}
 			client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-			response, err := client.Request(cmd.Context(), daemon.Frame{Cmd: "snapshot", Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+			response, err := client.Request(cmd.Context(), daemon.Frame{Cmd: "snapshot", Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano()), MaxTokens: maxTokensFlag(cmd)})
 			if err != nil {
 				return err
 			}
@@ -78,6 +78,7 @@ func newSnapshotCommand() *cobra.Command {
 	command.Flags().BoolVar(&contentBoundaries, "content-boundaries", false, "wrap page content in unforgeable boundary markers (default on in MCP mode)")
 	command.Flags().BoolVar(&noInjectionScan, "no-injection-scan", false, "disable the prompt-injection heuristic scan (hidden text, agent-directed imperatives, aria-label mismatch, alt/title/meta/comment instructions)")
 	command.Flags().StringVar(&patternsFile, "injection-patterns", "", "custom prompt-injection pattern file (one phrase per line; replaces the embedded multilingual list)")
+	command.Flags().Int("max-tokens", 0, "token budget for the payload; oversized output is truncated and stored in the cache (0 = no limit)")
 	return command
 }
 
