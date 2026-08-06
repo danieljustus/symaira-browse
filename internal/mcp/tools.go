@@ -7,6 +7,7 @@ package mcp
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -64,6 +65,37 @@ func boolProp(description string) map[string]any {
 	return map[string]any{"type": "boolean", "description": description}
 }
 
+// guidance renders the compact model-facing description contract (issue #4):
+// when to use the tool, when not to, what it returns, and the suggested next
+// step. Every registered tool description carries this block so agents can
+// select the right tool without separate documentation.
+func guidance(useWhen, doNotUseWhen, returns, next string) string {
+	var b strings.Builder
+	b.WriteString("Use when: ")
+	b.WriteString(useWhen)
+	b.WriteString(". ")
+	if doNotUseWhen != "" {
+		b.WriteString("Do not use when: ")
+		b.WriteString(doNotUseWhen)
+		b.WriteString(". ")
+	}
+	b.WriteString("Returns: ")
+	b.WriteString(returns)
+	b.WriteString(".")
+	if next != "" {
+		b.WriteString(" Next: ")
+		b.WriteString(next)
+		b.WriteString(".")
+	}
+	return b.String()
+}
+
+// fetchEscalationNote distinguishes ordinary Fetch reads from browser
+// escalation. It is embedded in the read/open/snapshot guidance (issue #4,
+// PLANUNG.md 479-489): agents should reach for this browser tool only when
+// JavaScript, browser state or interaction is needed.
+const fetchEscalationNote = "For plain static content a normal HTTP fetch is cheaper; use this tool only when JavaScript, browser state or interaction is required"
+
 // mcpBudgetedCommands are the output-heavy daemon commands that get a
 // stricter default token budget in MCP mode (ARCHITEKTUR.md §5.3: snapshot,
 // read, get html, console, network requests).
@@ -119,7 +151,7 @@ type ProxyTool struct {
 var tools = []ProxyTool{
 	{
 		Name:        "open",
-		Description: "Open a URL in the browser and wait for the page to load. Returns the final URL and HTTP status.",
+		Description: "Open a URL in the browser and wait for the page to load. " + guidance("you need a real browser: the page needs JavaScript, redirects, cookies or browser state", fetchEscalationNote, "the final URL and HTTP status", "snapshot or read to inspect the page"),
 		Profile:     ProfileCore,
 		Schema:      objectSchema(map[string]any{"url": stringProp("the URL to open (http or https)")}, "url"),
 		Cmd:         "open",
@@ -137,7 +169,7 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "snapshot",
-		Description: "Render the accessibility tree of the current page as text. Optional selector restricts the subtree, depth limits the tree depth.",
+		Description: "Render the accessibility tree of the current page as text. " + guidance("you need the current interactive state of the page with stable @refs for elements", "you only need the page text (use read or a plain fetch); "+fetchEscalationNote, "the accessibility tree (with --diff: only the changes since the last snapshot)", "click, fill or get on a @ref"),
 		Profile:     ProfileCore,
 		Schema: objectSchema(map[string]any{
 			"selector":    stringProp("CSS selector or @ref restricting the snapshot subtree"),
@@ -162,7 +194,7 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "click",
-		Description: "Click the element matching a CSS selector or @ref.",
+		Description: "Click the element matching a CSS selector or @ref. " + guidance("you need to activate an element (button, link, menu item)", "you only need to read state (use get or snapshot)", "the click result", "snapshot to observe the new page state"),
 		Profile:     ProfileCore,
 		Schema:      objectSchema(map[string]any{"selector": stringProp("CSS selector or @ref of the element")}, "selector"),
 		Cmd:         "click",
@@ -176,7 +208,7 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "fill",
-		Description: "Fill a text input or textarea with a value, replacing its current content.",
+		Description: "Fill a text input or textarea with a value, replacing its current content. " + guidance("you need to set a form field to a known value (replaces existing content)", "the element already has the value or you need to append (use type)", "the fill result", "press Enter or click the submit button"),
 		Profile:     ProfileCore,
 		Schema: objectSchema(map[string]any{
 			"selector": stringProp("CSS selector or @ref of the input"),
@@ -197,7 +229,7 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "type",
-		Description: "Type text into the focused or selected element, appending to its current content.",
+		Description: "Type text into the focused or selected element, appending to its current content. " + guidance("you need to type text that appends to the current field content", "you need to replace the content (use fill)", "the type result", "press Enter or snapshot the field state"),
 		Profile:     ProfileCore,
 		Schema: objectSchema(map[string]any{
 			"selector": stringProp("CSS selector or @ref of the input (optional)"),
@@ -218,7 +250,7 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "press",
-		Description: "Press a keyboard key (e.g. Enter, Escape, Tab, ArrowDown).",
+		Description: "Press a keyboard key (e.g. Enter, Escape, Tab, ArrowDown). " + guidance("you need to send a key such as Enter or Escape", "you need to type a longer text (use type or fill)", "the press result", "snapshot to observe the new state"),
 		Profile:     ProfileCore,
 		Schema: objectSchema(map[string]any{
 			"selector": stringProp("CSS selector or @ref of the element to receive the key (optional)"),
@@ -239,7 +271,7 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "wait",
-		Description: "Wait for a browser condition. kind: selector (value=CSS selector, state=visible|hidden|attached|detached), text (value=text), url (value=substring), ms (ms=duration), load (load=load|domcontentloaded|networkidle).",
+		Description: "Wait for a browser condition (kind: selector, text, url, ms, load). " + guidance("the page is still loading or an element is not yet in the expected state", "you need a fixed pause (prefer an explicit condition over a sleep)", "the wait result", "snapshot or read to inspect the settled page"),
 		Profile:     ProfileCore,
 		Schema: objectSchema(map[string]any{
 			"kind":  stringProp("condition kind: selector, text, url, ms, load"),
@@ -272,7 +304,7 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "read",
-		Description: "Render the current page (or the page at url) as markdown in the symfetch output schema.",
+		Description: "Render the current page (or the page at url) as markdown in the symfetch output schema. " + guidance("you need the page content as clean markdown with frontmatter (title, url, fetched_at)", fetchEscalationNote, "the rendered markdown document", "open another URL or find links on the page"),
 		Profile:     ProfileCore,
 		Schema:      objectSchema(map[string]any{"url": stringProp("URL to open and read (optional; defaults to the current page)")}),
 		Cmd:         "read",
@@ -286,7 +318,7 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "get",
-		Description: "Inspect the page or an element. kind: text, html, value, attr (requires attribute), title, url, count, box, styles, visible, enabled, checked. Returns the inspected value.",
+		Description: "Inspect the page or an element (kind: text, html, value, attr, title, url, count, box, styles, visible, enabled, checked). " + guidance("you need one specific value of the page or an element", "you need the whole interactive tree (use snapshot)", "the inspected value", "snapshot or find for further navigation"),
 		Profile:     ProfileCore,
 		Schema: objectSchema(map[string]any{
 			"kind":      stringProp("inspection kind"),
@@ -318,7 +350,7 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "find",
-		Description: "Find elements by semantic query. kind: text, role, label, placeholder, alt, css, xpath, ref. action: goto (default), focus, click. Returns matches with stable @refs.",
+		Description: "Find elements by semantic query (kind: text, role, label, placeholder, alt, css, xpath, ref; action: goto, focus, click). " + guidance("you need to locate elements semantically and address them by stable @refs", "you already have a working CSS selector or @ref", "the matching elements with their stable @refs", "click, fill or get on the returned @ref"),
 		Profile:     ProfileCore,
 		Schema: objectSchema(map[string]any{
 			"kind":   stringProp("query kind: text, role, label, placeholder, alt, css, xpath, ref"),
@@ -360,21 +392,21 @@ var tools = []ProxyTool{
 	},
 	{
 		Name:        "back",
-		Description: "Navigate back in the page history.",
+		Description: "Navigate back in the page history. " + guidance("the previous page of this tab is needed", "you need a fresh load of the same URL (use open or reload)", "the navigation result", "snapshot to inspect the previous page"),
 		Profile:     ProfileNav,
 		Schema:      objectSchema(nil),
 		Cmd:         "back",
 	},
 	{
 		Name:        "forward",
-		Description: "Navigate forward in the page history.",
+		Description: "Navigate forward in the page history. " + guidance("a page you navigated back from is needed again", "the target page is not in this tab history (use open)", "the navigation result", "snapshot to inspect the page"),
 		Profile:     ProfileNav,
 		Schema:      objectSchema(nil),
 		Cmd:         "forward",
 	},
 	{
 		Name:        "reload",
-		Description: "Reload the current page.",
+		Description: "Reload the current page. " + guidance("the page changed server-side and a fresh load is needed", "you only need to re-read the current DOM (use snapshot or read)", "the navigation result", "snapshot or read the reloaded page"),
 		Profile:     ProfileNav,
 		Schema:      objectSchema(nil),
 		Cmd:         "reload",
