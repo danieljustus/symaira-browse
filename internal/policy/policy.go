@@ -68,6 +68,8 @@ const (
 var Classification = map[string]RiskClass{
 	// read
 	"snapshot":       ClassRead,
+	"screenshot":     ClassRead,
+	"a11y":           ClassRead,
 	"read":           ClassRead,
 	"console.list":   ClassRead,
 	"console.clear":  ClassRead,

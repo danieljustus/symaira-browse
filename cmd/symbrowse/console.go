@@ -27,7 +27,7 @@ func newConsoleListCommand(session *string) *cobra.Command {
 		Short: "List captured console messages (issue #60)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := stateRequest(cmd.Context(), *session, "console.list", nil)
+			response, err := stateRequestBudget(cmd.Context(), *session, "console.list", nil, maxTokensFlag(cmd))
 			if err != nil {
 				return err
 			}
@@ -38,6 +38,7 @@ func newConsoleListCommand(session *string) *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&jsonOutput, "json", false, "print the raw JSON payload")
+	command.Flags().Int("max-tokens", 0, "token budget for the payload; oversized output is truncated and stored in the cache (0 = no limit)")
 	return command
 }
 

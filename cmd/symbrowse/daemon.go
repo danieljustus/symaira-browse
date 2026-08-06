@@ -173,6 +173,12 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		return err
 	}
 
+	// Screenshots (issue #16) are written into the cache out directory by
+	// default; --screenshot-dir on the command expands the allowed roots.
+	screenshotDirs := []string{}
+	if paths, pathErr := config.DefaultPaths(); pathErr == nil {
+		screenshotDirs = []string{filepath.Join(paths.CacheDir, "out")}
+	}
 	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"), daemon.NavigationRuntimeOptions{
 		AllowedDomains: allowedDomains,
 		SSRFEnabled:    ssrfEnabled,
@@ -183,6 +189,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		Autosave:       autosave,
 		Profile:        profile,
 		UploadDirs:     uploadDirsFromEnv(),
+		ScreenshotDirs: screenshotDirs,
 		Engine:         engineKind,
 	})
 	defer func() { _ = navigation.Close() }()
@@ -208,6 +215,8 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		Registry:         registry,
 		IdleTimeout:      idle,
 		OperationTimeout: operation,
+		CacheDir:         filepath.Join(cfg.CacheDir, "out"),
+		CacheTTL:         time.Duration(cfg.CacheTTLHours) * time.Hour,
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
 			case "daemon.ping":

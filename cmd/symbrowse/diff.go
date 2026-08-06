@@ -184,12 +184,19 @@ func newDiffScreenshotCommand(session *string) *cobra.Command {
 			}
 			raw, _ := json.Marshal(response.Data)
 			var shot struct {
-				PNG []byte `json:"png"`
+				Path string `json:"path"`
 			}
 			if err := json.Unmarshal(raw, &shot); err != nil {
 				return err
 			}
-			result, err := diff.CompareScreenshots(baselineData, shot.PNG, diff.Options{Threshold: threshold})
+			if shot.Path == "" {
+				return errors.New("screenshot response did not include a file path")
+			}
+			captured, err := os.ReadFile(shot.Path)
+			if err != nil {
+				return fmt.Errorf("read captured screenshot %q: %w", shot.Path, err)
+			}
+			result, err := diff.CompareScreenshots(baselineData, captured, diff.Options{Threshold: threshold})
 			if err != nil {
 				return err
 			}

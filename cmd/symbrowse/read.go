@@ -38,7 +38,7 @@ func newReadCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			response, err := readRequest(cmd.Context(), session, payload)
+			response, err := readRequest(cmd, cmd.Context(), session, payload)
 			if err != nil {
 				return err
 			}
@@ -98,6 +98,7 @@ func newReadCommand() *cobra.Command {
 	command.Flags().BoolVar(&raw, "raw", false, "return the page HTML instead of markdown")
 	command.Flags().BoolVar(&contentBoundaries, "content-boundaries", false, "wrap page content in unforgeable boundary markers (default on in MCP mode)")
 	command.Flags().BoolVar(&engineHint, "engine-hint", false, "report whether JavaScript was needed for the content (js_required with reason)")
+	command.Flags().Int("max-tokens", 0, "token budget for the payload; oversized output is truncated and stored in the cache (0 = no limit)")
 	return command
 }
 
@@ -166,13 +167,13 @@ func writeReadHuman(cmd *cobra.Command, document domkit.Document) error {
 	return err
 }
 
-func readRequest(ctx context.Context, session string, args json.RawMessage) (daemon.Response, error) {
+func readRequest(cmd *cobra.Command, ctx context.Context, session string, args json.RawMessage) (daemon.Response, error) {
 	path, err := daemon.SocketPath(session)
 	if err != nil {
 		return daemon.Response{}, err
 	}
 	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	response, err := client.Request(ctx, daemon.Frame{Cmd: "read", Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+	response, err := client.Request(ctx, daemon.Frame{Cmd: "read", Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano()), MaxTokens: maxTokensFlag(cmd)})
 	if err != nil {
 		return daemon.Response{}, err
 	}

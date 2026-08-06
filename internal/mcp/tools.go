@@ -96,6 +96,24 @@ func guidance(useWhen, doNotUseWhen, returns, next string) string {
 // JavaScript, browser state or interaction is needed.
 const fetchEscalationNote = "For plain static content a normal HTTP fetch is cheaper; use this tool only when JavaScript, browser state or interaction is required"
 
+// mcpBudgetedCommands are the output-heavy daemon commands that get a
+// stricter default token budget in MCP mode (ARCHITEKTUR.md §5.3: snapshot,
+// read, get html, console, network requests).
+var mcpBudgetedCommands = map[string]bool{
+	"snapshot":         true,
+	"read":             true,
+	"get.html":         true,
+	"console.list":     true,
+	"errors.list":      true,
+	"network.requests": true,
+	"a11y":             true,
+	"network.har":      true,
+}
+
+// mcpDefaultMaxTokens is the stricter MCP-mode budget (issue #23); TTY mode
+// applies no default and only honors an explicit --max-tokens flag.
+const mcpDefaultMaxTokens = 4000
+
 // ProxyTool describes one daemon-proxied MCP tool.
 type ProxyTool struct {
 	// Name and Description are exposed through tools/list.
@@ -119,6 +137,12 @@ type ProxyTool struct {
 	// Result transforms the daemon response data. Nil returns the data
 	// unchanged.
 	Result func(data any) (any, error)
+	// Aliases are compatibility names for the canonical tool ID (issue
+	// #2). They register as separate deprecated tool entries whose calls
+	// resolve to the canonical tool; tools/list exposes them with a
+	// replacement note. An alias must not collide with another canonical
+	// name or alias.
+	Aliases []string
 }
 
 // tools is the complete tool table. The profile assignment is the single
@@ -131,6 +155,10 @@ var tools = []ProxyTool{
 		Profile:     ProfileCore,
 		Schema:      objectSchema(map[string]any{"url": stringProp("the URL to open (http or https)")}, "url"),
 		Cmd:         "open",
+		// "goto" is a compatibility alias: the daemon accepts both
+		// open and goto, and agents coming from other tools often say
+		// goto. The canonical tool id is "open".
+		Aliases: []string{"goto"},
 		Args: func(input map[string]any) (any, error) {
 			url, err := requiredString(input, "url")
 			if err != nil {
