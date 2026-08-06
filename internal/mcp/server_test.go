@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -42,10 +43,15 @@ func startFakeDaemon(t *testing.T, base, session string) {
 		t.Fatal(err)
 	}
 	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{})
+	// The truncate-and-store cache backs the MCP default token budget
+	// (issue #23); without it budgeted frames would fail closed.
+	cacheDir := filepath.Join(base, session, "cache-out")
 	server := daemon.NewServer(daemon.Options{
 		SocketPath: path,
 		Session:    session,
 		Registry:   registry,
+		CacheDir:   cacheDir,
+		CacheTTL:   time.Hour,
 		// In-process fixture: peer-credential validation is unavailable on
 		// Windows and irrelevant for a server inside the test binary.
 		PeerValidator: func(net.Conn) error { return nil },

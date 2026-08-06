@@ -12,6 +12,10 @@ type Frame struct {
 	Args      json.RawMessage `json:"args,omitempty"`
 	Session   string          `json:"session,omitempty"`
 	RequestID string          `json:"request_id,omitempty"`
+	// MaxTokens caps the response payload (issue #23, B-19): when the
+	// serialized data exceeds the budget the daemon returns head+foot plus
+	// a cache handle instead of the full payload.
+	MaxTokens *int `json:"max_tokens,omitempty"`
 }
 
 // Error is the stable structured error payload returned by the daemon.
@@ -62,6 +66,7 @@ const (
 	ErrorMalformedRequest  = "malformed_request"
 	ErrorUnknownCommand    = "unknown_command"
 	ErrorOperationTimeout  = "operation_timeout"
+	ErrorOperationFailed   = "operation_failed"
 	ErrorPeerDenied        = "peer_denied"
 	ErrorDaemonUnavailable = "daemon_unavailable"
 	ErrorInvalidSession    = "invalid_session"

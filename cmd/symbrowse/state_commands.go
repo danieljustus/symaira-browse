@@ -231,12 +231,31 @@ func newStorageClearCommand(session *string) *cobra.Command {
 
 // stateRequest sends one daemon frame with an optional JSON payload.
 func stateRequest(ctx context.Context, session, command string, args []byte) (daemon.Response, error) {
+	return stateRequestBudget(ctx, session, command, args, nil)
+}
+
+// stateRequestBudget is stateRequest with an optional token budget (issue
+// #23): the daemon truncates oversized payloads and returns a cache handle.
+func stateRequestBudget(ctx context.Context, session, command string, args []byte, maxTokens *int) (daemon.Response, error) {
 	path, err := daemon.SocketPath(session)
 	if err != nil {
 		return daemon.Response{}, err
 	}
 	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	return client.Request(ctx, daemon.Frame{Cmd: command, Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+	return client.Request(ctx, daemon.Frame{Cmd: command, Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano()), MaxTokens: maxTokens})
+}
+
+// maxTokensFlag reads the --max-tokens flag value. A missing flag or a
+// value <= 0 returns nil (no budget; the daemon returns the full payload).
+func maxTokensFlag(cmd *cobra.Command) *int {
+	if !cmd.Flags().Changed("max-tokens") {
+		return nil
+	}
+	value, _ := cmd.Flags().GetInt("max-tokens")
+	if value <= 0 {
+		return nil
+	}
+	return &value
 }
 
 // importCurlCookies parses a curl cookie jar (Netscape format) and sets every

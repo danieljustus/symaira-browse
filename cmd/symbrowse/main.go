@@ -47,6 +47,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newBatchCommand())
 	root.AddCommand(newFindCommand())
 	root.AddCommand(newConsoleCommand())
+	root.AddCommand(newCacheCommand())
 	root.AddCommand(newErrorsCommand())
 	root.AddCommand(newEvalCommand())
 	root.AddCommand(newNetworkCommand())

@@ -34,7 +34,7 @@ func newNetworkRequestsCommand(session *string) *cobra.Command {
 		Short: "List captured requests (sensitive headers masked)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := stateRequest(cmd.Context(), *session, "network.requests", nil)
+			response, err := stateRequestBudget(cmd.Context(), *session, "network.requests", nil, maxTokensFlag(cmd))
 			if err != nil {
 				return err
 			}
@@ -80,6 +80,7 @@ func newNetworkRequestsCommand(session *string) *cobra.Command {
 	command.Flags().StringVar(&requestType, "type", "", "only this resource type (document, xhr, script, ...)")
 	command.Flags().StringVar(&method, "method", "", "only this HTTP method")
 	command.Flags().IntVar(&status, "status", 0, "only this HTTP status code")
+	command.Flags().Int("max-tokens", 0, "token budget for the payload; oversized output is truncated and stored in the cache (0 = no limit)")
 	return command
 }
 
