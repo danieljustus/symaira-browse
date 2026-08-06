@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/journal"
 	"github.com/danieljustus/symaira-browse/internal/oob"
 	"github.com/danieljustus/symaira-browse/internal/policy"
+	"github.com/danieljustus/symaira-browse/internal/session"
 )
 
 // fakeOverlayServiceEngine implements the engine plus overlay capability.
@@ -62,8 +64,12 @@ func TestHandoffTimeoutIsStructured(t *testing.T) {
 	_, oobRuntime := newOOBTestRuntime(t, &policy.Policy{})
 	started := time.Now()
 	payload, err := oobRuntime.StartHandoff(context.Background(), "default", "2FA needed", 100*time.Millisecond)
-	if err != nil {
-		t.Fatal(err)
+	var timeoutErr *session.HardStopError
+	if !errors.As(err, &timeoutErr) {
+		t.Fatalf("timeout error = %v, want *session.HardStopError", err)
+	}
+	if timeoutErr.Code != session.CodeHandoffTimeout || !timeoutErr.RequiresConfirmation() {
+		t.Fatalf("timeout error = %#v", timeoutErr)
 	}
 	if elapsed := time.Since(started); elapsed > 3*time.Second {
 		t.Fatalf("handoff hung for %s", elapsed)

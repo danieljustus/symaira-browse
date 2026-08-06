@@ -15,6 +15,14 @@ Fehler:
 {"success":false,"error":{"code":"stale_ref","message":…,"hint":…,"details":{…}}}
 ```
 
+Nicht wiederholbare Sitzungs-Hard-Stops tragen zusätzlich die gemeinsame
+Fortsetzungssemantik. `retryable` ist dabei explizit `false`; ein Wechsel zurück
+zur Agentensteuerung braucht eine bestätigte menschliche Aktion:
+
+```json
+{"success":false,"error":{"code":"session_user_control","message":"session is controlled by a human","retryable":false,"requires_user_confirmation":true,"resume_hint":"request explicit confirmation before taking control back"}}
+```
+
 `code` ist immer ein Mitglied des unten dokumentierten Enums — niemals ein
 freier String. Der Prozess-Exit-Code folgt weiterhin der `corekit/exitcodes`
 Konvention (`internal/exitcodes`); die Zuordnung `code → exit code` steht in
@@ -36,6 +44,9 @@ Konvention (`internal/exitcodes`); die Zuordnung `code → exit code` steht in
 | `daemon_unavailable` | Daemon nicht erreichbar oder nicht startbar | 1 generic | unavailable |
 | `invalid_session` | Session-Name ungültig oder unbekannt | 2 no_input | validation |
 | `session_not_found` | Session existiert nicht | 5 not_found | not_found |
+| `session_user_control` | Mensch kontrolliert die Session; kein implizites Takeover | 6 conflict | conflict |
+| `session_inactive` | Session ist beendet oder abgelaufen | 5 not_found | not_found |
+| `handoff_timeout` | Übergabe ist abgelaufen und wurde verweigert | 1 generic | unavailable |
 | `not_found` | Angeforderte Ressource existiert nicht | 5 not_found | not_found |
 | `auth` | Authentifizierung fehlgeschlagen | 3 no_auth | auth |
 | `permission` | Operation nicht erlaubt | 4 forbidden | permission |
@@ -53,3 +64,8 @@ Konvention (`internal/exitcodes`); die Zuordnung `code → exit code` steht in
 3. `internal` ist der dokumentierte Fallback für nicht klassifizierte Fehler —
    es ist selbst ein Enum-Mitglied, kein freier String.
 4. `details` (optional) trägt maschinenlesbaren Zusatzkontext.
+5. `session_user_control`, `session_inactive` und `handoff_timeout` sind
+   nicht wiederholbare Hard-Stops: `retryable` ist `false`.
+6. `requires_user_confirmation` und `resume_hint` geben ausschließlich den
+   erlaubten nächsten Schritt an; Clients dürfen daraus kein implizites
+   Takeover ableiten.

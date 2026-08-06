@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/danieljustus/symaira-browse/internal/session"
 )
 
 func startTestServer(t *testing.T, handler Handler) (*Server, string, context.CancelFunc) {
@@ -151,5 +153,21 @@ func TestClientAutostartHook(t *testing.T) {
 	}
 	if called {
 		t.Fatal("autostart hook called while socket was available")
+	}
+}
+
+func TestHandlerErrorResponsePreservesHardStopMetadata(t *testing.T) {
+	hardStop := &session.HardStopError{
+		Code:                     session.CodeSessionUserControl,
+		Message:                  "human controls session",
+		RequiresUserConfirmation: true,
+		ResumeHint:               "confirm takeover",
+	}
+	response := handlerErrorResponse(hardStop)
+	if response.Success || response.Error == nil {
+		t.Fatalf("response = %#v", response)
+	}
+	if response.Error.Code != session.CodeSessionUserControl || response.Error.Retryable == nil || *response.Error.Retryable || response.Error.RequiresUserConfirmation == nil || !*response.Error.RequiresUserConfirmation || response.Error.ResumeHint != "confirm takeover" {
+		t.Fatalf("hard-stop response = %#v", response.Error)
 	}
 }

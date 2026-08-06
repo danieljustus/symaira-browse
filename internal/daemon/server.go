@@ -293,7 +293,26 @@ func handlerErrorResponse(err error) Response {
 	if errors.As(err, &protocolErr) {
 		return Response{Success: false, Error: protocolErr}
 	}
+	var metadata metadataError
+	if errors.As(err, &metadata) {
+		retryable := metadata.RetryableError()
+		requiresConfirmation := metadata.RequiresConfirmation()
+		return Response{Success: false, Error: &Error{
+			Code:                     metadata.ErrorCode(),
+			Message:                  err.Error(),
+			Retryable:                &retryable,
+			RequiresUserConfirmation: &requiresConfirmation,
+			ResumeHint:               metadata.ResumeGuidance(),
+		}}
+	}
 	return ErrorResponse("operation_failed", err.Error())
+}
+
+type metadataError interface {
+	ErrorCode() string
+	RetryableError() bool
+	RequiresConfirmation() bool
+	ResumeGuidance() string
 }
 
 func sessionErrorResponse(err error) Response {

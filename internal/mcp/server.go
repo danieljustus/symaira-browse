@@ -199,7 +199,31 @@ func daemonToolError(response daemon.Response) error {
 	if response.Error == nil {
 		return fmt.Errorf("daemon request failed")
 	}
-	return fmt.Errorf("%s: %s", response.Error.Code, response.Error.Message)
+	return &toolError{
+		code:                 response.Error.Code,
+		message:              response.Error.Message,
+		retryable:            pointerBool(response.Error.Retryable),
+		requiresConfirmation: pointerBool(response.Error.RequiresUserConfirmation),
+		resumeHint:           response.Error.ResumeHint,
+	}
+}
+
+type toolError struct {
+	code                 string
+	message              string
+	retryable            bool
+	requiresConfirmation bool
+	resumeHint           string
+}
+
+func (e *toolError) Error() string              { return fmt.Sprintf("%s: %s", e.code, e.message) }
+func (e *toolError) ErrorCode() string          { return e.code }
+func (e *toolError) RetryableError() bool       { return e.retryable }
+func (e *toolError) RequiresConfirmation() bool { return e.requiresConfirmation }
+func (e *toolError) ResumeGuidance() string     { return e.resumeHint }
+
+func pointerBool(value *bool) bool {
+	return value != nil && *value
 }
 
 // client builds a daemon client for one session. The autostart hook starts

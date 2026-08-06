@@ -232,6 +232,32 @@ prüfen, was passiert ist, und es exakt nachfahren. Das Format ist bewusst
 kompatibel zu dem, was `symaira-room` als signiertes Journal plant, und zu
 Guards Hash-Chain-Audit.
 
+**Ownership-State-Machine.** Jede Session hat eine stabile `session_id` und eine
+stabile `control_id`; beide werden beim Daemon-Neustart und bei Client-Reconnect
+wiederhergestellt. Die autoritativen Zustände sind:
+
+| `control_state` | Bedeutung | Erlaubte nächste Aktionen |
+|---|---|---|
+| `agent` | Agent darf mit seiner `control_id` handeln | `handoff`, `complete {keep}` |
+| `agent_delegated` | Übergabe wartet auf eine explizite menschliche Übernahme | `claim`, `timeout` |
+| `user` | Mensch kontrolliert die Session | `complete {keep}`, bestätigtes `takeover` |
+
+`handoff` wechselt von `agent` nach `agent_delegated` und journalisiert den
+Grund. `claim` setzt eine menschliche `control_id` und wechselt nach `user`.
+`takeover` darf nur mit einer expliziten Bestätigung von `user` zurück nach
+`agent` wechseln; eine fehlende Bestätigung ist ein Hard-Stop und verändert den
+Zustand nicht. `complete {keep}` beendet die Session mit einer verpflichtenden
+Keep/Skip-Entscheidung. Jeder Übergang wird mit Zeit, Session-, Control-ID,
+Aktion, vorherigem und neuem Zustand sowie Bestätigung journalisiert.
+
+Ein Agentenaufruf während `agent_delegated` oder `user` liefert immer denselben
+nicht wiederholbaren Fehler `session_user_control`; er löst weder Retry noch
+Takeover aus. Eine abgelaufene Übergabe wird als `handoff_timeout` verweigert
+und geschlossen. Nach `complete` oder Timeout liefert jeder weitere Agentenaufruf
+`session_inactive`. Die gemeinsamen Felder `retryable`,
+`requires_user_confirmation` und `resume_hint` werden unverändert in CLI-,
+Daemon-, MCP- und OOB-Antworten transportiert.
+
 ### 5.5 Risiko-Klassen, Policy und die Guard-Grenze
 
 Jedes Kommando trägt fest verdrahtet eine **Risiko-Klasse**:

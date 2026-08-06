@@ -651,6 +651,8 @@ Timeout und sauberem Abbruch. Zustände: `pending`, `completed`, `cancelled`,
 - [ ] Overlay ist durch Seiten-CSS/JS nicht verdeckbar oder entfernbar (Test gegen feindliche Fixture)
 - [ ] Timeout liefert strukturiertes Ergebnis, keinen Hänger
 - [ ] Funktioniert auch headless: dann Notification + `oob status` statt Overlay
+- [ ] Jede Übergabe führt die Ownership-State-Machine `agent → agent_delegated → user` über explizite `handoff`/`claim`-Aktionen fort; der Übergang wird journalisiert
+- [ ] `session_user_control`, `session_inactive` und `handoff_timeout` liefern `retryable`, `requires_user_confirmation` und `resume_hint` im gemeinsamen Fehler-Envelope
 
 ---
 **B-45** · `titel:` `handoff` — Übergabe an den Menschen ohne Sitzungsverlust
@@ -664,6 +666,8 @@ zur selben URL navigieren, Overlay zeigen. Nach Abschluss Rückgabe
 - [ ] Wurde bereits headed gestartet, entfällt der Neustart
 - [ ] Ein 2FA-Login gegen die Fixture ist end-to-end durchführbar
 - [ ] Journal-Eintrag mit Entscheider `human` und der angegebenen Begründung
+- [ ] `claim`, bestätigtes `takeover` und `complete {keep}` sind explizite Operationen; eine fehlende Takeover-Bestätigung lässt den User-Zustand unverändert
+- [ ] Daemon-Neustart und Client-Reconnect stellen dieselbe `session_id` und `control_id` wieder her
 
 ---
 **B-46** · `titel:` Freigaben über OOB statt TTY-Prompt
@@ -677,6 +681,7 @@ Bei Timeout gilt `deny`. Optional `--confirm-scope once|session|domain`.
 - [ ] Freigabe funktioniert nachweislich im MCP-Modus ohne TTY
 - [ ] Timeout führt zu `deny` mit strukturiertem Fehler, nie zu stillem `allow`
 - [ ] Erteilte Freigaben landen mit Umfang und Gültigkeit im Journal
+- [ ] Hard-Stop-Antworten werden bei wiederholten Aufrufen identisch geliefert und erzeugen keine zusätzliche normale Ausgabe
 
 ---
 **B-47** · `titel:` `watch` — Mitschau für den Menschen
