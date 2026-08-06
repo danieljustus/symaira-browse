@@ -33,6 +33,9 @@ type Config struct {
 	SSRFEnabled bool `json:"ssrf_enabled"`
 	// AllowPrivate relaxes the SSRF guard for private targets.
 	AllowPrivate bool `json:"allow_private"`
+	// CacheTTLHours is the truncate-and-store output cache lifetime
+	// (issue #23, B-19; default 24 h). Values <= 0 disable expiry.
+	CacheTTLHours int `json:"cache_ttl_hours"`
 }
 
 // Paths contains the default XDG directories used by symbrowse.
@@ -74,6 +77,7 @@ func Defaults() *Config {
 		CacheDir:       paths.CacheDir,
 		StateDir:       paths.StateDir,
 		ExecutablePath: "",
+		CacheTTLHours:  24,
 	}
 }
 
@@ -129,6 +133,7 @@ func LoadWithOverrides(overrides FlagOverrides) (Result, error) {
 		"state_dir":       "default",
 		"executable_path": "default",
 		"allowed_domains": "default",
+		"cache_ttl_hours": "default",
 	}
 
 	home, err := os.UserHomeDir()
@@ -175,7 +180,7 @@ func markFileSources(sources map[string]string, path, source string) error {
 	if _, err := toml.DecodeFile(path, &raw); err != nil {
 		return err
 	}
-	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "allowed_domains"} {
+	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "allowed_domains", "cache_ttl_hours"} {
 		if _, ok := raw[field]; ok {
 			sources[field] = source
 		}
@@ -184,7 +189,7 @@ func markFileSources(sources map[string]string, path, source string) error {
 }
 
 func markEnvSources(sources map[string]string) {
-	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "allowed_domains"} {
+	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "allowed_domains", "cache_ttl_hours"} {
 		if value, ok := os.LookupEnv(envPrefix + "_" + envKey(field)); ok && value != "" {
 			sources[field] = "env"
 		}

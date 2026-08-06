@@ -21,6 +21,7 @@ func newGetCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{Use: "get", Short: "Inspect page and element values"}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
+	command.PersistentFlags().Int("max-tokens", 0, "token budget for the payload; oversized output is truncated and stored in the cache (0 = no limit)")
 	for _, kind := range []engine.InspectionKind{engine.InspectText, engine.InspectHTML, engine.InspectValue, engine.InspectAttr, engine.InspectTitle, engine.InspectURL, engine.InspectCount, engine.InspectBox, engine.InspectStyles} {
 		command.AddCommand(newInspectionLeafCommand("get", kind, &session, false))
 	}
@@ -106,7 +107,7 @@ func inspectionRequest(cmd *cobra.Command, session, group string, request engine
 		return daemon.Response{}, err
 	}
 	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	response, err := client.Request(cmd.Context(), daemon.Frame{Cmd: group + "." + string(request.Kind), Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+	response, err := client.Request(cmd.Context(), daemon.Frame{Cmd: group + "." + string(request.Kind), Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano()), MaxTokens: maxTokensFlag(cmd)})
 	if err != nil {
 		return daemon.Response{}, err
 	}

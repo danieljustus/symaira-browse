@@ -11,6 +11,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/danieljustus/symaira-browse/internal/budget"
 )
 
 const maxFrameBytes = 1 << 20
@@ -41,6 +43,12 @@ type Options struct {
 	ReadTimeout      time.Duration
 	PeerValidator    func(net.Conn) error
 	Policy           PolicyStatus
+	// CacheDir is the truncate-and-store output cache root (issue #23).
+	// Frame max_tokens budgets are enforced against it; empty disables
+	// budgets (the daemon fails closed when a budget is requested).
+	CacheDir string
+	// CacheTTL is the output cache entry lifetime (issue #23; default 24h).
+	CacheTTL time.Duration
 }
 
 // Server serves newline-delimited JSON frames over a protected Unix socket.
@@ -245,10 +253,33 @@ func (s *Server) handleLine(line []byte) Response {
 		if outcome.err != nil {
 			return handlerErrorResponse(outcome.err)
 		}
-		return SuccessResponse(outcome.data, outcome.warnings)
+		data := outcome.data
+		if frame.MaxTokens != nil && data != nil {
+			// Token budget (issue #23, B-19): the serialized payload must
+			// never exceed the budget. On truncation the full payload goes
+			// to the output cache and the response carries head+foot plus
+			// the cache handle. Fail closed when the cache is unavailable.
+			budgeted, budgetErr := applyTokenBudget(s.options.CacheDir, s.options.CacheTTL, data, *frame.MaxTokens)
+			if budgetErr != nil {
+				return ErrorResponse(ErrorOperationFailed, budgetErr.Error())
+			}
+			data = budgeted
+		}
+		return SuccessResponse(data, outcome.warnings)
 	case <-ctx.Done():
 		return ErrorResponse(ErrorOperationTimeout, "daemon operation exceeded its timeout")
 	}
+}
+
+// applyTokenBudget truncates data to maxTokens via internal/budget. A nil or
+// empty cache directory disables the feature only for non-budgeted frames;
+// budgeted frames fail closed.
+func applyTokenBudget(cacheDir string, ttl time.Duration, data any, maxTokens int) (any, error) {
+	if cacheDir == "" {
+		return nil, errors.New("token budget requested but no output cache directory is configured")
+	}
+	cache := budget.NewCache(cacheDir, ttl)
+	return budget.Apply(cache, data, maxTokens)
 }
 
 type handlerResult struct {

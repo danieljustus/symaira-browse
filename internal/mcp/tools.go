@@ -64,6 +64,24 @@ func boolProp(description string) map[string]any {
 	return map[string]any{"type": "boolean", "description": description}
 }
 
+// mcpBudgetedCommands are the output-heavy daemon commands that get a
+// stricter default token budget in MCP mode (ARCHITEKTUR.md §5.3: snapshot,
+// read, get html, console, network requests).
+var mcpBudgetedCommands = map[string]bool{
+	"snapshot":         true,
+	"read":             true,
+	"get.html":         true,
+	"console.list":     true,
+	"errors.list":      true,
+	"network.requests": true,
+	"a11y":             true,
+	"network.har":      true,
+}
+
+// mcpDefaultMaxTokens is the stricter MCP-mode budget (issue #23); TTY mode
+// applies no default and only honors an explicit --max-tokens flag.
+const mcpDefaultMaxTokens = 4000
+
 // ProxyTool describes one daemon-proxied MCP tool.
 type ProxyTool struct {
 	// Name and Description are exposed through tools/list.

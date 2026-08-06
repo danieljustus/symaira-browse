@@ -99,12 +99,56 @@ func writeHuman(w io.Writer, envelope Envelope) error {
 		_, err := fmt.Fprintln(w, "ok")
 		return err
 	}
+	// Truncate-and-store marker (issue #23, B-19): render head + separator +
+	// foot + the cache hint instead of dumping the marker map.
+	if marker, ok := truncationMarker(envelope.Data); ok {
+		if _, err := fmt.Fprintln(w, marker.Head); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintf(w, "\n… [truncated: %d of %d tokens] …\n\n", marker.TokensReturned, marker.TokensTotal); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(w, marker.Foot); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintf(w, "\nfull output: %s\n", marker.Hint)
+		return err
+	}
 	if text, ok := envelope.Data.(string); ok {
 		_, err := fmt.Fprintln(w, text)
 		return err
 	}
 	_, err := fmt.Fprintln(w, envelope.Data)
 	return err
+}
+
+// truncationMarker detects the budget truncation payload (daemon-side,
+// issue #23) and returns its renderable fields. The marker is delivered as a
+// JSON object; both the budget.Marker struct and its decoded map form match.
+func truncationMarker(data any) (marker, bool) {
+	fields, ok := data.(map[string]any)
+	if !ok {
+		return marker{}, false
+	}
+	truncated, ok := fields["truncated"].(bool)
+	if !ok || !truncated {
+		return marker{}, false
+	}
+	head, _ := fields["head"].(string)
+	foot, _ := fields["foot"].(string)
+	hint, _ := fields["hint"].(string)
+	returned, _ := fields["tokens_returned"].(float64)
+	total, _ := fields["tokens_total"].(float64)
+	return marker{Head: head, Foot: foot, Hint: hint, TokensReturned: int(returned), TokensTotal: int(total)}, true
+}
+
+// marker is the renderable slice of a truncation payload.
+type marker struct {
+	Head           string
+	Foot           string
+	Hint           string
+	TokensReturned int
+	TokensTotal    int
 }
 
 // WriteError serialises an error as a failed envelope. The error is classified

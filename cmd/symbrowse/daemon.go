@@ -215,6 +215,8 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		Registry:         registry,
 		IdleTimeout:      idle,
 		OperationTimeout: operation,
+		CacheDir:         filepath.Join(cfg.CacheDir, "out"),
+		CacheTTL:         time.Duration(cfg.CacheTTLHours) * time.Hour,
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
 			case "daemon.ping":
