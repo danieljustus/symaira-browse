@@ -453,12 +453,50 @@ func (e *Engine) AXTree(ctx context.Context, page engine.Page) ([]engine.AXNode,
 	return nodes, nil
 }
 
-// Screenshot captures a PNG screenshot of the page.
+// Screenshot captures a PNG screenshot of the page (viewport only).
 func (e *Engine) Screenshot(ctx context.Context, page engine.Page) ([]byte, error) {
+	return e.ScreenshotWithOptions(ctx, page, engine.ScreenshotOptions{})
+}
+
+// captureClip mirrors the CDP Page.captureScreenshot clip parameter.
+type captureClip struct {
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+	Scale  float64 `json:"scale,omitempty"`
+}
+
+// ScreenshotWithOptions captures the page according to opts (issue #16):
+// png/jpeg format with optional jpeg quality, full-page capture via
+// captureBeyondViewport and element capture via a clip region.
+func (e *Engine) ScreenshotWithOptions(ctx context.Context, page engine.Page, opts engine.ScreenshotOptions) ([]byte, error) {
+	format := strings.ToLower(opts.Format)
+	if format == "" {
+		format = "png"
+	}
+	if format != "png" && format != "jpeg" {
+		return nil, fmt.Errorf("unsupported screenshot format %q (want png or jpeg)", opts.Format)
+	}
+	params := struct {
+		Format                string       `json:"format,omitempty"`
+		Quality               int          `json:"quality,omitempty"`
+		Clip                  *captureClip `json:"clip,omitempty"`
+		CaptureBeyondViewport bool         `json:"captureBeyondViewport,omitempty"`
+	}{
+		Format:  format,
+		Quality: opts.Quality,
+	}
+	if opts.Clip != nil {
+		params.Clip = &captureClip{X: opts.Clip.X, Y: opts.Clip.Y, Width: opts.Clip.Width, Height: opts.Clip.Height}
+	}
+	if opts.FullPage {
+		params.CaptureBeyondViewport = true
+	}
 	var result struct {
 		Data string `json:"data"`
 	}
-	if err := e.call(ctx, page.SessionID, cdproto.CommandPageCaptureScreenshot, struct{}{}, &result); err != nil {
+	if err := e.call(ctx, page.SessionID, cdproto.CommandPageCaptureScreenshot, params, &result); err != nil {
 		return nil, err
 	}
 	data, err := base64.StdEncoding.DecodeString(result.Data)

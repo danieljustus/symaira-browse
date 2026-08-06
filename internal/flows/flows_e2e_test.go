@@ -175,9 +175,16 @@ func chromeExecutable(t *testing.T) string {
 // browser for interactive debugging; SYMBROWSE_HEADLESS=1 still forces
 // headless (e.g. the CI E2E job) even when SYMBROWSE_HEADED is set.
 func e2eRuntimeOptions() daemon.NavigationRuntimeOptions {
+	// Screenshot captures (issue #16) need an allowed output root; a fresh
+	// temp dir keeps parallel E2E tests isolated.
+	shots, err := os.MkdirTemp("", "symbrowse-e2e-shots-")
+	if err != nil {
+		shots = os.TempDir()
+	}
 	return daemon.NavigationRuntimeOptions{
 		RequestTimeout: 30 * time.Second,
 		Headless:       os.Getenv("SYMBROWSE_HEADLESS") == "1" || os.Getenv("SYMBROWSE_HEADED") != "1",
+		ScreenshotDirs: []string{shots},
 	}
 }
 

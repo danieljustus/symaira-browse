@@ -59,15 +59,22 @@ func TestDiffScreenshotEndToEnd(t *testing.T) {
 		}
 		raw, _ := json.Marshal(response.Data)
 		var payload struct {
-			PNG []byte `json:"png"`
+			Path string `json:"path"`
 		}
 		if err := json.Unmarshal(raw, &payload); err != nil {
 			t.Fatalf("decode screenshot: %v", err)
 		}
-		if len(payload.PNG) == 0 {
+		if payload.Path == "" {
+			t.Fatal("empty screenshot path")
+		}
+		data, err := os.ReadFile(payload.Path)
+		if err != nil {
+			t.Fatalf("read captured screenshot: %v", err)
+		}
+		if len(data) == 0 {
 			t.Fatal("empty screenshot")
 		}
-		return payload.PNG
+		return data
 	}
 
 	baseline := shot(server.URL + "/?v=white")
