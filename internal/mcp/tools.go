@@ -105,6 +105,12 @@ type ProxyTool struct {
 	// Result transforms the daemon response data. Nil returns the data
 	// unchanged.
 	Result func(data any) (any, error)
+	// Aliases are compatibility names for the canonical tool ID (issue
+	// #2). They register as separate deprecated tool entries whose calls
+	// resolve to the canonical tool; tools/list exposes them with a
+	// replacement note. An alias must not collide with another canonical
+	// name or alias.
+	Aliases []string
 }
 
 // tools is the complete tool table. The profile assignment is the single
@@ -117,6 +123,10 @@ var tools = []ProxyTool{
 		Profile:     ProfileCore,
 		Schema:      objectSchema(map[string]any{"url": stringProp("the URL to open (http or https)")}, "url"),
 		Cmd:         "open",
+		// "goto" is a compatibility alias: the daemon accepts both
+		// open and goto, and agents coming from other tools often say
+		// goto. The canonical tool id is "open".
+		Aliases: []string{"goto"},
 		Args: func(input map[string]any) (any, error) {
 			url, err := requiredString(input, "url")
 			if err != nil {

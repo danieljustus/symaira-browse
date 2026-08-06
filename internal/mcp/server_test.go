@@ -216,12 +216,17 @@ func TestZeroStdoutPollution(t *testing.T) {
 		t.Fatalf("initialize error: %v", initialize["error"])
 	}
 
-	// tools/list must enumerate the full registered surface.
+	// tools/list must enumerate the full registered surface: every
+	// canonical tool plus its compatibility aliases (issue #2).
+	registered := len(tools)
+	for _, tool := range tools {
+		registered += len(tool.Aliases)
+	}
 	toolsResponse := send(map[string]any{"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
 	result, _ := toolsResponse["result"].(map[string]any)
 	toolList, _ := result["tools"].([]any)
-	if len(toolList) != len(tools) {
-		t.Fatalf("tools/list returned %d tools, want %d", len(toolList), len(tools))
+	if len(toolList) != registered {
+		t.Fatalf("tools/list returned %d tools, want %d", len(toolList), registered)
 	}
 
 	// A tool call whose daemon handler logs: the handshake must survive and

@@ -1,8 +1,11 @@
 package mcp
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // ProfileInfo describes one tool profile for --list-profiles and for the
@@ -92,7 +95,8 @@ func SelectTools(selection string) ([]string, error) {
 }
 
 // toolNamesForProfile lists the tools assigned to one profile in table
-// order.
+// order. Aliases are excluded: the canonical tool ids are the stable
+// profile membership (issue #2).
 func toolNamesForProfile(profile Profile) []string {
 	var names []string
 	for _, tool := range tools {
@@ -103,10 +107,88 @@ func toolNamesForProfile(profile Profile) []string {
 	return names
 }
 
+// CanonicalName resolves an alias to its canonical tool id (issue #2).
+// Unknown names are returned unchanged.
+func CanonicalName(name string) string {
+	for _, tool := range tools {
+		if tool.Name == name {
+			return name
+		}
+		for _, alias := range tool.Aliases {
+			if alias == name {
+				return tool.Name
+			}
+		}
+	}
+	return name
+}
+
+// RiskClassOf reports the policy risk class of the daemon command behind a
+// tool name (canonical or alias). Tools without a static command classify
+// as interact (their resolved commands are classified individually by the
+// daemon).
+func RiskClassOf(name string) string {
+	for _, tool := range tools {
+		if tool.Name != name && !containsAlias(tool, name) {
+			continue
+		}
+		if tool.Cmd == "" {
+			return string(policy.ClassInteract)
+		}
+		class, err := policy.Classify(tool.Cmd)
+		if err != nil {
+			return string(policy.ClassInteract)
+		}
+		return string(class)
+	}
+	return string(policy.ClassInteract)
+}
+
+func containsAlias(tool ProxyTool, name string) bool {
+	for _, alias := range tool.Aliases {
+		if alias == name {
+			return true
+		}
+	}
+	return false
+}
+
+// validateToolRegistry enforces the canonical-id contract (issue #2):
+// unique canonical names, no alias colliding with a canonical name or with
+// another alias, and no tool aliasing itself.
+func validateToolRegistry() error {
+	canonical := make(map[string]string, len(tools)) // name -> tool
+	for _, tool := range tools {
+		if tool.Name == "" {
+			return errors.New("tool registry: a tool has an empty canonical name")
+		}
+		if previous, exists := canonical[tool.Name]; exists {
+			return fmt.Errorf("tool registry: duplicate canonical tool id %q (also used by %q)", tool.Name, previous)
+		}
+		canonical[tool.Name] = tool.Name
+		for _, alias := range tool.Aliases {
+			if alias == "" {
+				return fmt.Errorf("tool registry: %q declares an empty alias", tool.Name)
+			}
+			if alias == tool.Name {
+				return fmt.Errorf("tool registry: %q aliases itself", tool.Name)
+			}
+			if owner, exists := canonical[alias]; exists {
+				return fmt.Errorf("tool registry: alias %q collides with %q", alias, owner)
+			}
+			canonical[alias] = tool.Name
+		}
+	}
+	return nil
+}
+
 // RegisterSelection filters the tool table to the selected profile names and
 // registers the result on the server. It is the single registration path so
 // the profile filter and the tests cannot drift.
 func (s *Server) RegisterSelection(selection string) error {
+	if err := validateToolRegistry(); err != nil {
+		return err
+	}
 	names, err := SelectTools(selection)
 	if err != nil {
 		return err
@@ -118,7 +200,21 @@ func (s *Server) RegisterSelection(selection string) error {
 	for _, tool := range tools {
 		if selected[tool.Name] {
 			s.core.RegisterTool(s.proxyTool(tool))
+			for _, alias := range tool.Aliases {
+				// Compatibility aliases register as deprecated entries
+				// (issue #2): same handler and schema, marked with the
+				// canonical replacement.
+				s.core.RegisterTool(s.proxyTool(aliasTool(tool, alias)))
+			}
 		}
 	}
 	return nil
+}
+
+// aliasTool builds the deprecated alias entry for a canonical tool.
+func aliasTool(tool ProxyTool, alias string) ProxyTool {
+	aliasCopy := tool
+	aliasCopy.Name = alias
+	aliasCopy.Description = fmt.Sprintf("Deprecated alias of %q; use %q instead. %s", tool.Name, tool.Name, tool.Description)
+	return aliasCopy
 }
