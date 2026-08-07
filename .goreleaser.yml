@@ -51,6 +51,10 @@ sboms:
 
 # Keyless Cosign signatures (identity token comes from the release workflow's
 # id-token permission). Certificates are published next to the artifacts.
+# Note: `output: true` only *displays* the signing output since GoReleaser
+# v2.13 — it no longer writes the signature file. cosign must write both
+# files itself via --output-signature / --output-certificate, otherwise the
+# upload step fails with "no such file or directory" for *.sig.
 signs:
   - cmd: cosign
     env:
@@ -59,6 +63,10 @@ signs:
     args:
       - sign-blob
       - --yes
+      - --output-signature
+      - '${artifact}.sig'
+      - --output-certificate
+      - '${artifact}.pem'
       - '${artifact}'
     artifacts: all
     output: true
