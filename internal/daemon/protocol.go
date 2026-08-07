@@ -20,10 +20,13 @@ type Frame struct {
 
 // Error is the stable structured error payload returned by the daemon.
 type Error struct {
-	Code    string         `json:"code"`
-	Message string         `json:"message"`
-	Hint    string         `json:"hint,omitempty"`
-	Details map[string]any `json:"details,omitempty"`
+	Code                     string         `json:"code"`
+	Message                  string         `json:"message"`
+	Hint                     string         `json:"hint,omitempty"`
+	Details                  map[string]any `json:"details,omitempty"`
+	Retryable                *bool          `json:"retryable,omitempty"`
+	RequiresUserConfirmation *bool          `json:"requires_user_confirmation,omitempty"`
+	ResumeHint               string         `json:"resume_hint,omitempty"`
 }
 
 // Error implements the error interface for handler-level protocol failures.
@@ -63,14 +66,17 @@ type Response struct {
 }
 
 const (
-	ErrorMalformedRequest  = "malformed_request"
-	ErrorUnknownCommand    = "unknown_command"
-	ErrorOperationTimeout  = "operation_timeout"
-	ErrorOperationFailed   = "operation_failed"
-	ErrorPeerDenied        = "peer_denied"
-	ErrorDaemonUnavailable = "daemon_unavailable"
-	ErrorInvalidSession    = "invalid_session"
-	ErrorSessionNotFound   = "session_not_found"
+	ErrorMalformedRequest   = "malformed_request"
+	ErrorUnknownCommand     = "unknown_command"
+	ErrorOperationTimeout   = "operation_timeout"
+	ErrorOperationFailed    = "operation_failed"
+	ErrorPeerDenied         = "peer_denied"
+	ErrorDaemonUnavailable  = "daemon_unavailable"
+	ErrorInvalidSession     = "invalid_session"
+	ErrorSessionNotFound    = "session_not_found"
+	ErrorSessionUserControl = "session_user_control"
+	ErrorSessionInactive    = "session_inactive"
+	ErrorHandoffTimeout     = "handoff_timeout"
 )
 
 // DecodeFrame validates and decodes a single JSON frame.

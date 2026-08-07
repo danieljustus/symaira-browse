@@ -33,10 +33,13 @@ type Warning struct {
 // Error is the structured error payload. Code is always a member of the
 // documented error-code enum; it is never a free-form string.
 type Error struct {
-	Code    string         `json:"code"`
-	Message string         `json:"message"`
-	Hint    string         `json:"hint,omitempty"`
-	Details map[string]any `json:"details,omitempty"`
+	Code                     string         `json:"code"`
+	Message                  string         `json:"message"`
+	Hint                     string         `json:"hint,omitempty"`
+	Details                  map[string]any `json:"details,omitempty"`
+	Retryable                *bool          `json:"retryable,omitempty"`
+	RequiresUserConfirmation *bool          `json:"requires_user_confirmation,omitempty"`
+	ResumeHint               string         `json:"resume_hint,omitempty"`
 }
 
 // Error implements the error interface for envelope-level failures.

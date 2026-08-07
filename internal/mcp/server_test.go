@@ -479,6 +479,24 @@ func TestDaemonToolError(t *testing.T) {
 	if err == nil || err.Error() != "denied: blocked" {
 		t.Fatalf("daemon error = %v", err)
 	}
+	retryable := false
+	requiresConfirmation := true
+	err = daemonToolError(daemon.Response{Error: &daemon.Error{
+		Code:                     "session_user_control",
+		Message:                  "human controls session",
+		Retryable:                &retryable,
+		RequiresUserConfirmation: &requiresConfirmation,
+		ResumeHint:               "confirm takeover",
+	}})
+	metadata, ok := err.(interface {
+		ErrorCode() string
+		RetryableError() bool
+		RequiresConfirmation() bool
+		ResumeGuidance() string
+	})
+	if !ok || metadata.ErrorCode() != "session_user_control" || metadata.RetryableError() || !metadata.RequiresConfirmation() || metadata.ResumeGuidance() != "confirm takeover" {
+		t.Fatalf("MCP hard-stop metadata = %#v", err)
+	}
 }
 
 func TestMain(m *testing.M) {

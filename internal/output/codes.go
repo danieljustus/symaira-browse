@@ -54,6 +54,12 @@ const (
 	CodeConfig Code = "config"
 	// CodeConflict: the operation conflicts with the current state.
 	CodeConflict Code = "conflict"
+	// CodeSessionUserControl: a human currently controls the session.
+	CodeSessionUserControl Code = "session_user_control"
+	// CodeSessionInactive: the session has completed or expired.
+	CodeSessionInactive Code = "session_inactive"
+	// CodeHandoffTimeout: a handoff timed out and was denied.
+	CodeHandoffTimeout Code = "handoff_timeout"
 	// CodeUnavailable: a required service or resource is unavailable.
 	CodeUnavailable Code = "unavailable"
 	// CodeInternal: an unexpected internal failure.
@@ -68,8 +74,10 @@ var allCodes = map[Code]bool{
 	CodeOperationFailed: true, CodeOperationTimeout: true, CodePeerDenied: true,
 	CodeDaemonUnavailable: true, CodeInvalidSession: true, CodeSessionNotFound: true,
 	CodeNotFound: true, CodeAuth: true, CodePermission: true, CodeValidation: true,
-	CodeNoInput: true, CodeFlowFailed: true, CodeConfig: true, CodeConflict: true, CodeUnavailable: true,
-	CodeInternal: true,
+	CodeNoInput: true, CodeFlowFailed: true, CodeConfig: true, CodeConflict: true,
+	CodeSessionUserControl: true, CodeSessionInactive: true, CodeHandoffTimeout: true,
+	CodeUnavailable: true,
+	CodeInternal:    true,
 }
 
 // IsValid reports whether code is a member of the documented enum.
@@ -105,7 +113,7 @@ func codeFromKind(kind exitcodes.ErrorKind) Code {
 // for exit-code resolution at the process boundary.
 func kindFromCode(code Code) exitcodes.ErrorKind {
 	switch code {
-	case CodeNotFound, CodeSessionNotFound, CodeUnknownRef:
+	case CodeNotFound, CodeSessionNotFound, CodeSessionInactive, CodeUnknownRef:
 		return exitcodes.KindNotFound
 	case CodeAuth:
 		return exitcodes.KindAuth
@@ -116,11 +124,11 @@ func kindFromCode(code Code) exitcodes.ErrorKind {
 		return exitcodes.KindValidation
 	case CodeConfig:
 		return exitcodes.KindConfig
-	case CodeStaleRef, CodeConflict:
+	case CodeStaleRef, CodeConflict, CodeSessionUserControl:
 		return exitcodes.KindConflict
 	case CodeFlowFailed:
 		return exitcodes.KindInternal
-	case CodeDaemonUnavailable, CodeUnavailable, CodeOperationTimeout, CodeOperationFailed:
+	case CodeDaemonUnavailable, CodeUnavailable, CodeOperationTimeout, CodeOperationFailed, CodeHandoffTimeout:
 		return exitcodes.KindUnavailable
 	default:
 		return exitcodes.KindInternal
@@ -154,6 +162,15 @@ func ExitCodeFromCode(code Code) exitcodes.ExitCode {
 	}
 }
 
+// metadataError is implemented by hard-stop errors that carry retry and
+// explicit-confirmation guidance across transports.
+type metadataError interface {
+	ErrorCode() string
+	RetryableError() bool
+	RequiresConfirmation() bool
+	ResumeGuidance() string
+}
+
 // codedError is implemented by structured errors that already carry a code
 // from the unified enum (for example daemon protocol errors).
 type codedError interface {
@@ -162,7 +179,8 @@ type codedError interface {
 
 // FromError converts any error into the unified error payload. The code is
 // derived from the most specific classification available: a corekit CLIError
-// kind, a structured error code, or the internal fallback.
+// kind, a structured hard-stop error, a protocol error code, or the internal
+// fallback.
 func FromError(err error) *Error {
 	if err == nil {
 		return nil
@@ -173,6 +191,18 @@ func FromError(err error) *Error {
 			Code:    string(codeFromKind(cliErr.Kind)),
 			Message: cliErr.Message,
 			Hint:    cliErr.Hint,
+		}
+	}
+	var metadata metadataError
+	if errors.As(err, &metadata) {
+		retryable := metadata.RetryableError()
+		requiresConfirmation := metadata.RequiresConfirmation()
+		return &Error{
+			Code:                     metadata.ErrorCode(),
+			Message:                  err.Error(),
+			Retryable:                &retryable,
+			RequiresUserConfirmation: &requiresConfirmation,
+			ResumeHint:               metadata.ResumeGuidance(),
 		}
 	}
 	var coded codedError

@@ -10,6 +10,7 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/exitcodes"
+	"github.com/danieljustus/symaira-browse/internal/session"
 )
 
 // goldenPath resolves a golden file under testdata/golden.
@@ -156,5 +157,21 @@ func TestErrorStringHandlesNilReceiver(t *testing.T) {
 	var err *Error
 	if got := err.Error(); got != "output envelope error" {
 		t.Fatalf("nil error string = %q", got)
+	}
+}
+
+func TestHardStopErrorEnvelopeCarriesResumeContract(t *testing.T) {
+	hardStop := &session.HardStopError{
+		Code:                     session.CodeSessionUserControl,
+		Message:                  "session is controlled by a human",
+		RequiresUserConfirmation: true,
+		ResumeHint:               "confirm takeover before retrying",
+	}
+	payload := ErrorEnvelope(hardStop)
+	if payload.Success || payload.Error == nil || payload.Error.Code != session.CodeSessionUserControl {
+		t.Fatalf("payload = %#v", payload)
+	}
+	if payload.Error.Retryable == nil || *payload.Error.Retryable || payload.Error.RequiresUserConfirmation == nil || !*payload.Error.RequiresUserConfirmation || payload.Error.ResumeHint == "" {
+		t.Fatalf("hard-stop metadata = %#v", payload.Error)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/oob"
 	"github.com/danieljustus/symaira-browse/internal/policy"
+	sessioncontract "github.com/danieljustus/symaira-browse/internal/session"
 )
 
 // OOBRuntime wires the out-of-band channel (overlay + notification + blocking
@@ -68,6 +69,9 @@ func (r *OOBRuntime) StartHandoff(ctx context.Context, session, reason string, t
 		for key, value := range result.Result {
 			payload[key] = value
 		}
+	}
+	if result.Status == oob.StatusTimeout {
+		return payload, sessioncontract.NewHandoffTimeoutError(session)
 	}
 	return payload, nil
 }
