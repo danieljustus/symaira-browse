@@ -14,6 +14,10 @@ const (
 	defaultNavigationTimeout = 25 * time.Second
 	defaultNavigationPoll    = 25 * time.Millisecond
 	defaultNetworkIdle       = 500 * time.Millisecond
+
+	// Wait values are user-controlled and may become allocation inputs in the
+	// glob matcher. Keep browser waits bounded before converting them to runes.
+	maxWaitValueBytes = 1 << 20
 )
 
 // NavigationState is the protocol-neutral state observed after a navigation or
@@ -361,6 +365,9 @@ func validateWaitCondition(condition WaitCondition) error {
 		if condition.Value == "" {
 			return fmt.Errorf("wait %s value is required", condition.Kind)
 		}
+		if len(condition.Value) > maxWaitValueBytes {
+			return fmt.Errorf("wait %s value exceeds %d bytes", condition.Kind, maxWaitValueBytes)
+		}
 	case WaitLoad:
 		switch condition.LoadState {
 		case LoadComplete, LoadDOMContentLoad, LoadNetworkIdle:
@@ -379,6 +386,9 @@ func conditionExpression(condition WaitCondition) string {
 	switch condition.Kind {
 	case WaitSelector:
 		state, _ := json.Marshal(string(condition.SelectorState))
+		// codeql[go/unsafe-quoting]: value and state are complete JSON string
+		// literals; encoding/json escapes quotes and backslashes before the
+		// expression is sent to the browser.
 		predicate = fmt.Sprintf(`(function(){const e=document.querySelector(%s); if (%s === "attached") return !!e; if (%s === "detached") return !e; if (!e) return %t; const s=getComputedStyle(e), r=e.getBoundingClientRect(); const visible=s.display!=="none" && s.visibility!=="hidden" && s.opacity!=="0" && r.width>0 && r.height>0; return %s === "visible" ? visible : !visible;})()`, value, state, state, condition.SelectorState == SelectorHidden, state)
 	case WaitText:
 		predicate = fmt.Sprintf(`(document.body ? (document.body.innerText || document.body.textContent || "") : "").includes(%s)`, value)
@@ -419,6 +429,11 @@ func describeWait(condition WaitCondition) string {
 }
 
 func matchGlob(pattern, value string) bool {
+	// Keep both the rune conversion and dynamic-programming rows bounded even
+	// when this helper is called directly instead of through Wait validation.
+	if len(pattern) > maxWaitValueBytes || len(value) > maxWaitValueBytes {
+		return false
+	}
 	p, v := []rune(pattern), []rune(value)
 	previous := make([]bool, len(v)+1)
 	previous[0] = true

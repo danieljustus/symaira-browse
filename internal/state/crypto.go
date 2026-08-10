@@ -9,6 +9,8 @@ import (
 	"io"
 )
 
+const maxEncryptedPlaintextBytes = 64 << 20
+
 // KeySource is a stable label for where the encryption key came from. It is
 // surfaced in state show and stored with each state.
 type KeySource string
@@ -56,6 +58,9 @@ func (c *gcmCodec) Encrypt(plaintext []byte) ([]byte, error) {
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, fmt.Errorf("generate nonce: %w", err)
+	}
+	if len(plaintext) > maxEncryptedPlaintextBytes {
+		return nil, fmt.Errorf("plaintext exceeds maximum size of %d bytes", maxEncryptedPlaintextBytes)
 	}
 	out := make([]byte, 0, len(nonce)+len(plaintext)+gcm.Overhead())
 	out = append(out, nonce...)
