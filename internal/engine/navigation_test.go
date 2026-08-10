@@ -140,6 +140,29 @@ func TestNavigationServiceMillisecondsWait(t *testing.T) {
 	}
 }
 
+func TestNavigationServiceWaitRejectsOversizedValue(t *testing.T) {
+	fake := &fakeNavigationEngine{}
+	service := NewNavigationService(fake, Page{ID: "page"}, NavigationOptions{Timeout: time.Second})
+	value := strings.Repeat("x", maxWaitValueBytes+1)
+	if _, err := service.Wait(context.Background(), WaitCondition{Kind: WaitURL, Value: value}); err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("oversized wait value error = %v", err)
+	}
+	if matchGlob(value, "anything") {
+		t.Fatal("oversized glob pattern unexpectedly matched")
+	}
+}
+
+func TestConditionExpressionJSONEscapesSelectorValue(t *testing.T) {
+	value := `#quote"\\`
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expression := conditionExpression(WaitCondition{Kind: WaitSelector, Value: value, SelectorState: SelectorVisible}); !strings.Contains(expression, string(encoded)) {
+		t.Fatalf("condition expression did not contain JSON-encoded selector: %s", expression)
+	}
+}
+
 func TestMatchGlobSupportsURLWildcards(t *testing.T) {
 	for _, test := range []struct {
 		pattern string
