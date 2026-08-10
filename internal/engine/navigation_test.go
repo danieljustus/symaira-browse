@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -152,13 +153,10 @@ func TestNavigationServiceWaitRejectsOversizedValue(t *testing.T) {
 	}
 }
 
-func TestConditionExpressionJSONEscapesSelectorValue(t *testing.T) {
+func TestConditionExpressionQuotesSelectorValue(t *testing.T) {
 	value := `#quote"\\`
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if expression := conditionExpression(WaitCondition{Kind: WaitSelector, Value: value, SelectorState: SelectorVisible}); !strings.Contains(expression, string(encoded)) {
+	encoded := strconv.Quote(value)
+	if expression := conditionExpression(WaitCondition{Kind: WaitSelector, Value: value, SelectorState: SelectorVisible}); !strings.Contains(expression, encoded) {
 		t.Fatalf("condition expression did not contain JSON-encoded selector: %s", expression)
 	}
 }
