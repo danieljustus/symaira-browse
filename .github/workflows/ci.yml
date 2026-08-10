@@ -198,7 +198,7 @@ jobs:
     name: CodeQL / analysis
     # Weekly on main plus on every pull request that touches code, so
     # security findings surface on the branch before merge.
-    if: github.event_name == 'schedule' || github.event_name == 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       actions: read
