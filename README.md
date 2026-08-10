@@ -75,16 +75,11 @@ handoff to a person for login, 2FA, CAPTCHA, and approval workflows.
 
 ### Docs
 
-- [docs/security.md](docs/security.md) — security model, risk classes, redaction
 - [docs/tiers.md](docs/tiers.md) — escalation tiers and `read --engine-hint`
 - [docs/mcp.md](docs/mcp.md) — MCP server setup and tool profiles
-- [docs/flows.md](docs/flows.md) — flow schema, runner, record and diagnostics
-- [docs/engines.md](docs/engines.md) — engine capability matrix (Chrome vs. static)
-- [docs/journal.md](docs/journal.md) — action journal and deciders
 - [docs/errors.md](docs/errors.md) — stable error schema
 - [docs/output-schema.md](docs/output-schema.md) — read/output schema
 - [docs/benchmarks.md](docs/benchmarks.md) — benchmark results
-- [docs/tabs.md](docs/tabs.md) — tabs, windows, frames, dialogs
 - [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
 - [docs/injection.md](docs/injection.md) — prompt-injection scan (`snapshot`, `--no-injection-scan`, pattern list)
 - [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
