@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -68,16 +69,24 @@ func TestCacheFromConfigUsesEnvOverrides(t *testing.T) {
 }
 
 func TestCacheFromConfigDefaults(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("SYMBROWSE_CACHE_DIR", "")
 	t.Setenv("SYMBROWSE_CACHE_TTL_HOURS", "")
+
+	// The default cache root derives from os.UserHomeDir(): $HOME on Unix
+	// (overridable in tests), but the OS user profile on Windows, where
+	// $HOME is ignored. Asserting against os.UserHomeDir() keeps this test
+	// platform-correct instead of hard-coding the Unix $HOME behavior.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("cannot determine home directory: %v", err)
+	}
+	wantRoot := filepath.Join(home, ".cache", "symbrowse", "out")
 
 	cache, err := cacheFromConfig()
 	if err != nil {
 		t.Fatalf("cacheFromConfig returned an error: %v", err)
 	}
-	wantRoot := filepath.Join(home, ".cache", "symbrowse", "out")
 	if cache.Root != wantRoot {
 		t.Fatalf("cache root = %q, want %q", cache.Root, wantRoot)
 	}
