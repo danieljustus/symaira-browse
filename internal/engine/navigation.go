@@ -404,13 +404,11 @@ func conditionExpression(condition WaitCondition) string {
 	switch condition.Kind {
 	case WaitSelector:
 		state := jsStringLiteral(string(condition.SelectorState))
-		// codeql[go/unsafe-quoting] value/state are JSON string literals (double quotes and backslashes escaped), valid JS for Runtime.evaluate — the heuristic only recognizes strconv.Quote, which emits JS-invalid \U escapes for non-graphic astral runes.
-		predicate = fmt.Sprintf(`(function(){const e=document.querySelector(%s); if (%s === "attached") return !!e; if (%s === "detached") return !e; if (!e) return %t; const s=getComputedStyle(e), r=e.getBoundingClientRect(); const visible=s.display!=="none" && s.visibility!=="hidden" && s.opacity!=="0" && r.width>0 && r.height>0; return %s === "visible" ? visible : !visible;})()`, value, state, state, condition.SelectorState == SelectorHidden, state)
+		predicate = fmt.Sprintf(`(function(){const e=document.querySelector(%s); if (%s === "attached") return !!e; if (%s === "detached") return !e; if (!e) return %t; const s=getComputedStyle(e), r=e.getBoundingClientRect(); const visible=s.display!=="none" && s.visibility!=="hidden" && s.opacity!=="0" && r.width>0 && r.height>0; return %s === "visible" ? visible : !visible;})()`, value, state, state, condition.SelectorState == SelectorHidden, state) // codeql[go/unsafe-quoting] value/state are JSON string literals (quotes and backslashes escaped), valid JS for Runtime.evaluate — the heuristic only recognizes strconv.Quote, which emits JS-invalid \U escapes for non-graphic astral runes.
 	case WaitText:
 		predicate = fmt.Sprintf(`(document.body ? (document.body.innerText || document.body.textContent || "") : "").includes(%s)`, value)
 	}
-	// codeql[go/unsafe-quoting] predicate embeds JSON string literals produced by jsStringLiteral; see the WaitSelector branch above.
-	return fmt.Sprintf(`(function(){const nav=performance.getEntriesByType("navigation")[0]; return {matched:!!(%s),url:location.href,http_status:nav && nav.responseStatus || 0,ready_state:document.readyState,network_idle:document.readyState === "complete"};})()`, predicate)
+	return fmt.Sprintf(`(function(){const nav=performance.getEntriesByType("navigation")[0]; return {matched:!!(%s),url:location.href,http_status:nav && nav.responseStatus || 0,ready_state:document.readyState,network_idle:document.readyState === "complete"};})()`, predicate) // codeql[go/unsafe-quoting] predicate embeds JSON string literals produced by jsStringLiteral; see the WaitSelector branch above.
 }
 
 const navigationStateExpression = `(function(){const nav=performance.getEntriesByType("navigation")[0]; return {url:location.href,http_status:nav && nav.responseStatus || 0,ready_state:document.readyState,network_idle:document.readyState === "complete"};})()`
