@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -381,14 +382,13 @@ func validateWaitCondition(condition WaitCondition) error {
 }
 
 func conditionExpression(condition WaitCondition) string {
-	value, _ := json.Marshal(condition.Value)
+	value := strconv.Quote(condition.Value)
 	var predicate string
 	switch condition.Kind {
 	case WaitSelector:
-		state, _ := json.Marshal(string(condition.SelectorState))
-		// codeql[go/unsafe-quoting]: value and state are complete JSON string
-		// literals; encoding/json escapes quotes and backslashes before the
-		// expression is sent to the browser.
+		state := strconv.Quote(string(condition.SelectorState))
+		// strconv.Quote emits a complete double-quoted literal and escapes the
+		// quotes and backslashes that could otherwise alter the browser script.
 		predicate = fmt.Sprintf(`(function(){const e=document.querySelector(%s); if (%s === "attached") return !!e; if (%s === "detached") return !e; if (!e) return %t; const s=getComputedStyle(e), r=e.getBoundingClientRect(); const visible=s.display!=="none" && s.visibility!=="hidden" && s.opacity!=="0" && r.width>0 && r.height>0; return %s === "visible" ? visible : !visible;})()`, value, state, state, condition.SelectorState == SelectorHidden, state)
 	case WaitText:
 		predicate = fmt.Sprintf(`(document.body ? (document.body.innerText || document.body.textContent || "") : "").includes(%s)`, value)
