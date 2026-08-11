@@ -7,6 +7,43 @@
 
 > The browser an agent can operate while a person can take over at any time — without losing the session.
 
+Typischer Ablauf — `open` → `read` → Out-of-Band-Handoff (Auszug aus einer Session):
+
+```sh
+$ ./symbrowse version
+symbrowse 0.1.0
+
+$ ./symbrowse --help
+Usage:
+  symbrowse [command]
+
+Available Commands:
+  handoff        Hand the session over to the human without losing it (2FA, CAPTCHA, approval)
+  open           Navigate the browser
+  read           Render the page as markdown (or JSON) in the symfetch output schema
+  version        Print the symbrowse version
+  … (weitere Befehle gekürzt)
+
+$ ./symbrowse open "https://example.com" --session research
+opened https://example.com (session "research", tab 1)
+
+$ ./symbrowse read --engine-hint --max-tokens 8000
+---
+title: Example Domain
+url: https://example.com/
+fetched_at: 2026-08-11T16:42:09Z
+lang: en
+tokens_est: 213
+schema_type: document
+js_required: false
+---
+# Example Domain
+This domain is for use in illustrative examples in documents. …
+# ⟦ HUMAN STEP ⟧ — the person takes over the live browser (2FA, CAPTCHA, approval); the agent session is preserved.
+$ ./symbrowse handoff --reason "login 2FA" --timeout 5m
+handoff complete: session "research" back under agent control
+```
+
 **Abgrenzung zu `symfetch`:** `symfetch` liest einzelne Seiten mit
 Browser-Impersonation und liefert ein fetch-kompatibles Dokument.
 `symbrowse` ist der **interaktive Agenten-Browser**: eine echte Chrome-
