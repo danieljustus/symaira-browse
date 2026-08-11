@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"testing"
+
+	"github.com/danieljustus/symaira-browse/internal/engine/doctor"
 )
 
 func TestVersionJSON(t *testing.T) {
@@ -96,5 +98,52 @@ func TestHumanErrorGoesToStderr(t *testing.T) {
 	}
 	if errOutput.Len() == 0 {
 		t.Fatal("expected an error message on stderr")
+	}
+}
+
+func TestDoctorFailureMessage(t *testing.T) {
+	cases := []struct {
+		name   string
+		report doctor.Report
+		check  string
+		want   string
+	}{
+		{
+			name: "matching failed check returns its message",
+			report: doctor.Report{Checks: []doctor.Check{
+				{Name: "chrome", Status: doctor.StatusFail, Message: "no chrome executable found"},
+			}},
+			check: "chrome",
+			want:  "no chrome executable found",
+		},
+		{
+			name: "passing check of the same name falls back",
+			report: doctor.Report{Checks: []doctor.Check{
+				{Name: "chrome", Status: doctor.StatusPass, Message: "chrome ok"},
+			}},
+			check: "chrome",
+			want:  "doctor check failed",
+		},
+		{
+			name: "unknown check name falls back",
+			report: doctor.Report{Checks: []doctor.Check{
+				{Name: "chrome", Status: doctor.StatusFail, Message: "no chrome executable found"},
+			}},
+			check: "network",
+			want:  "doctor check failed",
+		},
+		{
+			name:   "empty report falls back",
+			report: doctor.Report{},
+			check:  "chrome",
+			want:   "doctor check failed",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := doctorFailureMessage(tc.report, tc.check); got != tc.want {
+				t.Fatalf("doctorFailureMessage = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }

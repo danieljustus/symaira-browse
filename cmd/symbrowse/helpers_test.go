@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/policy"
@@ -139,3 +143,22 @@ func TestTokenize(t *testing.T) {
 		t.Fatalf("firstToken = %q", got)
 	}
 }
+
+// newOutputCommand returns a bare cobra command whose stdout/stderr are
+// captured in a buffer. The global --json flag is registered so
+// jsonOutputFlag works on the command.
+func newOutputCommand(t *testing.T) (*cobra.Command, *bytes.Buffer) {
+	t.Helper()
+	command := &cobra.Command{}
+	command.Flags().Bool("json", false, "machine-readable output envelope")
+	buffer := new(bytes.Buffer)
+	command.SetOut(buffer)
+	command.SetErr(buffer)
+	return command, buffer
+}
+
+// failingWriter fails every write; it exercises the write-error branches of
+// the print/write helpers.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("write failed") }
