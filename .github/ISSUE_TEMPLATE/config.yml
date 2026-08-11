@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/danieljustus/symaira-browse/tree/main/docs
+    about: Ask questions about symbrowse usage by reading the docs first — many answers are already there.
