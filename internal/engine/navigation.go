@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -353,6 +352,9 @@ func validateWaitCondition(condition WaitCondition) error {
 		if strings.TrimSpace(condition.Value) == "" {
 			return errors.New("wait selector is required")
 		}
+		if len(condition.Value) > maxWaitValueBytes {
+			return fmt.Errorf("wait %s value exceeds %d bytes", condition.Kind, maxWaitValueBytes)
+		}
 		switch condition.SelectorState {
 		case SelectorVisible, SelectorHidden, SelectorAttached, SelectorDetached:
 		default:
@@ -381,19 +383,32 @@ func validateWaitCondition(condition WaitCondition) error {
 	return nil
 }
 
+// jsStringLiteral quotes s as a JavaScript string literal for embedding into
+// browser-evaluated predicates. A JSON string literal is valid JavaScript for
+// every rune — unlike strconv.Quote, whose \U00xxxxxx escapes for
+// non-graphic astral-plane runes are a syntax error in the browser engine.
+// Quotes and backslashes are escaped, so the literal cannot alter the
+// surrounding script.
+func jsStringLiteral(s string) string {
+	b, err := json.Marshal(s)
+	if err != nil {
+		// json.Marshal never fails for a plain string; keep a safe fallback.
+		return `""`
+	}
+	return string(b)
+}
+
 func conditionExpression(condition WaitCondition) string {
-	value := strconv.Quote(condition.Value)
+	value := jsStringLiteral(condition.Value)
 	var predicate string
 	switch condition.Kind {
 	case WaitSelector:
-		state := strconv.Quote(string(condition.SelectorState))
-		// strconv.Quote emits a complete double-quoted literal and escapes the
-		// quotes and backslashes that could otherwise alter the browser script.
-		predicate = fmt.Sprintf(`(function(){const e=document.querySelector(%s); if (%s === "attached") return !!e; if (%s === "detached") return !e; if (!e) return %t; const s=getComputedStyle(e), r=e.getBoundingClientRect(); const visible=s.display!=="none" && s.visibility!=="hidden" && s.opacity!=="0" && r.width>0 && r.height>0; return %s === "visible" ? visible : !visible;})()`, value, state, state, condition.SelectorState == SelectorHidden, state)
+		state := jsStringLiteral(string(condition.SelectorState))
+		predicate = fmt.Sprintf(`(function(){const e=document.querySelector(%s); if (%s === "attached") return !!e; if (%s === "detached") return !e; if (!e) return %t; const s=getComputedStyle(e), r=e.getBoundingClientRect(); const visible=s.display!=="none" && s.visibility!=="hidden" && s.opacity!=="0" && r.width>0 && r.height>0; return %s === "visible" ? visible : !visible;})()`, value, state, state, condition.SelectorState == SelectorHidden, state) // codeql[go/unsafe-quoting] value/state are JSON string literals (quotes and backslashes escaped), valid JS for Runtime.evaluate — the heuristic only recognizes strconv.Quote, which emits JS-invalid \U escapes for non-graphic astral runes.
 	case WaitText:
 		predicate = fmt.Sprintf(`(document.body ? (document.body.innerText || document.body.textContent || "") : "").includes(%s)`, value)
 	}
-	return fmt.Sprintf(`(function(){const nav=performance.getEntriesByType("navigation")[0]; return {matched:!!(%s),url:location.href,http_status:nav && nav.responseStatus || 0,ready_state:document.readyState,network_idle:document.readyState === "complete"};})()`, predicate)
+	return fmt.Sprintf(`(function(){const nav=performance.getEntriesByType("navigation")[0]; return {matched:!!(%s),url:location.href,http_status:nav && nav.responseStatus || 0,ready_state:document.readyState,network_idle:document.readyState === "complete"};})()`, predicate) // codeql[go/unsafe-quoting] predicate embeds JSON string literals produced by jsStringLiteral; see the WaitSelector branch above.
 }
 
 const navigationStateExpression = `(function(){const nav=performance.getEntriesByType("navigation")[0]; return {url:location.href,http_status:nav && nav.responseStatus || 0,ready_state:document.readyState,network_idle:document.readyState === "complete"};})()`

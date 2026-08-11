@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -148,6 +147,9 @@ func TestNavigationServiceWaitRejectsOversizedValue(t *testing.T) {
 	if _, err := service.Wait(context.Background(), WaitCondition{Kind: WaitURL, Value: value}); err == nil || !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("oversized wait value error = %v", err)
 	}
+	if _, err := service.Wait(context.Background(), WaitCondition{Kind: WaitSelector, Value: value, SelectorState: SelectorVisible}); err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("oversized selector value error = %v", err)
+	}
 	if matchGlob(value, "anything") {
 		t.Fatal("oversized glob pattern unexpectedly matched")
 	}
@@ -155,9 +157,26 @@ func TestNavigationServiceWaitRejectsOversizedValue(t *testing.T) {
 
 func TestConditionExpressionQuotesSelectorValue(t *testing.T) {
 	value := `#quote"\\`
-	encoded := strconv.Quote(value)
+	encoded := jsStringLiteral(value)
 	if expression := conditionExpression(WaitCondition{Kind: WaitSelector, Value: value, SelectorState: SelectorVisible}); !strings.Contains(expression, encoded) {
 		t.Fatalf("condition expression did not contain JSON-encoded selector: %s", expression)
+	}
+}
+
+func TestJSStringLiteralStaysValidJavaScript(t *testing.T) {
+	// strconv.Quote renders non-graphic astral-plane runes as \U00xxxxxx,
+	// which is a syntax error in JavaScript; the literal must instead match
+	// the JSON encoding, which every JS engine accepts.
+	value := "#tag\U000E0001"
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal reference literal: %v", err)
+	}
+	if got := jsStringLiteral(value); got != string(encoded) {
+		t.Fatalf("jsStringLiteral(%q) = %s, want %s", value, got, encoded)
+	}
+	if expression := conditionExpression(WaitCondition{Kind: WaitSelector, Value: value, SelectorState: SelectorAttached}); !strings.Contains(expression, string(encoded)) {
+		t.Fatalf("condition expression did not contain JS-valid literal: %s", expression)
 	}
 }
 
