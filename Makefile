@@ -1,7 +1,7 @@
 SHELL := /bin/sh
 
 BINARY := symbrowse
-VERSION ?= 0.1.0
+VERSION ?= 0.1.1
 GO ?= go
 CGO_ENABLED ?= 0
 GOFLAGS ?=
