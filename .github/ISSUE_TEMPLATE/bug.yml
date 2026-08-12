@@ -13,7 +13,7 @@ body:
     attributes:
       label: Environment
       description: OS, architecture, Chrome version, symbrowse version (run `symbrowse version --json`).
-      placeholder: "macOS 15.3 / Apple Silicon / Chrome 133 / symbrowse 0.1.0"
+      placeholder: "macOS 15.3 / Apple Silicon / Chrome 133 / symbrowse 0.1.1"
     validations:
       required: true
   - type: dropdown

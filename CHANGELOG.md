@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.1.1] - 2026-08-12
+
+### Security
+
+- Guard browser inputs and encrypted allocations (#166)
+- Use safe browser string quoting in evaluated predicates (#168)
+
+### Fixes
+
+- Keep wait-condition literals valid JavaScript for all runes — astral-plane
+  characters no longer break predicates — and bound `WaitSelector` values
+  (#169)
+
+### Infrastructure
+
+- Bump `github.com/danieljustus/symaira-corekit` (#164)
+- Bump the actions-dependencies group (GitHub Actions) (#165)
+- Allow manual CodeQL analysis runs (#167)
+- Add issue template config disabling blank issues (#176)
+
+### Docs
+
+- Add terminal output sample to README (#177)
+- Add tests for CLI output helpers (#178)
+- Fix Windows-incompatible cache default path test (#179)
+
 ## [v0.1.0] - 2026-08-07
 
 Initial release of `symbrowse`, the agent-operable browser automation CLI.
@@ -71,5 +97,6 @@ Initial release of `symbrowse`, the agent-operable browser automation CLI.
   badges, go install quickstart, issue forms and PR template, Apache-2.0
   LICENSE (#106, #124, #140, #139, #120)
 
-[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.1.1...HEAD
+[v0.1.1]: https://github.com/danieljustus/symaira-browse/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/danieljustus/symaira-browse/releases/tag/v0.1.0
