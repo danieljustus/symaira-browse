@@ -22,8 +22,9 @@ Aktivierungskette (wie bei der Allowlist): Flag → `SYMBROWSE_SSRF` /
 
 ## Blockierte Zieladressen
 
+- Unspecified: `0.0.0.0/8`, `::/128`
 - RFC1918: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`
-- Loopback: `127.0.0.0/8`, `::1`
+- Loopback: `127.0.0.0/8`, `::1/128`
 - Link-Local: `169.254.0.0/16`, `fe80::/10`
 - Carrier-Grade-NAT: `100.64.0.0/10`
 - IPv6 Unique-Local: `fc00::/7`

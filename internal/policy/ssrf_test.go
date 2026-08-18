@@ -53,7 +53,11 @@ func TestSSRFGuardBlocksPrivateTargets(t *testing.T) {
 		{name: "ipv6 loopback", lookup: stubLookup("::1"), raw: "http://[::1]/", wantErr: "blocked_private"},
 		{name: "ipv6 link-local", lookup: stubLookup("fe80::1"), raw: "http://[fe80::1]/", wantErr: "blocked_private"},
 		{name: "ipv6 unique-local", lookup: stubLookup("fd00::1"), raw: "http://[fd00::1]/", wantErr: "blocked_private"},
+		{name: "ipv4-unspecified (0.0.0.0)", lookup: stubLookup("0.0.0.0"), raw: "http://0.0.0.0/", wantErr: "blocked_private"},
+		{name: "ipv6-unspecified (::)", lookup: stubLookup("::"), raw: "http://[::]/", wantErr: "blocked_private"},
 		{name: "ipv4-mapped loopback", lookup: stubLookup("::ffff:127.0.0.1"), raw: "http://[::ffff:127.0.0.1]/", wantErr: "blocked_private"},
+		{name: "hostname resolving to 0.0.0.0", lookup: stubLookup("0.0.0.0"), raw: "http://zero.resolves.local/", wantErr: "blocked_private"},
+		{name: "hostname resolving to ::", lookup: stubLookup("::"), raw: "http://v6unspec.resolves.local/", wantErr: "blocked_private"},
 		{name: "hostname resolving to loopback", lookup: stubLookup("127.0.0.1"), raw: "http://intranet.corp/", wantErr: "blocked_private"},
 		// DNS-rebinding fixture: a public-looking name that answers with a
 		// private address at decision time must be blocked.
@@ -119,7 +123,7 @@ func TestSSRFGuardInactiveWhenDisabled(t *testing.T) {
 
 func TestSSRFGuardIPClassification(t *testing.T) {
 	public := []string{"8.8.8.8", "1.1.1.1", "93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"}
-	private := []string{"127.0.0.1", "127.255.255.254", "10.255.255.255", "172.16.0.1", "172.31.255.254", "192.168.0.1", "169.254.0.1", "100.64.0.1", "::1", "fe80::1", "fd00::1", "::ffff:127.0.0.1", "::ffff:10.0.0.1"}
+	private := []string{"127.0.0.1", "127.255.255.254", "10.255.255.255", "172.16.0.1", "172.31.255.254", "192.168.0.1", "169.254.0.1", "100.64.0.1", "::1", "fe80::1", "fd00::1", "::ffff:127.0.0.1", "::ffff:10.0.0.1", "0.0.0.0", "::"}
 	for _, raw := range public {
 		ip := net.ParseIP(raw)
 		if ip == nil {
