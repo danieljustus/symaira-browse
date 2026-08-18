@@ -11,13 +11,15 @@ import (
 
 // RecordedAction is one captured session action during flow recording.
 type RecordedAction struct {
-	Index    int
-	Command  string
-	Selector string // raw @eN ref, empty for open/wait/assert
-	Value    string
-	URL      string // URL after the action (observed end state)
-	Role     string // resolved from the ref when available
-	Name     string // accessible name resolved from the ref when available
+	Index      int
+	Command    string
+	Selector   string // raw @eN ref, empty for open/wait/assert
+	Value      string
+	URL        string // URL after the action (observed end state)
+	Role       string // resolved from the ref when available
+	Name       string // accessible name resolved from the ref when available
+	InputType  string // HTML input type (password, text, email, ...)
+	Autocomplete string // HTML autocomplete attribute (current-password, new-password, ...)
 }
 
 // RefResolver resolves a session ref to snapshot metadata during draft
@@ -53,12 +55,12 @@ func GenerateDraft(actions []RecordedAction, resolve RefResolver) (*Draft, error
 	secretCount := 0
 	inputCount := 0
 
-	actionForValue := func(original string) string {
-		trimmed := strings.TrimSpace(original)
+	actionForValue := func(action RecordedAction) string {
+		trimmed := strings.TrimSpace(action.Value)
 		if trimmed == "" {
 			return ""
 		}
-		if secretInValue(trimmed) {
+		if secretFieldValue(action) || secretInValue(trimmed) || secretInSelector(action.Selector, action.Name) {
 			secretCount++
 			ref := fmt.Sprintf("op://recording/secret-%d", secretCount)
 			draft.SecretRefs = append(draft.SecretRefs, ref)
@@ -80,13 +82,13 @@ func GenerateDraft(actions []RecordedAction, resolve RefResolver) (*Draft, error
 			step.Open = &OpenStep{URL: action.Selector}
 			draft.Comments = append(draft.Comments, fmt.Sprintf("step %d: open %s", action.Index, action.Selector))
 		case "find":
-			step.Find = &FindStep{Label: action.Name, Role: action.Role, Value: actionForValue(action.Value)}
+			step.Find = &FindStep{Label: action.Name, Role: action.Role, Value: actionForValue(action)}
 		case "click":
 			role, name := semanticSelector(action, resolve)
 			step.Click = &SelectorStep{Role: role, Name: name, Exact: true}
 		case "fill", "type":
 			role, name := semanticSelector(action, resolve)
-			step.Fill = &FillStep{Role: role, Name: name, Value: actionForValue(action.Value), Exact: true}
+			step.Fill = &FillStep{Role: role, Name: name, Value: actionForValue(action), Exact: true}
 		case "wait":
 			step.Wait = &WaitStep{URL: action.Selector}
 		case "assert":
