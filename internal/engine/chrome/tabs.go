@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	cdproto "github.com/chromedp/cdproto"
 
@@ -270,4 +269,3 @@ func (e *Engine) handleDialogEvent(sessionID, method string, params json.RawMess
 
 // dialogMu guards the dialog state; it is separate from e.mu because event
 // handlers run on the connection read loop.
-var _ = strings.TrimSpace
