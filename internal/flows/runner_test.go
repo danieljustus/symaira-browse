@@ -3,7 +3,6 @@ package flows
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -491,5 +490,3 @@ steps:
 		t.Fatalf("report.Success = false: %s", report.Error)
 	}
 }
-
-var _ = fmt.Sprintf

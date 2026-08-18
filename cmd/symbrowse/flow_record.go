@@ -1,9 +1,7 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -93,6 +91,3 @@ func writeFlowDraft(cmd *cobra.Command, response daemon.Response) error {
 	_, err = fmt.Fprint(cmd.OutOrStdout(), string(yaml))
 	return err
 }
-
-var _ = context.Background
-var _ = errors.New
