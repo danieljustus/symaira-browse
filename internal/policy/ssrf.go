@@ -36,11 +36,11 @@ var ssrfResolver = &net.Resolver{
 type ssrfLookupFunc func(ctx context.Context, host string) ([]string, error)
 
 // SSRFGuard blocks requests to private network ranges. It is deny-by-default
-// while enabled: RFC1918, loopback, link-local, .local mDNS names, and IPv6
-// unique-local addresses are rejected. Matching symfetch's semantics, the
-// hostname is resolved at decision time and every resolved address is
-// checked, so a rebinding hostname that answers with a private address is
-// blocked before the browser connects.
+// while enabled: RFC1918, loopback, link-local, .local mDNS names, IPv6
+// unique-local, and unspecified addresses (0.0.0.0/8, ::/128) are rejected.
+// Matching symfetch's semantics, the hostname is resolved at decision time
+// and every resolved address is checked, so a rebinding hostname that
+// answers with a private address is blocked before the browser connects.
 type SSRFGuard struct {
 	enabled      bool
 	allowPrivate bool
@@ -130,19 +130,22 @@ var ipv4MappedNet = func() *net.IPNet {
 }()
 
 // privateRanges are the networks blocked by the guard: RFC1918 private
-// space, loopback, link-local, carrier-grade NAT, and IPv6 unique-local.
+// space, loopback, link-local, carrier-grade NAT, IPv6 unique-local,
+// and the unspecified address ranges (0.0.0.0/8 and ::/128).
 // The set is identical to symfetch's guard so both tools behave alike.
 var privateRanges = func() []*net.IPNet {
 	cidrs := []string{
+		"0.0.0.0/8",
 		"127.0.0.0/8",
-		"::1/128",
-		"169.254.0.0/16",
-		"fe80::/10",
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
-		"fc00::/7",
+		"169.254.0.0/16",
 		"100.64.0.0/10",
+		"::/128",
+		"::1/128",
+		"fc00::/7",
+		"fe80::/10",
 	}
 	var nets []*net.IPNet
 	for _, cidr := range cidrs {
