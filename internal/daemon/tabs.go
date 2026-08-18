@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -317,5 +316,3 @@ func (r *NavigationRuntime) handleDialogFrame(ctx context.Context, frame Frame) 
 		return nil, fmt.Errorf("unknown dialog command %q", frame.Cmd)
 	}
 }
-
-var _ = json.Marshal

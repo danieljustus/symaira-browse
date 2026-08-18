@@ -4,8 +4,6 @@ import (
 	"context"
 	"strings"
 	"testing"
-
-	"github.com/danieljustus/symaira-browse/internal/daemon"
 )
 
 // The three intentionally broken flows required by #57: a selector that
@@ -188,5 +186,3 @@ steps:
 		t.Error("RepairSuggestion is empty; an agent cannot repair the flow")
 	}
 }
-
-var _ = daemon.SuccessResponse

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -134,5 +133,3 @@ func checkUpdatesAsync(ctx context.Context) {
 		_, _ = fmt.Fprintf(os.Stderr, "symbrowse %s is available; run `symbrowse upgrade` to apply it\n", release.TagName)
 	}()
 }
-
-var _ = errors.New
