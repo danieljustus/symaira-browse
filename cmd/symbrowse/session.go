@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -58,16 +56,7 @@ func newSessionInfoCommand(session *string) *cobra.Command {
 }
 
 func sessionRequest(ctx context.Context, session, command string) (daemon.Response, error) {
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return daemon.Response{}, err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session, StartupTimeout: 5 * time.Second})
-	response, err := client.Request(ctx, daemon.Frame{
-		Cmd:       command,
-		Session:   session,
-		RequestID: fmt.Sprintf("%d", time.Now().UnixNano()),
-	})
+	response, err := request(ctx, session, command, nil)
 	if err != nil {
 		return daemon.Response{}, err
 	}

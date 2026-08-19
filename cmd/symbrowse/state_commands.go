@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -230,19 +229,15 @@ func newStorageClearCommand(session *string) *cobra.Command {
 }
 
 // stateRequest sends one daemon frame with an optional JSON payload.
+// Deprecated: use request() directly. Kept as alias for minimal churn.
 func stateRequest(ctx context.Context, session, command string, args []byte) (daemon.Response, error) {
-	return stateRequestBudget(ctx, session, command, args, nil)
+	return request(ctx, session, command, args)
 }
 
-// stateRequestBudget is stateRequest with an optional token budget (issue
-// #23): the daemon truncates oversized payloads and returns a cache handle.
+// stateRequestBudget is stateRequest with an optional token budget.
+// Deprecated: use requestBudget() directly. Kept as alias for minimal churn.
 func stateRequestBudget(ctx context.Context, session, command string, args []byte, maxTokens *int) (daemon.Response, error) {
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return daemon.Response{}, err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	return client.Request(ctx, daemon.Frame{Cmd: command, Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano()), MaxTokens: maxTokens})
+	return requestBudget(ctx, session, command, args, maxTokens)
 }
 
 // maxTokensFlag reads the --max-tokens flag value. A missing flag or a

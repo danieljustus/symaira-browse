@@ -119,12 +119,7 @@ func waitConditionFromFlags(args []string, milliseconds int64, textValue, urlVal
 }
 
 func navigationRequest(ctx context.Context, session, command string, args json.RawMessage) (daemon.Response, error) {
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return daemon.Response{}, err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	response, err := client.Request(ctx, daemon.Frame{Cmd: command, Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+	response, err := request(ctx, session, command, args)
 	if err != nil {
 		return daemon.Response{}, err
 	}

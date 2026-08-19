@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -168,12 +167,7 @@ func writeReadHuman(cmd *cobra.Command, document domkit.Document) error {
 }
 
 func readRequest(cmd *cobra.Command, ctx context.Context, session string, args json.RawMessage) (daemon.Response, error) {
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return daemon.Response{}, err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	response, err := client.Request(ctx, daemon.Frame{Cmd: "read", Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano()), MaxTokens: maxTokensFlag(cmd)})
+	response, err := requestBudget(ctx, session, "read", args, maxTokensFlag(cmd))
 	if err != nil {
 		return daemon.Response{}, err
 	}

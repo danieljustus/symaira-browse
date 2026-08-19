@@ -410,16 +410,10 @@ func approvalTimeout() time.Duration {
 }
 
 func daemonLifecycleRequest(ctx context.Context, session, command string, autostart bool) (daemon.Response, error) {
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return daemon.Response{}, err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	frame := daemon.Frame{Cmd: command, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())}
 	if autostart {
-		return client.Request(ctx, frame)
+		return request(ctx, session, command, nil)
 	}
-	return client.RequestWithoutAutostart(ctx, frame)
+	return requestNoAutostart(ctx, session, command)
 }
 
 func writeDaemonResponse(cmd *cobra.Command, response daemon.Response, jsonOutput bool) error {
