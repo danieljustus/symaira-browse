@@ -11,14 +11,14 @@ import (
 
 // RecordedAction is one captured session action during flow recording.
 type RecordedAction struct {
-	Index      int
-	Command    string
-	Selector   string // raw @eN ref, empty for open/wait/assert
-	Value      string
-	URL        string // URL after the action (observed end state)
-	Role       string // resolved from the ref when available
-	Name       string // accessible name resolved from the ref when available
-	InputType  string // HTML input type (password, text, email, ...)
+	Index        int
+	Command      string
+	Selector     string // raw @eN ref, empty for open/wait/assert
+	Value        string
+	URL          string // URL after the action (observed end state)
+	Role         string // resolved from the ref when available
+	Name         string // accessible name resolved from the ref when available
+	InputType    string // HTML input type (password, text, email, ...)
 	Autocomplete string // HTML autocomplete attribute (current-password, new-password, ...)
 }
 

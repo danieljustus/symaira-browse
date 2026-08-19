@@ -60,13 +60,13 @@ func writeFlowDraft(cmd *cobra.Command, response daemon.Response) error {
 	actions := make([]flows.RecordedAction, 0, len(payload.Actions))
 	for _, action := range payload.Actions {
 		actions = append(actions, flows.RecordedAction{
-			Index:      action.Index,
-			Command:    action.Command,
-			Selector:   action.Selector,
-			Value:      action.Value,
-			Role:       action.Role,
-			Name:       action.Name,
-			InputType:  action.InputType,
+			Index:        action.Index,
+			Command:      action.Command,
+			Selector:     action.Selector,
+			Value:        action.Value,
+			Role:         action.Role,
+			Name:         action.Name,
+			InputType:    action.InputType,
 			Autocomplete: action.Autocomplete,
 		})
 	}

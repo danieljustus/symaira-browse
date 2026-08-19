@@ -12,13 +12,13 @@ import (
 // recorder resolves session-bound @eN refs to semantic selectors immediately,
 // so the draft generation (in cmd/symbrowse) never needs engine access.
 type RecordedAction struct {
-	Index      int    `json:"index"`
-	Command    string `json:"command"`
-	Selector   string `json:"selector,omitempty"`
-	Value      string `json:"value,omitempty"`
-	Role       string `json:"role,omitempty"`
-	Name       string `json:"name,omitempty"`
-	InputType  string `json:"input_type,omitempty"`
+	Index        int    `json:"index"`
+	Command      string `json:"command"`
+	Selector     string `json:"selector,omitempty"`
+	Value        string `json:"value,omitempty"`
+	Role         string `json:"role,omitempty"`
+	Name         string `json:"name,omitempty"`
+	InputType    string `json:"input_type,omitempty"`
 	Autocomplete string `json:"autocomplete,omitempty"`
 }
 
