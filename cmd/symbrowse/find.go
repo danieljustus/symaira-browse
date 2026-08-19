@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -51,17 +50,12 @@ func newFindCommand() *cobra.Command {
 	return command
 }
 
-func findRequest(cmd *cobra.Command, session string, request engine.FindRequest) (daemon.Response, error) {
-	args, err := json.Marshal(request)
+func findRequest(cmd *cobra.Command, session string, req engine.FindRequest) (daemon.Response, error) {
+	args, err := json.Marshal(req)
 	if err != nil {
 		return daemon.Response{}, err
 	}
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return daemon.Response{}, err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	response, err := client.Request(cmd.Context(), daemon.Frame{Cmd: "find", Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+	response, err := request(cmd.Context(), session, "find", args)
 	if err != nil {
 		return daemon.Response{}, err
 	}

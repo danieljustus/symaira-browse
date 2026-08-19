@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -28,12 +27,7 @@ func newSnapshotCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path, err := daemon.SocketPath(session)
-			if err != nil {
-				return err
-			}
-			client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-			response, err := client.Request(cmd.Context(), daemon.Frame{Cmd: "snapshot", Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano()), MaxTokens: maxTokensFlag(cmd)})
+			response, err := requestBudget(cmd.Context(), session, "snapshot", args, maxTokensFlag(cmd))
 			if err != nil {
 				return err
 			}
@@ -127,12 +121,7 @@ func injectionMessage(warning injection.ScanWarning) string {
 
 // fetchPageHTML reads the current page HTML from the daemon.
 func fetchPageHTML(ctx context.Context, session string) (string, error) {
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return "", err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	response, err := client.Request(ctx, daemon.Frame{Cmd: "get.html", Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+	response, err := request(ctx, session, "get.html", nil)
 	if err != nil {
 		return "", err
 	}
@@ -159,12 +148,7 @@ func fetchPageHTML(ctx context.Context, session string) (string, error) {
 // currentPageOrigin fetches the current page URL from the daemon for use as
 // the content-boundary origin.
 func currentPageOrigin(ctx context.Context, session string) (string, error) {
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return "", err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	response, err := client.Request(ctx, daemon.Frame{Cmd: "get.url", Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+	response, err := request(ctx, session, "get.url", nil)
 	if err != nil {
 		return "", err
 	}

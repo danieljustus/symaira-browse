@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -77,17 +76,17 @@ func newInspectionLeafCommand(group string, kind engine.InspectionKind, session 
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			request := engine.InspectionRequest{Kind: kind}
+			req := engine.InspectionRequest{Kind: kind}
 			if len(args) > 0 {
-				request.Selector = args[0]
+				req.Selector = args[0]
 			}
 			if kind == engine.InspectAttr {
-				request.Attribute = args[1]
+				req.Attribute = args[1]
 			}
 			if kind == engine.InspectStyles && len(args) > 1 {
-				request.Properties = args[1:]
+				req.Properties = args[1:]
 			}
-			response, err := inspectionRequest(cmd, *session, group, request)
+			response, err := inspectionRequest(cmd, *session, group, req)
 			if err != nil {
 				return err
 			}
@@ -102,12 +101,7 @@ func inspectionRequest(cmd *cobra.Command, session, group string, request engine
 	if err != nil {
 		return daemon.Response{}, err
 	}
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return daemon.Response{}, err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-	response, err := client.Request(cmd.Context(), daemon.Frame{Cmd: group + "." + string(request.Kind), Args: args, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano()), MaxTokens: maxTokensFlag(cmd)})
+	response, err := requestBudget(cmd.Context(), session, group+"."+string(request.Kind), args, maxTokensFlag(cmd))
 	if err != nil {
 		return daemon.Response{}, err
 	}

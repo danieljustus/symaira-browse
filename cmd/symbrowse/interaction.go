@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 
-	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/engine"
 )
 
@@ -37,7 +35,7 @@ func newInteractionCommand(action engine.InteractionAction) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			request := engine.InteractionRequest{Action: action, Selector: args[0]}
+			req := engine.InteractionRequest{Action: action, Selector: args[0]}
 			if len(args) == 2 {
 				switch action {
 				case engine.ActionScroll:
@@ -45,23 +43,18 @@ func newInteractionCommand(action engine.InteractionAction) *cobra.Command {
 					if err != nil {
 						return fmt.Errorf("scroll amount: %w", err)
 					}
-					request.Amount = amount
+					req.Amount = amount
 				case engine.ActionPress:
-					request.Key = args[1]
+					req.Key = args[1]
 				default:
-					request.Value = args[1]
+					req.Value = args[1]
 				}
 			}
-			payload, err := json.Marshal(request)
+			payload, err := json.Marshal(req)
 			if err != nil {
 				return err
 			}
-			path, err := daemon.SocketPath(session)
-			if err != nil {
-				return err
-			}
-			client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
-			response, err := client.Request(cmd.Context(), daemon.Frame{Cmd: string(action), Args: payload, Session: session, RequestID: fmt.Sprintf("%d", time.Now().UnixNano())})
+			response, err := request(cmd.Context(), session, string(action), payload)
 			if err != nil {
 				return err
 			}
