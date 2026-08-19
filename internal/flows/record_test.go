@@ -158,3 +158,72 @@ func TestGenerateDraftSecretDetection(t *testing.T) {
 		t.Errorf("Fill.Value = %q, want op:// placeholder", value)
 	}
 }
+
+func TestGenerateDraftPasswordFieldRedacted(t *testing.T) {
+	// A password-typed input with a hint-free value must be redacted.
+	actions := []RecordedAction{
+		{Index: 0, Command: "open", Selector: "http://fixture.local/login"},
+		{Index: 1, Command: "fill", Selector: "@e2", Value: "Tr0ub4dor&3", Role: "textbox", Name: "Password", InputType: "password"},
+	}
+	draft, err := GenerateDraft(actions, nil)
+	if err != nil {
+		t.Fatalf("GenerateDraft: %v", err)
+	}
+	value := draft.Steps[1].Fill.Value
+	if !strings.HasPrefix(value, "op://recording/secret-") {
+		t.Errorf("password field value = %q, want op:// placeholder", value)
+	}
+	// The literal password must not appear anywhere in the YAML.
+	raw, err := draft.RenderYAML()
+	if err != nil {
+		t.Fatalf("RenderYAML: %v", err)
+	}
+	if strings.Contains(string(raw), "Tr0ub4dor&3") {
+		t.Errorf("plaintext password leaked into YAML draft")
+	}
+}
+
+func TestGenerateDraftAutocompletePasswordRedacted(t *testing.T) {
+	// current-password autocomplete must trigger redaction.
+	actions := []RecordedAction{
+		{Index: 0, Command: "open", Selector: "http://fixture.local/login"},
+		{Index: 1, Command: "fill", Selector: "@e2", Value: "s3cret", Role: "textbox", Name: "Pass", Autocomplete: "current-password"},
+	}
+	draft, err := GenerateDraft(actions, nil)
+	if err != nil {
+		t.Fatalf("GenerateDraft: %v", err)
+	}
+	if !strings.HasPrefix(draft.Steps[1].Fill.Value, "op://recording/secret-") {
+		t.Errorf("autocomplete password field = %q, want op:// placeholder", draft.Steps[1].Fill.Value)
+	}
+}
+
+func TestGenerateDraftSelectorHintRedacted(t *testing.T) {
+	// A field named "API Key" with a non-secret-looking value must be redacted.
+	actions := []RecordedAction{
+		{Index: 0, Command: "open", Selector: "http://fixture.local/settings"},
+		{Index: 1, Command: "fill", Selector: "@e2", Value: "sk-abc123xyz", Role: "textbox", Name: "API Key"},
+	}
+	draft, err := GenerateDraft(actions, nil)
+	if err != nil {
+		t.Fatalf("GenerateDraft: %v", err)
+	}
+	if !strings.HasPrefix(draft.Steps[1].Fill.Value, "op://recording/secret-") {
+		t.Errorf("API Key field = %q, want op:// placeholder", draft.Steps[1].Fill.Value)
+	}
+}
+
+func TestGenerateDraftNonPasswordFieldNotRedacted(t *testing.T) {
+	// A non-password field with a plain value must NOT be redacted.
+	actions := []RecordedAction{
+		{Index: 0, Command: "open", Selector: "http://fixture.local/form"},
+		{Index: 1, Command: "fill", Selector: "@e2", Value: "alice@example.com", Role: "textbox", Name: "Email", InputType: "email"},
+	}
+	draft, err := GenerateDraft(actions, nil)
+	if err != nil {
+		t.Fatalf("GenerateDraft: %v", err)
+	}
+	if draft.Steps[1].Fill.Value != "{{input_1}}" {
+		t.Errorf("non-secret field = %q, want {{input_1}}", draft.Steps[1].Fill.Value)
+	}
+}
