@@ -317,6 +317,38 @@ func secretInValue(value string) bool {
 	return false
 }
 
+// secretFieldValue reports whether a recorded action targets a password-typed
+// input field, based on the HTML input type or autocomplete attribute.
+func secretFieldValue(action RecordedAction) bool {
+	if strings.EqualFold(action.InputType, "password") {
+		return true
+	}
+	lower := strings.ToLower(strings.TrimSpace(action.Autocomplete))
+	if lower == "current-password" || lower == "new-password" {
+		return true
+	}
+	return false
+}
+
+// secretInSelector reports whether the selector or accessible name matches
+// common secret-related hints, catching labels like "Password" or "API Key"
+// even when the value itself looks innocuous.
+func secretInSelector(selector, name string) bool {
+	combined := strings.ToLower(selector + " " + name)
+	// Normalize common separators so "API Key" matches "api_key" and vice versa.
+	normalized := strings.NewReplacer(" ", "_", "-", "_").Replace(combined)
+	hints := []string{
+		"password", "passwd", "secret", "token", "apikey", "api_key",
+		"access_key", "private_key", "credential",
+	}
+	for _, hint := range hints {
+		if strings.Contains(normalized, hint) {
+			return true
+		}
+	}
+	return false
+}
+
 func validFindAction(action string) bool {
 	switch action {
 	case "click", "fill", "check", "hover", "text", "ref", "first", "last", "nth":

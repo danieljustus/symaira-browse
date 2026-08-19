@@ -255,6 +255,10 @@ func decodeSnapshotNode(raw json.RawMessage, index int) (*snapshotNode, error) {
 			if propertyBoolean(property.Value) && propertyName != "expanded" {
 				node.interactive = true
 			}
+		case "type", "autocomplete":
+			if propertyValue != "" {
+				node.attributes[propertyName] = propertyValue
+			}
 		}
 	}
 	if node.role == "link" && node.url == "" {

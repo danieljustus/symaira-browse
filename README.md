@@ -120,6 +120,7 @@ handoff to a person for login, 2FA, CAPTCHA, and approval workflows.
 - [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
 - [docs/injection.md](docs/injection.md) — prompt-injection scan (`snapshot`, `--no-injection-scan`, pattern list)
 - [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
+- [docs/state.md](docs/state.md) — state encryption (symvault, OS keychain, env var; plaintext fallback)
 
 ## License
 
