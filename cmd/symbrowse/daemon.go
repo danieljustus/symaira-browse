@@ -151,9 +151,10 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	})
 
 	// State store: named cookie/storage snapshots under <state-dir>/states.
-	// A KeyResolver is attached when SYMBROWSE_ENCRYPTION_KEY is set so state
-	// files are encrypted (issue B-35). Without a key the store falls back to
-	// plaintext so the tool stays fully usable standalone.
+	// A KeyResolver is probed at construction; when a key source (symvault,
+	// OS keychain, or env var) is available, state files are encrypted.
+	// Without a key the store falls back to plaintext so the tool stays
+	// fully usable standalone.
 	stateStore, err := newStateStore(cmd)
 	if err != nil {
 		return err
@@ -310,18 +311,21 @@ func splitDomains(value string) []string {
 }
 
 // newStateStore builds the named-state store rooted at <state-dir>/states,
-// attaching the encryption key resolver when a key source is configured. The
-// default retention window comes from SYMBROWSE_STATE_EXPIRE_DAYS (default
-// 30 days).
+// probing the key resolver at construction time. When a key source (symvault,
+// OS keychain, or environment variable) is available, state files are
+// encrypted with AES-256-GCM; otherwise they are stored as plaintext.
+// The default retention window comes from SYMBROWSE_STATE_EXPIRE_DAYS
+// (default 30 days).
 func newStateStore(cmd *cobra.Command) (*state.Store, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
 	dir := filepath.Join(cfg.StateDir, "states")
+	resolver := state.NewKeyResolver()
 	var keys state.KeyProvider
-	if os.Getenv(state.EnvKeyName) != "" {
-		keys = state.NewKeyResolver()
+	if source, err := resolver.Source(); err == nil && source != state.KeySourceNone {
+		keys = resolver
 	}
 	expireIn := time.Duration(state.DefaultExpireDays) * 24 * time.Hour
 	if raw := os.Getenv("SYMBROWSE_STATE_EXPIRE_DAYS"); raw != "" {
