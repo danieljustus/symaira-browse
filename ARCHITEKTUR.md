@@ -86,7 +86,7 @@ bauen, testen und laufen. Jede Kopplung ist Laufzeit-Erkennung mit Fallback.
 | Eigener Credential-Tresor (`auth save --password`) | Das ist `symvault`. Ein zweiter Tresor wäre ein Ökosystem-Konstruktionsfehler — dieselbe Regel wie Brain↔Guard |
 | Eigenes Plugin-Protokoll (stdio-Plugins) | Symaira löst Erweiterung durch Laufzeit-Erkennung von Geschwister-CLIs, nicht durch ein zweites Protokoll |
 | React-Introspektion, Web Vitals, CPU-Profiler, Tracing | Frontend-Dev-Werkzeug, nicht Agenten-Browsing. Kein Symaira-Publikum |
-| Cloud-Provider (Browserbase, Kernel, AgentCore) | Gehört, wenn überhaupt, in ein späteres `symaira-browse-pro`. Open-Core-Grenze |
+| Cloud-Provider (Browserbase, Kernel, AgentCore) | Agenten-Browsing läuft auf dem eigenen Rechner. Kein gehostetes Backend, keine Pro-Variante |
 | CAPTCHA-Lösung | Grundsätzlich nicht. Die richtige Antwort ist der Handoff (§5.4) |
 
 ---
