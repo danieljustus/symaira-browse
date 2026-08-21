@@ -39,6 +39,11 @@ type Engine struct {
 	mu     sync.Mutex
 	client *http.Client
 
+	// guard carries the fetch-hardening options (SSRF, robots) absorbed
+	// from symfetch (repo consolidation step 5). Zero value = hardened
+	// defaults via guardOptionsFromURL at construction.
+	guard GuardOptions
+
 	url      string
 	title    string
 	document *html.Node
@@ -47,7 +52,20 @@ type Engine struct {
 
 // New creates an unstarted static engine.
 func New() *Engine {
-	return &Engine{client: &http.Client{Timeout: 15e9}}
+	return &Engine{
+		client: &http.Client{Timeout: 15e9},
+		guard:  GuardOptions{SSRFEnabled: true, RobotsEnabled: true},
+	}
+}
+
+// NewWithGuard creates an unstarted static engine with explicit guard
+// options. Tests use this to fetch local test servers (SSRF guard off);
+// production callers should prefer New()'s hardened defaults.
+func NewWithGuard(g GuardOptions) *Engine {
+	return &Engine{
+		client: &http.Client{Timeout: 15e9},
+		guard:  g,
+	}
 }
 
 // Capabilities lists what this engine cannot do, for docs/engines.md and
@@ -84,6 +102,13 @@ func (e *Engine) Navigate(ctx context.Context, _ engine.Page, target string) (en
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return engine.NavigationResult{}, fmt.Errorf("static engine: unsupported scheme %q (http/https only)", parsed.Scheme)
 	}
+
+	// fetch-hardening (repo consolidation step 5): SSRF guard + optional
+	// robots.txt check before the fetch, mirroring symfetch's static path.
+	if err := e.guard.checkBeforeFetch(ctx, target); err != nil {
+		return engine.NavigationResult{}, err
+	}
+
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return engine.NavigationResult{}, err

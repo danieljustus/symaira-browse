@@ -21,7 +21,7 @@ func testPage(t *testing.T) string {
 }
 
 func TestLaunchContextPageLifecycle(t *testing.T) {
-	e := New()
+	e := NewWithGuard(GuardOptions{})
 	if err := e.Launch(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestLaunchContextPageLifecycle(t *testing.T) {
 }
 
 func TestNavigateParsesDocument(t *testing.T) {
-	e := New()
+	e := NewWithGuard(GuardOptions{})
 	defer func() { _ = e.Close() }()
 	result, err := e.Navigate(context.Background(), engine.Page{}, testPage(t))
 	if err != nil {
@@ -64,7 +64,7 @@ func TestNavigateParsesDocument(t *testing.T) {
 }
 
 func TestEvaluateInspectionExpressions(t *testing.T) {
-	e := New()
+	e := NewWithGuard(GuardOptions{})
 	defer func() { _ = e.Close() }()
 	if _, err := e.Navigate(context.Background(), engine.Page{}, testPage(t)); err != nil {
 		t.Fatal(err)
@@ -94,14 +94,14 @@ func TestEvaluateInspectionExpressions(t *testing.T) {
 		t.Fatal("arbitrary JS succeeded on the static engine")
 	}
 	// Evaluate before any navigation fails cleanly.
-	other := New()
+	other := NewWithGuard(GuardOptions{})
 	if _, err := other.Evaluate(context.Background(), engine.Page{}, "document.title"); err == nil {
 		t.Fatal("evaluate without page succeeded")
 	}
 }
 
 func TestInspectKinds(t *testing.T) {
-	e := New()
+	e := NewWithGuard(GuardOptions{})
 	defer func() { _ = e.Close() }()
 	if _, err := e.Navigate(context.Background(), engine.Page{}, testPage(t)); err != nil {
 		t.Fatal(err)
@@ -138,7 +138,7 @@ func TestInspectKinds(t *testing.T) {
 }
 
 func TestAXTreeAndNavigationState(t *testing.T) {
-	e := New()
+	e := NewWithGuard(GuardOptions{})
 	defer func() { _ = e.Close() }()
 	if _, err := e.Navigate(context.Background(), engine.Page{}, testPage(t)); err != nil {
 		t.Fatal(err)
@@ -174,7 +174,7 @@ func TestCapabilitiesList(t *testing.T) {
 }
 
 func TestNavigateErrors(t *testing.T) {
-	e := New()
+	e := NewWithGuard(GuardOptions{})
 	ctx := context.Background()
 
 	// Invalid URL.
@@ -205,7 +205,7 @@ func TestNavigateErrors(t *testing.T) {
 }
 
 func TestEvaluateWithoutDocumentAndJSError(t *testing.T) {
-	e := New()
+	e := NewWithGuard(GuardOptions{})
 	// No document loaded.
 	if _, err := e.Evaluate(context.Background(), engine.Page{}, "location.origin"); err == nil {
 		t.Fatal("expected no-page error")
@@ -225,7 +225,7 @@ func TestEvaluateWithoutDocumentAndJSError(t *testing.T) {
 }
 
 func TestScreenshotAndInspectErrors(t *testing.T) {
-	e := New()
+	e := NewWithGuard(GuardOptions{})
 	if _, err := e.Screenshot(context.Background(), engine.Page{}); err == nil {
 		t.Fatal("expected screenshot capability error")
 	}
@@ -235,7 +235,7 @@ func TestScreenshotAndInspectErrors(t *testing.T) {
 }
 
 func TestNavigationStateAndCapabilityError(t *testing.T) {
-	e := New()
+	e := NewWithGuard(GuardOptions{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`<html><head><title>State Page</title></head><body>hi</body></html>`))
 	}))
