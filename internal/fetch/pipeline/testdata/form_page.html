@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Contact Form</title></head>
+<body>
+<main>
+  <h1>Contact Us</h1>
+  <form id="contact-form" action="/submit" method="POST">
+    <label for="name">Name</label>
+    <input type="text" id="name" name="name" placeholder="Your full name" />
+    <label for="email">Email</label>
+    <input type="email" id="email" name="email" placeholder="your@email.com" />
+    <label for="message">Message</label>
+    <textarea id="message" name="message" placeholder="Your message here"></textarea>
+    <label for="topic">Topic</label>
+    <select id="topic" name="topic">
+      <option value="general">General</option>
+      <option value="support">Support</option>
+      <option value="billing">Billing</option>
+    </select>
+    <button type="submit">Send Message</button>
+    <button type="reset">Clear</button>
+  </form>
+</main>
+</body>
+</html>

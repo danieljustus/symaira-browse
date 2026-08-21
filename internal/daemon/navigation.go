@@ -42,6 +42,7 @@ type NavigationRuntime struct {
 	screenshotDirs  []string          // allowed screenshot roots (issue #16)
 	requestTimeout  time.Duration     // per-command CDP budget (0 = engine default)
 	recorders       map[string]*recorderState
+	staticGuard     static.GuardOptions // fetch-hardening for the static engine (step 5)
 }
 
 // sessionTab is one tab of a session. Every tab owns its own navigation
@@ -277,7 +278,7 @@ func networkPolicyWarnings(reporter engine.NetworkPolicyReporter) []Warning {
 // "static" (JS-free HTML reader, issue #64) or the default Chrome engine.
 func (r *NavigationRuntime) newEngine(userDataDir string) engine.Engine {
 	if r.engineKind == "static" {
-		return static.New()
+		return static.NewWithGuard(r.staticGuard)
 	}
 	return chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: userDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate, Headless: r.headless, RequestTimeout: r.requestTimeout})
 }
