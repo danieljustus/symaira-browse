@@ -38,7 +38,7 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
-	github.com/refraction-networking/utls v1.8.1 // indirect
+	github.com/refraction-networking/utls v1.8.2 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
