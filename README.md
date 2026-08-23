@@ -20,7 +20,7 @@ Usage:
 Available Commands:
   handoff        Hand the session over to the human without losing it (2FA, CAPTCHA, approval)
   open           Navigate the browser
-  read           Render the page as markdown (or JSON) in the symfetch output schema
+  read           Render the page as markdown (or JSON) in the static-read output schema
   version        Print the symbrowse version
   … (weitere Befehle gekürzt)
 
@@ -44,14 +44,16 @@ $ ./symbrowse handoff --reason "login 2FA" --timeout 5m
 handoff complete: session "research" back under agent control
 ```
 
-**Abgrenzung zu `symfetch`:** `symfetch` liest einzelne Seiten mit
-Browser-Impersonation und liefert ein fetch-kompatibles Dokument.
-`symbrowse` ist der **interaktive Agenten-Browser**: eine echte Chrome-
-Session mit Navigation, Stable Refs, State (Cookies/Storage),
+**Zwei Modi, ein Werkzeug:** `symbrowse read` liest einzelne Seiten über die
+Static-Engine (`internal/fetch`) mit Browser-Impersonation und liefert ein
+fetch-kompatibles Dokument — das ist der Code des früheren `symfetch`, das am
+2026-08-23 hier aufgegangen ist (Repo archiviert, Formula deprecated).
+Darüber hinaus ist `symbrowse` der **interaktive Agenten-Browser**: eine echte
+Chrome-Session mit Navigation, Stable Refs, State (Cookies/Storage),
 Out-of-Band-Handoff für Login/2FA/Freigaben, Journal, Flows und
 Netzwerk-Kontrolle — für Abläufe, die mehrere Schritte über eine Session
-hinweg brauchen. Beide teilen sich die `corekit/domkit`-Render-Pipeline;
-`read` erzeugt strukturell identisches Markdown.
+hinweg brauchen. Beide Pfade teilen sich die `corekit/domkit`-Render-Pipeline
+und erzeugen strukturell identisches Markdown.
 
 Status: **v0.x (Feature-Waves A–D)**: Engine-Abstraktion (Chrome + Static),
 Domain-Allowlist, SSRF-Guard, MCP-Server, Sessions/State/Journal/OOB,
