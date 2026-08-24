@@ -100,7 +100,6 @@ func (r *PolicyRuntime) Decide(ctx context.Context, command, url string, mode po
 			Class:    class,
 			Domain:   host,
 			Warnings: warnings,
-			Mode:     mode,
 		})
 		if guardErr != nil {
 			return policy.Deny, "guard", fmt.Sprintf("guard failure: %v", guardErr), nil
