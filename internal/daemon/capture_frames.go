@@ -15,46 +15,115 @@ import (
 	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/injection"
 )
+
+// snapshotRequest models the snapshot frame payload, combining accessibility tree
+// options with injection-scan controls (issue #192).
+type snapshotRequest struct {
+	engine.SnapshotOptions
+	NoInjectionScan   bool   `json:"no_injection_scan,omitempty"`
+	InjectionPatterns string `json:"injection_patterns,omitempty"`
+}
 
 // handleCaptureFrame serves the page capture commands: snapshot, a11y
 // audit and screenshot.
-func (r *NavigationRuntime) handleCaptureFrame(ctx context.Context, frame Frame) (any, error) {
+func (r *NavigationRuntime) handleCaptureFrame(ctx context.Context, frame Frame) (any, []Warning, error) {
 	service, err := r.service(ctx, frame.Session)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	switch frame.Cmd {
 	case "snapshot":
-		var options engine.SnapshotOptions
-		if err := decodeArgs(frame, &options); err != nil {
-			return nil, err
+		var request snapshotRequest
+		if err := decodeOptionalArgs(frame, &request); err != nil {
+			return nil, nil, err
 		}
-		if options.Diff || options.Since != "" {
-			result, err := service.SnapshotDiff(ctx, options)
-			return result, err
+		var result any
+		if request.Diff || request.Since != "" {
+			diffResult, err := service.SnapshotDiff(ctx, request.SnapshotOptions)
+			if err != nil {
+				return nil, nil, err
+			}
+			result = diffResult
+		} else {
+			snapResult, err := service.Snapshot(ctx, request.SnapshotOptions)
+			if err != nil {
+				return nil, nil, err
+			}
+			result = snapResult
 		}
-		result, err := service.Snapshot(ctx, options)
-		return result, err
+		var warnings []Warning
+		if !request.NoInjectionScan {
+			warnings = r.scanSnapshotInjection(ctx, service, request.InjectionPatterns)
+		}
+		return result, warnings, nil
 	case "a11y":
 		var options engine.A11yOptions
 		if err := decodeOptionalArgs(frame, &options); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		result, err := service.Audit(ctx, options)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return result, nil
+		return result, nil, nil
 	case "screenshot":
 		var request screenshotRequest
 		if err := decodeOptionalArgs(frame, &request); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		return r.captureScreenshot(ctx, service, request)
+		result, err := r.captureScreenshot(ctx, service, request)
+		return result, nil, err
 	default:
-		return nil, fmt.Errorf("unknown capture command %q", frame.Cmd)
+		return nil, nil, fmt.Errorf("unknown capture command %q", frame.Cmd)
 	}
+}
+
+// scanSnapshotInjection runs the heuristic prompt-injection scan over the page HTML.
+func (r *NavigationRuntime) scanSnapshotInjection(ctx context.Context, service *engine.NavigationService, patternsFile string) []Warning {
+	htmlResult, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectHTML})
+	if err != nil {
+		return []Warning{{Kind: "injection_scan", Severity: "warning", Message: "injection scan failed: " + err.Error()}}
+	}
+	var pageHTML string
+	if err := json.Unmarshal(htmlResult.Value, &pageHTML); err != nil {
+		return []Warning{{Kind: "injection_scan", Severity: "warning", Message: "injection scan failed: " + err.Error()}}
+	}
+	scanWarnings, err := injection.Scan(pageHTML, injection.ScanOptions{PatternsFile: patternsFile})
+	if err != nil {
+		return []Warning{{Kind: "injection_scan", Severity: "warning", Message: "injection scan failed: " + err.Error()}}
+	}
+	warnings := make([]Warning, 0, len(scanWarnings))
+	for _, warning := range scanWarnings {
+		warnings = append(warnings, Warning{
+			Kind:     warning.Kind,
+			Severity: warning.Severity,
+			Message:  injectionMessage(warning),
+			Ref:      warning.Ref,
+			Excerpt:  warning.Excerpt,
+		})
+	}
+	return warnings
+}
+
+// injectionMessage renders a human-readable message for one detection.
+func injectionMessage(warning injection.ScanWarning) string {
+	switch warning.Kind {
+	case injection.KindHiddenText:
+		return "hidden text detected on " + warning.Ref
+	case injection.KindImperative:
+		return "agent-directed instruction detected on " + warning.Ref
+	case injection.KindAriaMismatch:
+		return "accessible-name mismatch on " + warning.Ref
+	case injection.KindAttribute:
+		return "instruction hidden in an attribute on " + warning.Ref
+	case injection.KindComment:
+		return "instruction hidden in an HTML comment"
+	case injection.KindMeta:
+		return "instruction hidden in meta content"
+	}
+	return "prompt-injection heuristic warning on " + warning.Ref
 }
 
 // screenshotRequest mirrors the daemon screenshot frame payload (issue #16,

@@ -45,6 +45,13 @@ func (f *fakeCookieEngine) DeleteCookies(context.Context, engine.Page, string, s
 	return nil
 }
 
+func (f *fakeCookieEngine) Inspect(_ context.Context, _ engine.Page, request engine.InspectionRequest, _ *engine.InteractionTarget) (engine.InspectionResult, error) {
+	if request.Kind == engine.InspectHTML {
+		return engine.InspectionResult{Kind: engine.InspectHTML, Value: json.RawMessage(`""`)}, nil
+	}
+	return engine.InspectionResult{Kind: request.Kind}, nil
+}
+
 // newCookieRuntime wires a NavigationRuntime around a fake cookie engine so
 // cookie and storage frames can be exercised without Chrome.
 func newCookieRuntime(t *testing.T) (*NavigationRuntime, *fakeCookieEngine) {

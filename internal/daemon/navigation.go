@@ -176,49 +176,62 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 		data, err := r.handleDialogFrame(ctx, frame)
 		return data, nil, err
 	}
-	data, err := r.dispatch(ctx, frame)
+	data, warnings, err := r.dispatch(ctx, frame)
 	if err != nil {
 		return nil, nil, err
 	}
 	r.maybeAutosave(ctx, frame)
 	r.recordFrame(ctx, frame.Session, frame)
-	return data, r.policyWarnings(frame.Session), nil
+	return data, append(r.policyWarnings(frame.Session), warnings...), nil
 }
 
 // dispatch runs one frame against the session service. It is a thin router:
 // every command family is delegated to a per-domain handler (see *_frames.go).
-func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, error) {
+func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, []Warning, error) {
 	switch frame.Cmd {
 	case "console.list", "console.clear", "errors.list", "errors.clear":
-		return r.handleRuntimeEventsFrame(ctx, frame)
+		data, err := r.handleRuntimeEventsFrame(ctx, frame)
+		return data, nil, err
 	case "eval":
-		return r.handleEvalFrame(ctx, frame)
+		data, err := r.handleEvalFrame(ctx, frame)
+		return data, nil, err
 	case "network.requests", "network.request":
-		return r.handleNetworkReadFrame(ctx, frame)
+		data, err := r.handleNetworkReadFrame(ctx, frame)
+		return data, nil, err
 	case "network.route", "network.unroute", "network.har":
-		return r.handleNetworkControlFrame(ctx, frame)
+		data, err := r.handleNetworkControlFrame(ctx, frame)
+		return data, nil, err
 	case "upload":
-		return r.handleUploadFrame(ctx, frame)
+		data, err := r.handleUploadFrame(ctx, frame)
+		return data, nil, err
 	case "downloads.list", "download.setdir":
-		return r.handleDownloadFrame(ctx, frame)
+		data, err := r.handleDownloadFrame(ctx, frame)
+		return data, nil, err
 	case "open", "goto", "back", "forward", "reload", "wait":
-		return r.handleNavigationFrame(ctx, frame)
+		data, err := r.handleNavigationFrame(ctx, frame)
+		return data, nil, err
 	case "snapshot", "a11y", "screenshot":
 		return r.handleCaptureFrame(ctx, frame)
 	case string(engine.ActionClick), string(engine.ActionDoubleClick), string(engine.ActionFill), string(engine.ActionType), string(engine.ActionPress), string(engine.ActionHover), string(engine.ActionFocus), string(engine.ActionSelect), string(engine.ActionCheck), string(engine.ActionUncheck), string(engine.ActionScroll), string(engine.ActionScrollIntoView):
-		return r.handleInteractionFrame(ctx, frame)
+		data, err := r.handleInteractionFrame(ctx, frame)
+		return data, nil, err
 	case "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked":
-		return r.handleInspectFrame(ctx, frame)
+		data, err := r.handleInspectFrame(ctx, frame)
+		return data, nil, err
 	case "read", "find":
-		return r.handleInspectFrame(ctx, frame)
+		data, err := r.handleInspectFrame(ctx, frame)
+		return data, nil, err
 	case "cookies.list", "cookies.set", "cookies.clear":
-		return r.handleCookiesFrame(ctx, frame)
+		data, err := r.handleCookiesFrame(ctx, frame)
+		return data, nil, err
 	case "storage.list", "storage.set", "storage.clear":
-		return r.handleStorageFrame(ctx, frame)
+		data, err := r.handleStorageFrame(ctx, frame)
+		return data, nil, err
 	case "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent":
-		return r.handleEmulationFrame(ctx, frame)
+		data, err := r.handleEmulationFrame(ctx, frame)
+		return data, nil, err
 	default:
-		return nil, fmt.Errorf("unknown navigation command %q", frame.Cmd)
+		return nil, nil, fmt.Errorf("unknown navigation command %q", frame.Cmd)
 	}
 }
 

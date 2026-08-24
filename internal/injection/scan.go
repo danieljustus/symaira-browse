@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"golang.org/x/net/html"
 )
@@ -43,7 +44,7 @@ type ScanOptions struct {
 // Scan runs the injection heuristics over a page's HTML. The page content is
 // treated as hostile input: nothing is removed or rewritten, only reported.
 func Scan(pageHTML string, options ScanOptions) ([]ScanWarning, error) {
-	patterns, err := loadPatterns(options.PatternsFile)
+	matcher, err := loadMatcher(options.PatternsFile)
 	if err != nil {
 		return nil, err
 	}
@@ -51,14 +52,14 @@ func Scan(pageHTML string, options ScanOptions) ([]ScanWarning, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse page html: %w", err)
 	}
-	scanner := &scanner{patterns: patterns, styleRules: collectStyleRules(document)}
+	scanner := &scanner{matcher: matcher, styleRules: collectStyleRules(document)}
 	scanner.walk(document, nil, "", false)
 	return scanner.warnings, nil
 }
 
 // scanner carries the per-run state.
 type scanner struct {
-	patterns   []string
+	matcher    *patternMatcher
 	styleRules map[string][]string // selector -> declarations (from <style> blocks)
 	warnings   []ScanWarning
 }
@@ -328,29 +329,95 @@ func isInteractive(node *html.Node) bool {
 	return false
 }
 
+type ahoNode struct {
+	children map[rune]*ahoNode
+	fail     *ahoNode
+	output   string
+}
+
+type patternMatcher struct {
+	root *ahoNode
+}
+
+var (
+	embeddedMatcher     *patternMatcher
+	embeddedMatcherOnce sync.Once
+	embeddedMatcherErr  error
+
+	customMatcherMu    sync.RWMutex
+	customMatcherCache = make(map[string]*patternMatcher)
+)
+
 // matchPattern reports the first pattern contained in text, or "".
 func (s *scanner) matchPattern(text string) string {
+	if s.matcher == nil || s.matcher.root == nil {
+		return ""
+	}
 	normalized := normalizeText(text)
-	for _, pattern := range s.patterns {
-		if strings.Contains(normalized, pattern) {
-			return pattern
+	curr := s.matcher.root
+	for _, r := range normalized {
+		for curr != s.matcher.root && curr.children[r] == nil {
+			curr = curr.fail
+		}
+		if next := curr.children[r]; next != nil {
+			curr = next
+		}
+		if curr.output != "" {
+			return curr.output
 		}
 	}
 	return ""
 }
 
-// loadPatterns reads the pattern list: the embedded file by default, or a
-// custom file whose path is supplied (issue #28 AC: the list is a file, not
-// code, and configurable).
-func loadPatterns(path string) ([]string, error) {
-	source := embeddedPatterns
-	if path != "" {
-		raw, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("read injection pattern file: %w", err)
+// loadMatcher returns the compiled pattern matcher: the embedded file by default,
+// or a custom file whose path is supplied. Parsed pattern sets and compiled matchers
+// are cached across Scan calls.
+func loadMatcher(path string) (*patternMatcher, error) {
+	if path == "" {
+		embeddedMatcherOnce.Do(func() {
+			var patterns []string
+			patterns, embeddedMatcherErr = parsePatternList(embeddedPatterns)
+			if embeddedMatcherErr != nil {
+				return
+			}
+			embeddedMatcher, embeddedMatcherErr = compileMatcher(patterns)
+		})
+		if embeddedMatcherErr != nil {
+			return nil, embeddedMatcherErr
 		}
-		source = string(raw)
+		return embeddedMatcher, nil
 	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read injection pattern file: %w", err)
+	}
+
+	cacheKey := path + "\x00" + string(raw)
+	customMatcherMu.RLock()
+	matcher, ok := customMatcherCache[cacheKey]
+	customMatcherMu.RUnlock()
+	if ok {
+		return matcher, nil
+	}
+
+	patterns, err := parsePatternList(string(raw))
+	if err != nil {
+		return nil, err
+	}
+	matcher, err = compileMatcher(patterns)
+	if err != nil {
+		return nil, err
+	}
+
+	customMatcherMu.Lock()
+	customMatcherCache[cacheKey] = matcher
+	customMatcherMu.Unlock()
+	return matcher, nil
+}
+
+// parsePatternList parses lines from a pattern file source.
+func parsePatternList(source string) ([]string, error) {
 	var patterns []string
 	for _, line := range strings.Split(source, "\n") {
 		line = strings.TrimSpace(line)
@@ -363,6 +430,54 @@ func loadPatterns(path string) ([]string, error) {
 		return nil, fmt.Errorf("injection pattern list is empty")
 	}
 	return patterns, nil
+}
+
+// compileMatcher builds a compiled Aho-Corasick automaton from the pattern list.
+func compileMatcher(patterns []string) (*patternMatcher, error) {
+	root := &ahoNode{children: make(map[rune]*ahoNode)}
+	for _, p := range patterns {
+		curr := root
+		for _, r := range p {
+			next, ok := curr.children[r]
+			if !ok {
+				next = &ahoNode{children: make(map[rune]*ahoNode)}
+				curr.children[r] = next
+			}
+			curr = next
+		}
+		if curr.output == "" {
+			curr.output = p
+		}
+	}
+
+	var queue []*ahoNode
+	for _, child := range root.children {
+		child.fail = root
+		queue = append(queue, child)
+	}
+
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+
+		for r, child := range curr.children {
+			f := curr.fail
+			for f != nil && f.children[r] == nil {
+				f = f.fail
+			}
+			if f == nil {
+				child.fail = root
+			} else {
+				child.fail = f.children[r]
+			}
+			if child.output == "" && child.fail != nil && child.fail.output != "" {
+				child.output = child.fail.output
+			}
+			queue = append(queue, child)
+		}
+	}
+
+	return &patternMatcher{root: root}, nil
 }
 
 // normalizeText lowercases and collapses whitespace for matching.
