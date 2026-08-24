@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -323,6 +324,9 @@ func TestIndexPersistedAfterPut(t *testing.T) {
 }
 
 func TestEnsureCacheDir_ReadOnlyParent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX chmod semantics do not apply on Windows")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root can write into read-only directories")
 	}
@@ -403,6 +407,9 @@ func TestCacheGet_MissingBody(t *testing.T) {
 }
 
 func TestCachePut_ReadOnlyDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX chmod semantics do not apply on Windows")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root can write into read-only directories")
 	}
@@ -446,6 +453,9 @@ func TestIndexManager_LoadCorruptIndex(t *testing.T) {
 }
 
 func TestIndexManager_SaveReadOnlyDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX chmod semantics do not apply on Windows")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root can write into read-only directories")
 	}
@@ -508,6 +518,9 @@ func TestIndexManager_RemoveEntry_NotFound(t *testing.T) {
 }
 
 func TestIndexManager_Load_PermissionDenied(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX chmod semantics do not apply on Windows")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root can read any file")
 	}

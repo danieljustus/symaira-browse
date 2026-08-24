@@ -70,6 +70,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
+      - name: Build macOS DMG (Intel + Apple Silicon)
+        if: runner.os == 'macOS'
+        id: dmg
+        run: |
+          set -euo pipefail
+          mkdir -p dist/dmg
+          cp dist/symbrowse_*_darwin_amd64/symbrowse dist/dmg/symbrowse-amd64
+          cp dist/symbrowse_*_darwin_arm64/symbrowse dist/dmg/symbrowse-arm64
+          ACTUAL_TAG="${GITHUB_REF_NAME#v}"
+          DMG_NAME="symbrowse_${ACTUAL_TAG}_universal.dmg"
+          volname="symbrowse ${ACTUAL_TAG}"
+          hdiutil create -volname "$volname" -srcfolder dist/dmg -ov -format UDZO "$DMG_NAME"
+          echo "DMG created: $DMG_NAME"
+          ls -lh "$DMG_NAME"
+          echo "dmg_path=$DMG_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Upload DMG to release
+        if: runner.os == 'macOS'
+        uses: softprops/action-gh-release@61b4dc192c9d7a78d49b1a3a271379239b68d51d # v2
+        with:
+          files: ${{ steps.dmg.outputs.dmg_path }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          update_only: true
+
       - name: Notarize macOS binaries
         if: steps.signing.outputs.signed == 'true'
         env:

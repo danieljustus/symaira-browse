@@ -3,6 +3,7 @@ package cache_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -127,6 +128,9 @@ func TestCacheDifferentFormatsDontCollide(t *testing.T) {
 }
 
 func TestCacheDirPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not enforced on Windows")
+	}
 	dir := t.TempDir()
 	cacheDir := filepath.Join(dir, "cache")
 	c := cache.New(cacheDir, 15*time.Minute, 0)
@@ -142,6 +146,9 @@ func TestCacheDirPermissions(t *testing.T) {
 }
 
 func TestCacheDirPermissionsTightened(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits are not enforced on Windows")
+	}
 	dir := t.TempDir()
 	cacheDir := filepath.Join(dir, "cache")
 	os.MkdirAll(cacheDir, 0755) // intentionally permissive
