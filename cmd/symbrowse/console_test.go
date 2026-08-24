@@ -41,10 +41,10 @@ func TestPrintConsoleEntries(t *testing.T) {
 			want: "",
 		},
 		{
-			name:       "json mode prints the raw payload",
+			name:       "json mode prints the unified envelope",
 			data:       map[string]any{"entries": []any{map[string]any{"type": "log", "text": "hello"}}},
 			jsonOutput: true,
-			want:       "{\n  \"entries\": [\n    {\n      \"text\": \"hello\",\n      \"type\": \"log\"\n    }\n  ]\n}\n",
+			want:       `{"success":true,"data":{"entries":[{"text":"hello","type":"log"}]}}` + "\n",
 		},
 		{
 			name:    "write failure is returned",
@@ -55,10 +55,13 @@ func TestPrintConsoleEntries(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			command, buffer := newOutputCommand(t)
+			if tc.jsonOutput {
+				_ = command.Flags().Set("json", "true")
+			}
 			if tc.wantErr != "" {
 				command.SetOut(failingWriter{})
 			}
-			err := printConsoleEntries(command, tc.data, tc.jsonOutput)
+			err := printConsoleEntries(command, tc.data, jsonOutputFlag(command))
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("err = %v, want containing %q", err, tc.wantErr)

@@ -13,6 +13,7 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newStateCommands() []*cobra.Command {
@@ -36,7 +37,6 @@ func newCookiesCommand() *cobra.Command {
 }
 
 func newCookiesListCommand(session, reveal *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "list",
 		Short: "List cookies visible to the current page",
@@ -49,9 +49,9 @@ func newCookiesListCommand(session, reveal *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutput {
+			if jsonOutputFlag(cmd) {
 				data := maskCookiePayload(response.Data, *reveal)
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(data)
+				return writeEnvelope(cmd, output.OK(data, nil))
 			}
 			payload := cookieListFromResponse(response.Data)
 			for _, cookie := range payload.Cookies {
@@ -64,7 +64,6 @@ func newCookiesListCommand(session, reveal *string) *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema with masked values")
 	return command
 }
 
@@ -96,6 +95,9 @@ func newCookiesSetCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
+			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return err
 		},
@@ -125,6 +127,9 @@ func newCookiesClearCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
+			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return err
 		},
@@ -149,7 +154,6 @@ func newStorageCommand() *cobra.Command {
 }
 
 func newStorageGetCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "get <local|session> [key]",
 		Short: "Read web storage values for the current origin",
@@ -164,8 +168,8 @@ func newStorageGetCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payloadData := storageListFromResponse(response.Data)
 			if len(args) == 2 {
@@ -182,7 +186,6 @@ func newStorageGetCommand(session *string) *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }
 
@@ -200,6 +203,9 @@ func newStorageSetCommand(session *string) *cobra.Command {
 			}
 			if !response.Success {
 				return responseError(response)
+			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return err
@@ -222,6 +228,9 @@ func newStorageClearCommand(session *string) *cobra.Command {
 			}
 			if !response.Success {
 				return responseError(response)
+			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return err
@@ -293,7 +302,7 @@ func importCurlCookies(cmd *cobra.Command, session, path string) error {
 }
 
 // parseCurlCookieLine parses one Netscape cookie-jar line into a Cookie.
-// Format: domain 	 includeSubdomains 	 path 	 secure 	 expiry 	 name 	 value.
+// Format: domain \t includeSubdomains \t path \t secure \t expiry \t name \t value.
 func parseCurlCookieLine(line string) (engine.Cookie, bool) {
 	line = strings.TrimSpace(line)
 	if line == "" || strings.HasPrefix(line, "#") {

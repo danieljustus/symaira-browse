@@ -29,7 +29,7 @@ func writeEnvelope(cmd *cobra.Command, envelope output.Envelope) error {
 // writeEnvelopeFromResponse converts a daemon protocol response into the
 // unified output envelope. Failed responses become CLI errors so the error
 // code is preserved through the unified error classification.
-func writeEnvelopeFromResponse(cmd *cobra.Command, response daemon.Response, _ bool) error {
+func writeEnvelopeFromResponse(cmd *cobra.Command, response daemon.Response) error {
 	if !response.Success {
 		return responseError(response)
 	}
