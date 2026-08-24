@@ -411,6 +411,10 @@ func TestRun_NoCache(t *testing.T) {
 }
 
 func TestRun_DefaultCacheDir(t *testing.T) {
+	// DefaultDir resolves to ~/.cache/symfetch. Point HOME at a temp dir so
+	// the test is hermetic and cannot collide with real cache entries.
+	t.Setenv("HOME", t.TempDir())
+
 	srv := serveInternalServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
