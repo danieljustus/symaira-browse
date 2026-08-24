@@ -211,7 +211,6 @@ func TestEvaluateWithoutDocumentAndJSError(t *testing.T) {
 		t.Fatal("expected no-page error")
 	}
 	// After navigation, arbitrary JS fails with a capability error.
-	e.client = &http.Client{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`<html><head><title>T</title></head><body>x</body></html>`))
 	}))
@@ -253,5 +252,175 @@ func TestNavigationStateAndCapabilityError(t *testing.T) {
 	err = &CapabilityError{Message: "x"}
 	if err.Error() != "x" {
 		t.Fatalf("capability error = %q", err.Error())
+	}
+}
+
+func TestStaticEngineSSRFDefaultRejectsLoopback(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<html><body>loopback target</body></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	// Hardened defaults reject loopback/private targets
+	e := New()
+	defer func() { _ = e.Close() }()
+
+	_, err := e.Navigate(context.Background(), engine.Page{}, server.URL)
+	if err == nil {
+		t.Fatal("expected SSRF error when navigating to loopback target with default hardened engine")
+	}
+	if !strings.Contains(err.Error(), "private") && !strings.Contains(err.Error(), "loopback") && !strings.Contains(err.Error(), "blocked_private") {
+		t.Fatalf("expected SSRF error, got: %v", err)
+	}
+}
+
+func TestStaticEngineAllowPrivateRelaxesSSRF(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<!doctype html><html><head><title>Allowed Private</title></head><body>allowed</body></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	// AllowPrivate explicitly relaxes SSRF
+	e := NewWithGuard(GuardOptions{
+		SSRFEnabled:  true,
+		AllowPrivate: true,
+	})
+	defer func() { _ = e.Close() }()
+
+	result, err := e.Navigate(context.Background(), engine.Page{}, server.URL)
+	if err != nil {
+		t.Fatalf("unexpected error with AllowPrivate: %v", err)
+	}
+	if result.FrameID == "" {
+		t.Fatalf("expected FrameID, got %+v", result)
+	}
+	if e.title != "Allowed Private" {
+		t.Fatalf("title = %q, want 'Allowed Private'", e.title)
+	}
+}
+
+func TestStaticEngineRobotsEnforcement(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/robots.txt":
+			_, _ = w.Write([]byte("User-agent: *\nDisallow: /blocked\nAllow: /allowed\n"))
+		case "/blocked":
+			_, _ = w.Write([]byte(`<html><head><title>Blocked</title></head><body>blocked content</body></html>`))
+		case "/allowed":
+			_, _ = w.Write([]byte(`<html><head><title>Allowed</title></head><body>allowed content</body></html>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	e := NewWithGuard(GuardOptions{
+		AllowPrivate:  true,
+		RobotsEnabled: true,
+	})
+	defer func() { _ = e.Close() }()
+
+	// Disallowed URL must be blocked
+	_, err := e.Navigate(context.Background(), engine.Page{}, server.URL+"/blocked")
+	if err == nil {
+		t.Fatal("expected robots disallowed error for /blocked")
+	}
+	if !strings.Contains(err.Error(), "robots") && !strings.Contains(err.Error(), "disallow") {
+		t.Fatalf("expected robots error, got: %v", err)
+	}
+
+	// Allowed URL must succeed
+	_, err = e.Navigate(context.Background(), engine.Page{}, server.URL+"/allowed")
+	if err != nil {
+		t.Fatalf("unexpected error for /allowed: %v", err)
+	}
+	if e.title != "Allowed" {
+		t.Fatalf("title = %q, want 'Allowed'", e.title)
+	}
+}
+
+func TestStaticEngineUserAgentPropagated(t *testing.T) {
+	var receivedUA string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedUA = r.Header.Get("User-Agent")
+		_, _ = w.Write([]byte(`<html><head><title>UA</title></head><body>ua</body></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	customUA := "custom-agent/2.0"
+	e := NewWithGuard(GuardOptions{
+		AllowPrivate: true,
+		UserAgent:    customUA,
+	})
+	defer func() { _ = e.Close() }()
+
+	_, err := e.Navigate(context.Background(), engine.Page{}, server.URL)
+	if err != nil {
+		t.Fatalf("navigate: %v", err)
+	}
+	if receivedUA != customUA {
+		t.Fatalf("received User-Agent = %q, want %q", receivedUA, customUA)
+	}
+}
+
+func TestStaticEnginePipelineCache(t *testing.T) {
+	fetchCount := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fetchCount++
+		_, _ = w.Write([]byte(`<!doctype html><html><head><title>Cached Page</title></head><body><p>Hello cached world</p></body></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	tempDir := t.TempDir()
+	e := NewWithGuard(GuardOptions{
+		AllowPrivate: true,
+		CacheDir:     tempDir,
+	})
+	defer func() { _ = e.Close() }()
+
+	// First fetch: hits server
+	_, err := e.Navigate(context.Background(), engine.Page{}, server.URL)
+	if err != nil {
+		t.Fatalf("first navigate: %v", err)
+	}
+	if fetchCount != 1 {
+		t.Fatalf("fetchCount = %d, want 1", fetchCount)
+	}
+
+	// Second fetch: served from cache
+	_, err = e.Navigate(context.Background(), engine.Page{}, server.URL)
+	if err != nil {
+		t.Fatalf("second navigate: %v", err)
+	}
+	if fetchCount != 1 {
+		t.Fatalf("fetchCount after second navigate = %d, want 1 (cache hit)", fetchCount)
+	}
+}
+
+func TestStaticEngineTruncateAndStore(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		largeBody := strings.Repeat("This is a paragraph of content that is repeated. ", 100)
+		_, _ = w.Write([]byte(`<!doctype html><html><head><title>Large Page</title></head><body>` + largeBody + `</body></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	tempDir := t.TempDir()
+	e := NewWithGuard(GuardOptions{
+		AllowPrivate:  true,
+		StoreFullText: true,
+		CharLimit:     200,
+		StoreDir:      tempDir,
+	})
+	defer func() { _ = e.Close() }()
+
+	_, err := e.Navigate(context.Background(), engine.Page{}, server.URL)
+	if err != nil {
+		t.Fatalf("navigate: %v", err)
+	}
+	if e.lastResult == nil {
+		t.Fatal("expected lastResult to be populated")
+	}
+	if !strings.Contains(e.lastResult.Output, "[truncated") && !strings.Contains(e.lastResult.Output, "omitted") && len(e.lastResult.Output) > 1000 {
+		t.Fatalf("output was not truncated: len=%d", len(e.lastResult.Output))
 	}
 }

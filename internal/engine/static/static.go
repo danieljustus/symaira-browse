@@ -1,17 +1,11 @@
-// Package static implements a JS-free, HTML-only browser engine behind the
-// same engine.Engine interface. It is the second engine that proves the
-// abstraction (issue #64): pure read workflows (open + read/inspect) work
-// against static HTML, while anything requiring JavaScript, interaction or
-// rendering fails with an explicit capability error — never with wrong
-// results.
 package static
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -22,6 +16,9 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/fetch/dom"
+	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
+	"github.com/danieljustus/symaira-browse/internal/fetch/pipeline"
 )
 
 // Capability names reported by the engine.
@@ -32,38 +29,44 @@ const (
 	CapabilityNoNetwork = "no-network-control"
 )
 
-// Engine is a static-HTML engine. It fetches pages over HTTP and answers
-// inspection expressions natively; every other operation returns a
-// capability error.
+// Engine is a static-HTML engine. It fetches pages through the absorbed
+// fetch pipeline and answers inspection expressions natively; every other
+// operation returns a capability error.
 type Engine struct {
 	mu     sync.Mutex
-	client *http.Client
+	client fetch.Client
 
-	// guard carries the fetch-hardening options (SSRF, robots) absorbed
-	// from symfetch (repo consolidation step 5). Zero value = hardened
-	// defaults via guardOptionsFromURL at construction.
+	// guard carries the fetch-hardening options (SSRF, robots) and pipeline
+	// capabilities absorbed from symfetch (repo consolidation step 5).
 	guard GuardOptions
 
-	url      string
-	title    string
-	document *html.Node
-	closed   bool
+	url        string
+	title      string
+	document   *html.Node
+	rawBody    []byte
+	statusCode int
+	lastResult *pipeline.Result
+	closed     bool
 }
 
-// New creates an unstarted static engine.
+// New creates an unstarted static engine with hardened defaults.
 func New() *Engine {
-	return &Engine{
-		client: &http.Client{Timeout: 15e9},
-		guard:  GuardOptions{SSRFEnabled: true, RobotsEnabled: true},
-	}
+	return NewWithGuard(GuardOptions{
+		SSRFEnabled:   true,
+		RobotsEnabled: true,
+	})
 }
 
 // NewWithGuard creates an unstarted static engine with explicit guard
 // options. Tests use this to fetch local test servers (SSRF guard off);
 // production callers should prefer New()'s hardened defaults.
 func NewWithGuard(g GuardOptions) *Engine {
+	client := g.Client
+	if client == nil {
+		client, _ = fetch.New(fetch.ProfileHonest)
+	}
 	return &Engine{
-		client: &http.Client{Timeout: 15e9},
+		client: client,
 		guard:  g,
 	}
 }
@@ -87,10 +90,28 @@ func (e *Engine) NewPage(context.Context, engine.Context, string) (engine.Page, 
 	return engine.Page{ID: "static-page"}, nil
 }
 
-// Navigate fetches the URL over HTTP and parses the HTML document.
+// capturingMaterializer intercepts the materialized DOM tree and raw response body
+// from the pipeline while preserving the full DOM tree for static inspections.
+type capturingMaterializer struct {
+	unfilteredDoc *html.Node
+	rawBody       []byte
+	statusCode    int
+}
+
+func (m *capturingMaterializer) Materialize(_ context.Context, resp *fetch.Response) (*dom.Tree, error) {
+	m.rawBody = resp.Body
+	m.statusCode = resp.StatusCode
+	unfiltered, _ := html.Parse(bytes.NewReader(resp.Body))
+	m.unfilteredDoc = unfiltered
+	return dom.Parse(resp.Body)
+}
+
+// Navigate fetches the URL through the absorbed fetch pipeline and parses the HTML document.
 func (e *Engine) Navigate(ctx context.Context, _ engine.Page, target string) (engine.NavigationResult, error) {
 	e.mu.Lock()
 	closed := e.closed
+	client := e.client
+	guard := e.guard
 	e.mu.Unlock()
 	if closed {
 		return engine.NavigationResult{}, errors.New("static engine: engine is closed")
@@ -103,38 +124,44 @@ func (e *Engine) Navigate(ctx context.Context, _ engine.Page, target string) (en
 		return engine.NavigationResult{}, fmt.Errorf("static engine: unsupported scheme %q (http/https only)", parsed.Scheme)
 	}
 
-	// fetch-hardening (repo consolidation step 5): SSRF guard + optional
-	// robots.txt check before the fetch, mirroring symfetch's static path.
-	if err := e.guard.checkBeforeFetch(ctx, target); err != nil {
-		return engine.NavigationResult{}, err
+	if client == nil {
+		client, err = fetch.New(fetch.ProfileHonest)
+		if err != nil {
+			return engine.NavigationResult{}, fmt.Errorf("static engine: initialize fetch client: %w", err)
+		}
+		e.mu.Lock()
+		e.client = client
+		e.mu.Unlock()
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	popts := guard.pipelineOptions()
+	mat := &capturingMaterializer{}
+
+	result, err := pipeline.Run(ctx, client, mat, target, popts)
 	if err != nil {
-		return engine.NavigationResult{}, err
+		return engine.NavigationResult{}, fmt.Errorf("static engine: %w", err)
 	}
-	request.Header.Set("User-Agent", "symbrowse-static/1.0")
-	response, err := e.client.Do(request)
-	if err != nil {
-		return engine.NavigationResult{}, fmt.Errorf("static engine: fetch %s: %w", target, err)
-	}
-	defer func() { _ = response.Body.Close() }()
-	if response.StatusCode >= 400 {
-		return engine.NavigationResult{}, fmt.Errorf("static engine: %s returned HTTP %d", target, response.StatusCode)
-	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, 8<<20))
-	if err != nil {
-		return engine.NavigationResult{}, err
-	}
-	document, err := html.Parse(strings.NewReader(string(body)))
-	if err != nil {
-		return engine.NavigationResult{}, fmt.Errorf("static engine: parse %s: %w", target, err)
-	}
+
 	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.url = target
-	e.title = extractTitle(document)
-	e.document = document
-	e.mu.Unlock()
+	if result.Meta.FinalURL != "" {
+		e.url = result.Meta.FinalURL
+	}
+	e.title = result.Meta.Title
+	if e.title == "" && mat.unfilteredDoc != nil {
+		e.title = extractTitle(mat.unfilteredDoc)
+	}
+	e.document = mat.unfilteredDoc
+	e.rawBody = mat.rawBody
+	e.statusCode = result.Meta.StatusCode
+	if e.statusCode == 0 && mat.statusCode != 0 {
+		e.statusCode = mat.statusCode
+	}
+	if e.statusCode == 0 {
+		e.statusCode = http.StatusOK
+	}
+	e.lastResult = result
 	return engine.NavigationResult{FrameID: "static", LoaderID: "static"}, nil
 }
 
@@ -240,6 +267,11 @@ func (e *Engine) Close() error {
 	defer e.mu.Unlock()
 	e.closed = true
 	e.document = nil
+	e.rawBody = nil
+	e.lastResult = nil
+	if e.client != nil {
+		_ = e.client.Close()
+	}
 	return nil
 }
 
@@ -251,12 +283,23 @@ func (e *Engine) NavigationState(_ context.Context, _ engine.Page) (engine.Navig
 	if e.document == nil {
 		return engine.NavigationState{}, errors.New("static engine: no page loaded")
 	}
+	status := e.statusCode
+	if status == 0 {
+		status = http.StatusOK
+	}
 	return engine.NavigationState{
 		URL:         e.url,
-		HTTPStatus:  200,
+		HTTPStatus:  status,
 		ReadyState:  "complete",
 		NetworkIdle: true,
 	}, nil
+}
+
+// LastResult returns the pipeline result from the most recent navigation, if available.
+func (e *Engine) LastResult() *pipeline.Result {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.lastResult
 }
 
 // Inspect implements the engine.InspectionEngine capability against the
@@ -283,6 +326,9 @@ func (e *Engine) Inspect(_ context.Context, _ engine.Page, request engine.Inspec
 	case engine.InspectURL:
 		return engine.InspectionResult{Kind: request.Kind, Value: jsonString(e.url)}, nil
 	case engine.InspectHTML:
+		if len(e.rawBody) > 0 {
+			return engine.InspectionResult{Kind: request.Kind, Value: jsonString(string(e.rawBody))}, nil
+		}
 		return engine.InspectionResult{Kind: request.Kind, Value: jsonString(renderOuterHTML(e.document))}, nil
 	}
 	selector := strings.TrimSpace(request.Selector)

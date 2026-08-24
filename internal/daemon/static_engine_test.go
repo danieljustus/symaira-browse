@@ -163,3 +163,150 @@ func payloadStringForTest(data any) string {
 	raw, _ := json.Marshal(data)
 	return string(raw)
 }
+
+func TestStaticEngineDaemonSSRFDefaultAndAllowPrivate(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`<!doctype html><html><head><title>Daemon Target</title></head><body>hello from daemon test</body></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	registry := NewSessionRegistry(SessionRegistryOptions{})
+	if _, err := registry.Ensure("s"); err != nil {
+		t.Fatalf("Ensure session: %v", err)
+	}
+
+	// 1. Default static runtime (hardened SSRFEnabled: true, AllowPrivate: false)
+	hardenedRuntime := NewNavigationRuntime(registry, "", NavigationRuntimeOptions{
+		Engine: "static",
+	})
+	defer func() { _ = hardenedRuntime.Close() }()
+
+	ctx := context.Background()
+	_, _, err := hardenedRuntime.Handle(ctx, Frame{
+		Cmd:     "read",
+		Args:    marshalArgsForTest(map[string]any{"url": server.URL}),
+		Session: "s",
+	})
+	if err == nil {
+		t.Fatal("expected hardened default static runtime to reject loopback read with SSRF error")
+	}
+	if !strings.Contains(err.Error(), "private") && !strings.Contains(err.Error(), "loopback") && !strings.Contains(err.Error(), "blocked_private") {
+		t.Fatalf("expected SSRF error, got: %v", err)
+	}
+
+	// 2. Relaxed static runtime with AllowPrivate: true
+	relaxedRuntime := NewNavigationRuntime(registry, "", NavigationRuntimeOptions{
+		Engine:       "static",
+		AllowPrivate: true,
+	})
+	defer func() { _ = relaxedRuntime.Close() }()
+
+	response, _, err := relaxedRuntime.Handle(ctx, Frame{
+		Cmd:     "read",
+		Args:    marshalArgsForTest(map[string]any{"url": server.URL}),
+		Session: "s",
+	})
+	if err != nil {
+		t.Fatalf("read with AllowPrivate failed: %v", err)
+	}
+	respStr := payloadStringForTest(response)
+	if !strings.Contains(respStr, "Daemon Target") {
+		t.Fatalf("response lacks title: %s", respStr)
+	}
+}
+
+func TestStaticEngineDaemonRobotsEnforcement(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/robots.txt":
+			_, _ = w.Write([]byte("User-agent: *\nDisallow: /admin\nAllow: /public\n"))
+		case "/admin":
+			_, _ = w.Write([]byte(`<!doctype html><html><head><title>Admin</title></head><body>admin only</body></html>`))
+		case "/public":
+			_, _ = w.Write([]byte(`<!doctype html><html><head><title>Public</title></head><body>public page</body></html>`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	registry := NewSessionRegistry(SessionRegistryOptions{})
+	if _, err := registry.Ensure("s"); err != nil {
+		t.Fatalf("Ensure session: %v", err)
+	}
+
+	runtime := NewNavigationRuntime(registry, "", NavigationRuntimeOptions{
+		Engine:       "static",
+		AllowPrivate: true,
+		StaticGuard: &static.GuardOptions{
+			AllowPrivate:  true,
+			RobotsEnabled: true,
+		},
+	})
+	defer func() { _ = runtime.Close() }()
+
+	ctx := context.Background()
+	// Disallowed URL
+	_, _, err := runtime.Handle(ctx, Frame{
+		Cmd:     "read",
+		Args:    marshalArgsForTest(map[string]any{"url": server.URL + "/admin"}),
+		Session: "s",
+	})
+	if err == nil {
+		t.Fatal("expected robots disallowed error for /admin")
+	}
+	if !strings.Contains(err.Error(), "robots") && !strings.Contains(err.Error(), "disallow") {
+		t.Fatalf("expected robots error, got: %v", err)
+	}
+
+	// Allowed URL
+	resp, _, err := runtime.Handle(ctx, Frame{
+		Cmd:     "read",
+		Args:    marshalArgsForTest(map[string]any{"url": server.URL + "/public"}),
+		Session: "s",
+	})
+	if err != nil {
+		t.Fatalf("read /public failed: %v", err)
+	}
+	if !strings.Contains(payloadStringForTest(resp), "Public") {
+		t.Fatalf("expected Public in response, got: %s", payloadStringForTest(resp))
+	}
+}
+
+func TestStaticEngineDaemonUserAgent(t *testing.T) {
+	var receivedUA string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedUA = r.Header.Get("User-Agent")
+		_, _ = w.Write([]byte(`<!doctype html><html><head><title>UA Check</title></head><body>ua</body></html>`))
+	}))
+	t.Cleanup(server.Close)
+
+	registry := NewSessionRegistry(SessionRegistryOptions{})
+	if _, err := registry.Ensure("s"); err != nil {
+		t.Fatalf("Ensure session: %v", err)
+	}
+
+	customUA := "symbrowse-daemon-test/1.0"
+	runtime := NewNavigationRuntime(registry, "", NavigationRuntimeOptions{
+		Engine:       "static",
+		AllowPrivate: true,
+		StaticGuard: &static.GuardOptions{
+			AllowPrivate: true,
+			UserAgent:    customUA,
+		},
+	})
+	defer func() { _ = runtime.Close() }()
+
+	ctx := context.Background()
+	_, _, err := runtime.Handle(ctx, Frame{
+		Cmd:     "read",
+		Args:    marshalArgsForTest(map[string]any{"url": server.URL}),
+		Session: "s",
+	})
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if receivedUA != customUA {
+		t.Fatalf("received User-Agent = %q, want %q", receivedUA, customUA)
+	}
+}
