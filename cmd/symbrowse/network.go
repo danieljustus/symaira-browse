@@ -12,9 +12,10 @@ import (
 func newNetworkCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "network",
-		Short: "Inspect, mock and export page network activity (issue #59)",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDNetwork,
+		Use:     "network",
+		Short:   "Inspect, mock and export page network activity (issue #59)",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newNetworkRequestsCommand(&session))

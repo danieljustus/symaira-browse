@@ -12,9 +12,17 @@ import (
 func newUploadCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "upload <selector> <files...>",
-		Short: "Upload files into a file input (path-guarded, issue #63)",
-		Args:  cobra.MinimumNArgs(2),
+		GroupID: groupIDNetwork,
+		Use:     "upload <selector> <files...>",
+		Short:   "Upload files into a file input (path-guarded, issue #63)",
+		Long: "upload sets the value of a file input element matching <selector>.\n\n" +
+			selectorDocumentation + "\n\n" +
+			"Positional arguments:\n" +
+			"  <selector>  Target file input element\n" +
+			"  <files...>  One or more local file paths to upload\n\n" +
+			"Optional [value] argument:\n" +
+			"  Not used; specify file paths as positional arguments.",
+		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, _ := json.Marshal(map[string]any{"selector": args[0], "files": args[1:]})
 			response, err := stateRequest(cmd.Context(), session, "upload", payload)
@@ -35,9 +43,10 @@ func newUploadCommand() *cobra.Command {
 func newDownloadsCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "downloads",
-		Short: "Show download events (origin URL, size, checksum) or set the download directory",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDNetwork,
+		Use:     "downloads",
+		Short:   "Show download events (origin URL, size, checksum) or set the download directory",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if dir, _ := cmd.Flags().GetString("dir"); dir != "" {
 				payload, _ := json.Marshal(map[string]any{"dir": dir})

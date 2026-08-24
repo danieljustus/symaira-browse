@@ -15,9 +15,10 @@ func newWatchCommand() *cobra.Command {
 	var session, takeOverReason string
 	var takeOver bool
 	command := &cobra.Command{
-		Use:   "watch",
-		Short: "Watch an agent session: stream the action journal live (read-only)",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "watch",
+		Short:   "Watch an agent session: stream the action journal live (read-only)",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if takeOver {
 				if takeOverReason == "" {

@@ -10,9 +10,10 @@ import (
 func newErrorsCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "errors",
-		Short: "Show or clear uncaught page errors",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDDebug,
+		Use:     "errors",
+		Short:   "Show or clear uncaught page errors",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newErrorsListCommand(&session))

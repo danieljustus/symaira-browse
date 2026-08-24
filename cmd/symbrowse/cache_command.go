@@ -19,9 +19,10 @@ import (
 // configured TTL expires.
 func newCacheCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "cache",
-		Short: "Inspect the truncate-and-store output cache",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDDebug,
+		Use:     "cache",
+		Short:   "Inspect the truncate-and-store output cache",
+		Args:    cobra.NoArgs,
 	}
 	command.AddCommand(newCacheGetCommand())
 	command.AddCommand(newCacheListCommand())

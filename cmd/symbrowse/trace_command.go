@@ -13,9 +13,10 @@ import (
 func newTraceCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "trace",
-		Short: "Export and replay repeatable action traces",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDDebug,
+		Use:     "trace",
+		Short:   "Export and replay repeatable action traces",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newTraceExportCommand(&session))

@@ -13,8 +13,9 @@ func newMCPCommand() *cobra.Command {
 	var session, tools string
 	var allowPrivate, listProfiles bool
 	command := &cobra.Command{
-		Use:   "mcp",
-		Short: "Start the MCP stdio server (JSON-RPC 2.0 over stdin/stdout)",
+		GroupID: groupIDDebug,
+		Use:     "mcp",
+		Short:   "Start the MCP stdio server (JSON-RPC 2.0 over stdin/stdout)",
 		Long: "mcp runs the Model Context Protocol stdio server. Tools proxy to the local " +
 			"symbrowse daemon; every tool accepts an optional session argument. " +
 			"No byte is written to stdout except JSON-RPC frames (zero stdout pollution); " +

@@ -19,8 +19,9 @@ import (
 func newDiffCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "diff",
-		Short: "Compare snapshots, screenshots and URLs",
+		GroupID: groupIDDebug,
+		Use:     "diff",
+		Short:   "Compare snapshots, screenshots and URLs",
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
 	command.AddCommand(newDiffSnapshotCommand(&session))

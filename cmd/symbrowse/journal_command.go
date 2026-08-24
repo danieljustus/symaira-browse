@@ -10,9 +10,10 @@ import (
 func newJournalCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "journal",
-		Short: "Inspect the append-only action journal",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "journal",
+		Short:   "Inspect the append-only action journal",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newJournalTailCommand(&session))

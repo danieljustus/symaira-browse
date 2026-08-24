@@ -10,9 +10,10 @@ import (
 func newConsoleCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "console",
-		Short: "Show or clear the page console buffer",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDDebug,
+		Use:     "console",
+		Short:   "Show or clear the page console buffer",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newConsoleListCommand(&session))

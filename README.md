@@ -17,10 +17,16 @@ $ ./symbrowse --help
 Usage:
   symbrowse [command]
 
-Available Commands:
+Core Commands:
+  open           Open a URL in the browser and wait for load
+  read           Render the page as markdown (or JSON) in the symfetch output schema
+  …
+
+State Commands:
   handoff        Hand the session over to the human without losing it (2FA, CAPTCHA, approval)
-  open           Navigate the browser
-  read           Render the page as markdown (or JSON) in the static-read output schema
+  …
+
+Debug Commands:
   version        Print the symbrowse version
   … (weitere Befehle gekürzt)
 

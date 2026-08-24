@@ -10,9 +10,10 @@ import (
 func newOOBCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "oob",
-		Short: "Inspect the out-of-band human channel",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "oob",
+		Short:   "Inspect the out-of-band human channel",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newOOBStatusCommand(&session))

@@ -11,9 +11,10 @@ import (
 func newStateCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "state",
-		Short: "Save, restore and manage named browser session states",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "state",
+		Short:   "Save, restore and manage named browser session states",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newStateSaveCommand(&session))

@@ -21,8 +21,9 @@ func newReadCommand() *cobra.Command {
 	var session, selector, filter string
 	var outline, raw, contentBoundaries, engineHint bool
 	command := &cobra.Command{
-		Use:   "read [url]",
-		Short: "Render the page as markdown (or JSON) in the symfetch output schema",
+		GroupID: groupIDCore,
+		Use:     "read [url]",
+		Short:   "Render the page as markdown (or JSON) in the symfetch output schema",
 		Long: "read renders the current page — or the page at url when given — and prints " +
 			"markdown with YAML frontmatter (title, url, fetched_at, lang, tokens_est, schema_type) " +
 			"in the symfetch output schema. --json prints the same document as the unified envelope. " +

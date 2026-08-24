@@ -51,8 +51,9 @@ type batchReport struct {
 func newBatchCommand() *cobra.Command {
 	var bail, dryRun bool
 	command := &cobra.Command{
-		Use:   "batch <cmd> [cmd...]",
-		Short: "Run multiple commands in one process and report per-item status",
+		GroupID: groupIDCore,
+		Use:     "batch <cmd> [cmd...]",
+		Short:   "Run multiple commands in one process and report per-item status",
 		Long: "batch runs each quoted command string as a symbrowse invocation in the same " +
 			"process, which avoids one daemon autostart and process startup per command. " +
 			"Without positional arguments a JSON array of command strings is read from stdin. " +

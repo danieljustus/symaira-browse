@@ -12,9 +12,10 @@ import (
 func newProfilesCommand() *cobra.Command {
 	var jsonOutput bool
 	command := &cobra.Command{
-		Use:   "profiles",
-		Short: "List discovered Chrome profiles available for reuse",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "profiles",
+		Short:   "List discovered Chrome profiles available for reuse",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			found := profiles.Discover()
 			if jsonOutput {

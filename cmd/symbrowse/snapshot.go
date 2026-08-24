@@ -18,9 +18,10 @@ func newSnapshotCommand() *cobra.Command {
 	var interactive, compact, urls, diff, contentBoundaries, noInjectionScan bool
 	var depth int
 	command := &cobra.Command{
-		Use:   "snapshot",
-		Short: "Render the accessibility tree",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDCore,
+		Use:     "snapshot",
+		Short:   "Render the accessibility tree",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			request := struct {
 				engine.SnapshotOptions

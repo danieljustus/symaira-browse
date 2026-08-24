@@ -16,8 +16,9 @@ func newFindCommand() *cobra.Command {
 	var session, name string
 	var exact bool
 	command := &cobra.Command{
-		Use:   "find <role|text|label|placeholder|alt|title|testid> <query> <action> [value]",
-		Short: "Find an element semantically and optionally act on it",
+		GroupID: groupIDCore,
+		Use:     "find <role|text|label|placeholder|alt|title|testid> <query> <action> [value]",
+		Short:   "Find an element semantically and optionally act on it",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) < 3 || len(args) > 4 {
 				return errors.New("find requires kind, query, action, and an optional value")
