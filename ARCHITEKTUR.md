@@ -5,6 +5,12 @@ Vorbild/Benchmark: [vercel-labs/agent-browser](https://github.com/vercel-labs/ag
 Geprüft gegen: `../AGENTS.md`, `../ECOSYSTEM.md`, `symaira-fetch`, `symaira-guard`,
 `symaira-vault`, `symaira-brain`, `symaira-skills`, `symaira-corekit`, `symaira-hub`.
 
+> **Status 2026-08-23:** Die in §2 begründete Entscheidung wurde umgesetzt und
+> anschließend eingeholt: `symaira-fetch` ist am 2026-08-23 archiviert und seine
+> Static-Engine in `internal/fetch` aufgegangen. Die Abgrenzung unten beschreibt
+> daher die Grenze zwischen zwei Modi dieses Repos, nicht mehr zwischen zwei
+> Repositories. Die Begründung bleibt als Entscheidungsdokument unverändert.
+
 ---
 
 ## 1. Der eine Satz

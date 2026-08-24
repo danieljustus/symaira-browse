@@ -7,9 +7,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"golang.org/x/net/html"
+
 	"github.com/danieljustus/symaira-browse/internal/fetch/archive"
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
-	"golang.org/x/net/html"
 )
 
 // isThinContent returns true when the extracted main-content node has text

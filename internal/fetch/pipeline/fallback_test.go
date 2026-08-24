@@ -8,10 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	"golang.org/x/net/html"
+
 	"github.com/danieljustus/symaira-browse/internal/fetch/dom"
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
 	"github.com/danieljustus/symaira-browse/internal/fetch/robots"
-	"golang.org/x/net/html"
 )
 
 func parseHTMLNode(t *testing.T, h string) *html.Node {

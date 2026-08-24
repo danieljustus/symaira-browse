@@ -11,9 +11,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/danieljustus/symaira-browse/internal/output"
 	"github.com/danieljustus/symaira-corekit/updatecheck"
 	"github.com/danieljustus/symaira-corekit/updatecheck/updateapply"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 // upgradeTarget identifies the GitHub release stream for symbrowse.
