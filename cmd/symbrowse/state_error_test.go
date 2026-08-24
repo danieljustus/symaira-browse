@@ -369,12 +369,12 @@ func TestWriteEnvelopeFromResponseFailure(t *testing.T) {
 	command := newRootCommand()
 	var output bytes.Buffer
 	command.SetOut(&output)
-	err := writeEnvelopeFromResponse(command, daemon.Response{Success: false, Error: &daemon.Error{Code: daemon.ErrorPeerDenied, Message: "denied"}}, false)
+	err := writeEnvelopeFromResponse(command, daemon.Response{Success: false, Error: &daemon.Error{Code: daemon.ErrorPeerDenied, Message: "denied"}})
 	if err == nil {
 		t.Fatal("expected a failed response to produce an error")
 	}
 	// A successful response with warnings converts warnings and writes the envelope.
-	err = writeEnvelopeFromResponse(command, daemon.Response{Success: true, Data: map[string]any{"ok": true}, Warnings: []daemon.Warning{{Kind: "policy", Message: "warn"}}}, false)
+	err = writeEnvelopeFromResponse(command, daemon.Response{Success: true, Data: map[string]any{"ok": true}, Warnings: []daemon.Warning{{Kind: "policy", Message: "warn"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

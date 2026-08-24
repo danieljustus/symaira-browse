@@ -31,7 +31,6 @@ func newFlowCommand() *cobra.Command {
 }
 
 func newFlowValidateCommand() *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "validate <datei>",
 		Short: "Validate a flow document with line-accurate errors",
@@ -62,13 +61,12 @@ func newFlowValidateCommand() *cobra.Command {
 				"schema":    "docs/flow-schema.json",
 				"schema_id": "https://symaira.dev/schemas/symbrowse-flow.json",
 			}
-			if jsonOutput {
+			if jsonOutputFlag(cmd) {
 				return writeEnvelope(cmd, output.OK(result, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "valid: %s (version %d, %d steps, domains %v)\n", flow.Name, flow.Version, len(flow.Steps), flow.Domains)
 			return err
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable validation payload")
 	return command
 }

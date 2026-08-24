@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newOOBCommand() *cobra.Command {
@@ -21,7 +23,6 @@ func newOOBCommand() *cobra.Command {
 }
 
 func newOOBStatusCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "status",
 		Short: "Show whether an out-of-band prompt is pending",
@@ -34,19 +35,18 @@ func newOOBStatusCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payload := oobStatusFromResponse(response.Data)
 			if !payload.Active {
 				_, err = fmt.Fprintln(cmd.OutOrStdout(), "no pending oob prompt")
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\n", payload.Prompt.ID, payload.Prompt.Kind, payload.Prompt.Reason)
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s	%s	%s\n", payload.Prompt.ID, payload.Prompt.Kind, payload.Prompt.Reason)
 			return err
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }
 

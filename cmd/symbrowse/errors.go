@@ -1,10 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newErrorsCommand() *cobra.Command {
@@ -22,7 +23,6 @@ func newErrorsCommand() *cobra.Command {
 }
 
 func newErrorsListCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "list",
 		Short: "List uncaught exceptions with stack traces (issue #60)",
@@ -35,10 +35,9 @@ func newErrorsListCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			return printErrorEntries(cmd, response.Data, jsonOutput)
+			return printErrorEntries(cmd, response.Data, jsonOutputFlag(cmd))
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the raw JSON payload")
 	command.Flags().Int("max-tokens", 0, "token budget for the payload; oversized output is truncated and stored in the cache (0 = no limit)")
 	return command
 }
@@ -65,9 +64,7 @@ func newErrorsClearCommand(session *string) *cobra.Command {
 
 func printErrorEntries(cmd *cobra.Command, data any, jsonOutput bool) error {
 	if jsonOutput {
-		raw, _ := json.MarshalIndent(data, "", "  ")
-		_, err := fmt.Fprintln(cmd.OutOrStdout(), string(raw))
-		return err
+		return writeEnvelope(cmd, output.OK(data, nil))
 	}
 	payload, _ := data.(map[string]any)
 	entries, _ := payload["entries"].([]any)

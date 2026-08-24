@@ -6,6 +6,8 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newStateCommand() *cobra.Command {
@@ -41,6 +43,9 @@ func newStateSaveCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
+			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "saved state %q\n", args[0])
 			return err
 		},
@@ -63,6 +68,9 @@ func newStateLoadCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
+			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "loaded state %q\n", args[0])
 			return err
 		},
@@ -71,7 +79,6 @@ func newStateLoadCommand(session *string) *cobra.Command {
 }
 
 func newStateListCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "list",
 		Short: "List named states",
@@ -84,8 +91,8 @@ func newStateListCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payload := stateListFromResponse(response.Data)
 			for _, name := range payload.States {
@@ -94,12 +101,10 @@ func newStateListCommand(session *string) *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }
 
 func newStateShowCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "show <name>",
 		Short: "Show state metadata (origins, counts, age) without values",
@@ -114,15 +119,14 @@ func newStateShowCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			raw, _ := json.MarshalIndent(response.Data, "", "  ")
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
 			return err
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }
 
@@ -140,6 +144,9 @@ func newStateClearCommand(session *string) *cobra.Command {
 			}
 			if !response.Success {
 				return responseError(response)
+			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "cleared state %q\n", args[0])
 			return err
@@ -175,6 +182,9 @@ func newStateCleanCommand(session *string) *cobra.Command {
 				return responseError(response)
 			}
 			cleanPayload := stateCleanFromResponse(response.Data)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(cleanPayload, nil))
+			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "removed %d expired state(s)\n", len(cleanPayload.Removed))
 			return err
 		},

@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/danieljustus/symaira-browse/internal/journal"
+	"github.com/danieljustus/symaira-browse/internal/output"
 	"github.com/danieljustus/symaira-browse/internal/trace"
 )
 
@@ -48,6 +49,9 @@ func newTraceExportCommand(session *string) *cobra.Command {
 			if err := trace.Write(out, file); err != nil {
 				return err
 			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(map[string]any{"steps": len(file.Steps), "file": out}, nil))
+			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "exported %d step(s) to %s\n", len(file.Steps), out)
 			return err
 		},
@@ -57,7 +61,6 @@ func newTraceExportCommand(session *string) *cobra.Command {
 }
 
 func newTraceReplayCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "replay <file>",
 		Short: "Replay a trace file step by step and report deviations",
@@ -75,15 +78,14 @@ func newTraceReplayCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			raw, _ = json.MarshalIndent(response.Data, "", "  ")
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
 			return err
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }
 
