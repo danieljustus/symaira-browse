@@ -40,7 +40,7 @@ func Markdown(doc *agentdom.Document, contentNode *html.Node, includeLinks bool)
 		if len(links) > 0 {
 			sb.WriteString("## Links\n\n")
 			for _, l := range links {
-				sb.WriteString(fmt.Sprintf("- [%s](%s)\n", l.text, l.href))
+				_, _ = fmt.Fprintf(&sb, "- [%s](%s)\n", l.text, l.href)
 			}
 			sb.WriteString("\n")
 		}
@@ -50,8 +50,8 @@ func Markdown(doc *agentdom.Document, contentNode *html.Node, includeLinks bool)
 	if len(doc.Islands) > 0 {
 		sb.WriteString("## Data\n\n")
 		for _, island := range doc.Islands {
-			sb.WriteString(fmt.Sprintf("```json\n// Source: %s\n%s\n```\n\n",
-				island.Source, string(island.JSON)))
+			_, _ = fmt.Fprintf(&sb, "```json\n// Source: %s\n%s\n```\n\n",
+				island.Source, string(island.JSON))
 		}
 	}
 
@@ -60,18 +60,18 @@ func Markdown(doc *agentdom.Document, contentNode *html.Node, includeLinks bool)
 
 func renderInteractiveElement(el agentdom.Element) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("- **%s** `%s`", el.AgentID, el.Category))
+	_, _ = fmt.Fprintf(&sb, "- **%s** `%s`", el.AgentID, el.Category)
 	if el.Text != "" {
-		sb.WriteString(fmt.Sprintf(": %s", el.Text))
+		_, _ = fmt.Fprintf(&sb, ": %s", el.Text)
 	}
 	for k, v := range el.Attrs {
 		switch k {
 		case "href":
-			sb.WriteString(fmt.Sprintf(" → %s", v))
+			_, _ = fmt.Fprintf(&sb, " → %s", v)
 		case "placeholder":
-			sb.WriteString(fmt.Sprintf(" [%s]", v))
+			_, _ = fmt.Fprintf(&sb, " [%s]", v)
 		case "type":
-			sb.WriteString(fmt.Sprintf(" (%s)", v))
+			_, _ = fmt.Fprintf(&sb, " (%s)", v)
 		}
 	}
 	sb.WriteString("\n")
@@ -112,8 +112,8 @@ func collectLinks(elements []agentdom.Element) []linkItem {
 // an escalate hint is byte-identical to previous versions.
 func FormatMarkdownWithMeta(meta agentdom.Meta, output string) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("> **%s** · %d · ~%d tokens",
-		meta.Title, meta.StatusCode, meta.EstTokens))
+	_, _ = fmt.Fprintf(&sb, "> **%s** · %d · ~%d tokens",
+		meta.Title, meta.StatusCode, meta.EstTokens)
 	if meta.Truncated {
 		sb.WriteString(" · ⚠ truncated")
 	}

@@ -3,8 +3,9 @@ package pipeline
 import (
 	"strings"
 
-	"github.com/danieljustus/symaira-browse/internal/fetch/semantic"
 	"golang.org/x/net/html"
+
+	"github.com/danieljustus/symaira-browse/internal/fetch/semantic"
 )
 
 // frameworkRootIDs contains common SPA framework root element IDs whose
@@ -115,9 +116,10 @@ func isEmptyOrMinimal(n *html.Node) bool {
 	textLen := 0
 	elemCount := 0
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		if c.Type == html.TextNode {
+		switch c.Type {
+		case html.TextNode:
 			textLen += len(strings.TrimSpace(c.Data))
-		} else if c.Type == html.ElementNode {
+		case html.ElementNode:
 			elemCount++
 		}
 	}

@@ -15,6 +15,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/html"
+
 	"github.com/danieljustus/symaira-browse/internal/fetch/agentdom"
 	"github.com/danieljustus/symaira-browse/internal/fetch/archive"
 	"github.com/danieljustus/symaira-browse/internal/fetch/cache"
@@ -24,7 +26,6 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/fetch/render"
 	"github.com/danieljustus/symaira-browse/internal/fetch/robots"
 	"github.com/danieljustus/symaira-browse/internal/fetch/semantic"
-	"golang.org/x/net/html"
 )
 
 // Format is the output format for the rendered result.
@@ -462,11 +463,11 @@ func IslandSummary(islands []agentdom.DataIsland) string {
 				for k := range m {
 					keys = append(keys, k)
 				}
-				sb.WriteString(fmt.Sprintf("- **%s**: keys=%v\n", island.Source, keys))
+				_, _ = fmt.Fprintf(&sb, "- **%s**: keys=%v\n", island.Source, keys)
 				continue
 			}
 		}
-		sb.WriteString(fmt.Sprintf("- **%s**: (raw JSON, %d bytes)\n", island.Source, len(island.JSON)))
+		_, _ = fmt.Fprintf(&sb, "- **%s**: (raw JSON, %d bytes)\n", island.Source, len(island.JSON))
 	}
 	return sb.String()
 }

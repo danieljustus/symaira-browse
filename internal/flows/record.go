@@ -5,8 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/danieljustus/symaira-browse/internal/engine"
 	"gopkg.in/yaml.v3"
+
+	"github.com/danieljustus/symaira-browse/internal/engine"
 )
 
 // RecordedAction is one captured session action during flow recording.

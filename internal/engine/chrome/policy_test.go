@@ -13,8 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/gorilla/websocket"
+
+	"github.com/danieljustus/symaira-browse/internal/engine"
 )
 
 // fakeCDPServer simulates the subset of Chrome DevTools the engine uses and

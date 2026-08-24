@@ -27,7 +27,7 @@ require (
 	github.com/andybalholm/cascadia v1.3.4 // indirect
 	github.com/bdandy/go-errors v1.2.2 // indirect
 	github.com/chromedp/sysutil v1.1.0 // indirect
-	github.com/cloudflare/circl v1.6.2 // indirect
+	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/gaukas/clienthellod v0.4.2 // indirect
 	github.com/gaukas/godicttls v0.0.4 // indirect

@@ -3,8 +3,6 @@ package static
 import (
 	"context"
 	"fmt"
-	"net/url"
-	"strings"
 
 	fetchpipeline "github.com/danieljustus/symaira-browse/internal/fetch/fetch"
 	"github.com/danieljustus/symaira-browse/internal/fetch/robots"
@@ -61,16 +59,4 @@ func (g GuardOptions) userAgent() string {
 		return g.UserAgent
 	}
 	return defaultUserAgent
-}
-
-// guardOptionsFromURL derives a sensible default guard config for a target.
-// It is a helper for callers that do not configure guards explicitly.
-func guardOptionsFromURL(target string) GuardOptions {
-	opts := GuardOptions{SSRFEnabled: true, RobotsEnabled: true}
-	if u, err := url.Parse(target); err == nil {
-		if strings.HasPrefix(u.Hostname(), "127.") || u.Hostname() == "localhost" {
-			opts.AllowPrivate = true
-		}
-	}
-	return opts
 }
