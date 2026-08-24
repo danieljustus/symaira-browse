@@ -93,6 +93,10 @@ type NavigationRuntimeOptions struct {
 	// generous budget because Chrome round-trips can stall for seconds on
 	// loaded machines right after a sibling tab is created.
 	RequestTimeout time.Duration
+	// StaticGuard provides explicit guard options for the static engine.
+	// When nil, hardened defaults (SSRFEnabled: true, RobotsEnabled: true)
+	// with AllowPrivate propagated from options are used.
+	StaticGuard *static.GuardOptions
 }
 
 // NewNavigationRuntime creates a runtime. Chrome is not started until the
@@ -100,6 +104,16 @@ type NavigationRuntimeOptions struct {
 func NewNavigationRuntime(registry *SessionRegistry, executable string, options NavigationRuntimeOptions) *NavigationRuntime {
 	if executable == "" {
 		executable = os.Getenv("SYMBROWSE_EXECUTABLE_PATH")
+	}
+	var guard static.GuardOptions
+	if options.StaticGuard != nil {
+		guard = *options.StaticGuard
+	} else {
+		guard = static.GuardOptions{
+			SSRFEnabled:   true,
+			AllowPrivate:  options.AllowPrivate,
+			RobotsEnabled: true,
+		}
 	}
 	return &NavigationRuntime{
 		registry:        registry,
@@ -121,6 +135,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		stateStore:      options.StateStore,
 		lastAutosave:    make(map[string]time.Time),
 		restoreOnStart:  options.RestoreOnStart,
+		staticGuard:     guard,
 	}
 }
 

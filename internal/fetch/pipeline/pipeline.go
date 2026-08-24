@@ -106,6 +106,7 @@ type SecurityOptions struct {
 	AllowPrivate  bool
 	Robots        bool
 	RobotsChecker *robots.Checker
+	UserAgent     string
 }
 
 func (o *Options) setDefaults() {
@@ -206,7 +207,11 @@ func Run(ctx context.Context, c fetch.Client, eng Engine, rawURL string, o Optio
 	}
 
 	if o.Security.Robots && o.Security.RobotsChecker != nil {
-		allowed, err := o.Security.RobotsChecker.Check(ctx, "symfetch", rawURL)
+		ua := o.Security.UserAgent
+		if ua == "" {
+			ua = "symfetch"
+		}
+		allowed, err := o.Security.RobotsChecker.Check(ctx, ua, rawURL)
 		if err != nil {
 			slog.Debug("robots check error", "url", rawURL, "error", err)
 		} else if !allowed {
@@ -525,7 +530,11 @@ func probeAncestors(ctx context.Context, c fetch.Client, rawURL string, o Option
 		}
 
 		if o.Security.Robots && o.Security.RobotsChecker != nil {
-			allowed, err := o.Security.RobotsChecker.Check(ctx, "symfetch", ancestorStr)
+			ua := o.Security.UserAgent
+			if ua == "" {
+				ua = "symfetch"
+			}
+			allowed, err := o.Security.RobotsChecker.Check(ctx, ua, ancestorStr)
 			if err != nil {
 				slog.Debug("ancestor robots check error", "url", ancestorStr, "error", err)
 			} else if !allowed {
@@ -570,7 +579,11 @@ func probeAncestors(ctx context.Context, c fetch.Client, rawURL string, o Option
 	}
 
 	if o.Security.Robots && o.Security.RobotsChecker != nil {
-		allowed, err := o.Security.RobotsChecker.Check(ctx, "symfetch", rootStr)
+		ua := o.Security.UserAgent
+		if ua == "" {
+			ua = "symfetch"
+		}
+		allowed, err := o.Security.RobotsChecker.Check(ctx, ua, rootStr)
 		if err != nil {
 			slog.Debug("root robots check error", "url", rootStr, "error", err)
 		} else if !allowed {
@@ -778,7 +791,11 @@ func findCandidatesFromSitemaps(ctx context.Context, c fetch.Client, u *url.URL,
 	if o.Security.RobotsChecker == nil {
 		return nil
 	}
-	sitemapURLs, err := o.Security.RobotsChecker.Sitemaps(ctx, "symfetch", u.String())
+	ua := o.Security.UserAgent
+	if ua == "" {
+		ua = "symfetch"
+	}
+	sitemapURLs, err := o.Security.RobotsChecker.Sitemaps(ctx, ua, u.String())
 	if err != nil || len(sitemapURLs) == 0 {
 		return nil
 	}
@@ -791,7 +808,7 @@ func findCandidatesFromSitemaps(ctx context.Context, c fetch.Client, u *url.URL,
 			}
 		}
 		if o.Security.Robots {
-			allowed, err := o.Security.RobotsChecker.Check(ctx, "symfetch", smURL)
+			allowed, err := o.Security.RobotsChecker.Check(ctx, ua, smURL)
 			if err != nil {
 				slog.Debug("sitemap robots check error", "url", smURL, "error", err)
 				continue
