@@ -188,7 +188,7 @@ func TestBatchJSONItemDecodesEnvelope(t *testing.T) {
 	if !ok {
 		t.Fatalf("data = %#v, want decoded JSON object", report.Results[0].Data)
 	}
-	if payload["tool"] != "symbrowse" || payload["schema_version"] != float64(1) {
+	if payload["tool"] != "symbrowse" || payload["schema_version"] != float64(2) {
 		t.Fatalf("payload = %#v", payload)
 	}
 }

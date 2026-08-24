@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- **`--json` output is now the unified envelope** (`{success, data, warnings}`)
+  instead of raw JSON payloads. All commands that previously emitted raw JSON
+  via a local `--json` flag now route through the root persistent `--json`
+  flag and the shared output envelope. `version --json` is unchanged
+  (versionkit handshake). SchemaVersion bumped from 1 to 2 in
+  `internal/version`.
+
 ### Changed
 
 - Memoize state encryption key resolution and add unencrypted metadata header to state files (schema version 2) (#193)
+- Bump symaira-corekit from v0.9.1 to v0.11.0 (#214)
 
 ## [v0.1.1] - 2026-08-12
 
