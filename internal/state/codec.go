@@ -35,7 +35,10 @@ func (s *Store) encode(st *State) ([]byte, error) {
 		return nil, err
 	}
 
-	out := make([]byte, 0, len(fileMagic)+len(headerBytes)+1+len(body))
+	// Append into a growing buffer rather than pre-computing a combined
+	// capacity: the sum can overflow int for adversarially large bodies and
+	// CodeQL rightly flags that. Growth cost here is negligible.
+	var out []byte
 	out = append(out, fileMagic...)
 	out = append(out, headerBytes...)
 	out = append(out, '\n')
