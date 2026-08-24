@@ -51,7 +51,7 @@ func responseError(response daemon.Response) error {
 	if !output.IsValid(response.Error.Code) {
 		code = output.CodeInternal
 	}
-	wrapped := exitcodes.Wrapf(nil, output.ExitCodeFromCode(code), output.KindFromCode(code), "%s", response.Error.Message)
+	wrapped := exitcodes.Wrapf(response.Error, output.ExitCodeFromCode(code), output.KindFromCode(code), "%s", response.Error.Message)
 	if response.Error.Hint != "" {
 		wrapped.Hint = response.Error.Hint
 	}

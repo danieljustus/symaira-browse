@@ -60,7 +60,7 @@ Konvention (`internal/exitcodes`); die Zuordnung `code → exit code` steht in
 ## Regeln
 
 1. Jeder Fehlerpfad liefert einen Code aus diesem Enum (`output.IsValid`).
-2. Fehler aus dem Daemon-Protokoll behalten ihren stabilen Code (`daemon.Error`).
+2. Fehler aus dem Daemon-Protokoll und Client-Transportfehler behalten ihren stabilen Code (`daemon.Error`, `daemon.TransportError`).
 3. `internal` ist der dokumentierte Fallback für nicht klassifizierte Fehler —
    es ist selbst ein Enum-Mitglied, kein freier String.
 4. `details` (optional) trägt maschinenlesbaren Zusatzkontext.
