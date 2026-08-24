@@ -55,4 +55,3 @@ Menüs) — deshalb ist `hidden_text` nur `medium` und der Scan abschaltbar.
 - Farbvergleich: Hex und eine kleine Named-Color-Menge; `rgb()/hsl()` und
   vererbte Hintergründe werden nicht aufgelöst.
 - Der Scan läuft im Daemon auf dem Snapshot-Erfassungspfad (`internal/daemon/capture_frames.go`), sodass Snapshot-Baum und Warnungen in einem einzigen Frame zurückgegeben werden und MCP-Tools wie CLI-Aufrufe die Warnungen direkt erhalten.
-

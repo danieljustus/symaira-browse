@@ -77,4 +77,3 @@ CGO_ENABLED=0 go test -bench=BenchmarkScan -benchmem -count=1 ./internal/injecti
 | After (compiled-once cached matcher) | ~4,140,000 ns/op (4.14 ms) | 1,767,932 B/op (1.77 MB) | 88,871 allocs/op |
 
 The compiled pattern matcher evaluates all candidate injection phrases in a single traversal pass while avoiding redundant pattern file reading and parsing across subsequent scan invocations.
-
