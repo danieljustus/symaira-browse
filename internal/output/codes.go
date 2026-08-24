@@ -177,6 +177,58 @@ type codedError interface {
 	ErrorCode() string
 }
 
+type hinter interface {
+	Hint() string
+}
+
+type errorHinter interface {
+	ErrorHint() string
+}
+
+type detailer interface {
+	Details() map[string]any
+}
+
+type errorDetailer interface {
+	ErrorDetails() map[string]any
+}
+
+func extractHint(err error) string {
+	var eh errorHinter
+	if errors.As(err, &eh) {
+		if h := eh.ErrorHint(); h != "" {
+			return h
+		}
+	}
+	var h hinter
+	if errors.As(err, &h) {
+		if hint := h.Hint(); hint != "" {
+			return hint
+		}
+	}
+	var cliErr *exitcodes.CLIError
+	if errors.As(err, &cliErr) {
+		return cliErr.Hint
+	}
+	return ""
+}
+
+func extractDetails(err error) map[string]any {
+	var ed errorDetailer
+	if errors.As(err, &ed) {
+		if d := ed.ErrorDetails(); len(d) > 0 {
+			return d
+		}
+	}
+	var d detailer
+	if errors.As(err, &d) {
+		if details := d.Details(); len(details) > 0 {
+			return details
+		}
+	}
+	return nil
+}
+
 // FromError converts any error into the unified error payload. The code is
 // derived from the most specific classification available: a corekit CLIError
 // kind, a structured hard-stop error, a protocol error code, or the internal
@@ -185,14 +237,6 @@ func FromError(err error) *Error {
 	if err == nil {
 		return nil
 	}
-	var cliErr *exitcodes.CLIError
-	if errors.As(err, &cliErr) {
-		return &Error{
-			Code:    string(codeFromKind(cliErr.Kind)),
-			Message: cliErr.Message,
-			Hint:    cliErr.Hint,
-		}
-	}
 	var metadata metadataError
 	if errors.As(err, &metadata) {
 		retryable := metadata.RetryableError()
@@ -200,6 +244,8 @@ func FromError(err error) *Error {
 		return &Error{
 			Code:                     metadata.ErrorCode(),
 			Message:                  err.Error(),
+			Hint:                     extractHint(err),
+			Details:                  extractDetails(err),
 			Retryable:                &retryable,
 			RequiresUserConfirmation: &requiresConfirmation,
 			ResumeHint:               metadata.ResumeGuidance(),
@@ -209,7 +255,20 @@ func FromError(err error) *Error {
 	if errors.As(err, &coded) {
 		code := coded.ErrorCode()
 		if IsValid(code) {
-			return &Error{Code: code, Message: err.Error()}
+			return &Error{
+				Code:    code,
+				Message: err.Error(),
+				Hint:    extractHint(err),
+				Details: extractDetails(err),
+			}
+		}
+	}
+	var cliErr *exitcodes.CLIError
+	if errors.As(err, &cliErr) {
+		return &Error{
+			Code:    string(codeFromKind(cliErr.Kind)),
+			Message: cliErr.Message,
+			Hint:    cliErr.Hint,
 		}
 	}
 	return &Error{Code: string(CodeInternal), Message: fmt.Sprintf("%v", err)}

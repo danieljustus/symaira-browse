@@ -175,3 +175,47 @@ func TestHardStopErrorEnvelopeCarriesResumeContract(t *testing.T) {
 		t.Fatalf("hard-stop metadata = %#v", payload.Error)
 	}
 }
+
+func TestFromErrorPreservesTransportError(t *testing.T) {
+	terr := &daemon.TransportError{
+		Code:    daemon.ErrorDaemonUnavailable,
+		Message: `daemon is unavailable for session "default"`,
+		Hint:    "start daemon with 'symbrowse daemon --session default' (autostart disabled via SYMBROWSE_NO_AUTOSTART)",
+		Details: map[string]any{"session": "default", "socket_path": "/path/to/sock"},
+	}
+	payload := FromError(terr)
+	if payload.Code != string(CodeDaemonUnavailable) {
+		t.Fatalf("code = %q, want %q", payload.Code, CodeDaemonUnavailable)
+	}
+	if payload.Message != `daemon is unavailable for session "default"` {
+		t.Fatalf("message = %q", payload.Message)
+	}
+	if payload.Hint != "start daemon with 'symbrowse daemon --session default' (autostart disabled via SYMBROWSE_NO_AUTOSTART)" {
+		t.Fatalf("hint = %q", payload.Hint)
+	}
+	if payload.Details == nil || payload.Details["socket_path"] != "/path/to/sock" {
+		t.Fatalf("details = %#v", payload.Details)
+	}
+}
+
+func TestFromErrorPreservesDaemonErrorHintAndDetails(t *testing.T) {
+	derr := &daemon.Error{
+		Code:    daemon.ErrorOperationTimeout,
+		Message: "daemon operation timed out",
+		Hint:    "increase timeout with SYMBROWSE_READ_TIMEOUT",
+		Details: map[string]any{"session": "default"},
+	}
+	payload := FromError(derr)
+	if payload.Code != string(CodeOperationTimeout) {
+		t.Fatalf("code = %q, want %q", payload.Code, CodeOperationTimeout)
+	}
+	if payload.Message != "daemon operation timed out" {
+		t.Fatalf("message = %q", payload.Message)
+	}
+	if payload.Hint != "increase timeout with SYMBROWSE_READ_TIMEOUT" {
+		t.Fatalf("hint = %q", payload.Hint)
+	}
+	if payload.Details == nil || payload.Details["session"] != "default" {
+		t.Fatalf("details = %#v", payload.Details)
+	}
+}
