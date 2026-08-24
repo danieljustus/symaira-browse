@@ -22,10 +22,21 @@ func newSnapshotCommand() *cobra.Command {
 		Short: "Render the accessibility tree",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			options := engine.SnapshotOptions{Interactive: interactive, Compact: compact, Depth: depth, Selector: selector, URLs: urls, Diff: diff || since != "", Since: since}
-			args, err := json.Marshal(options)
+			request := struct {
+				engine.SnapshotOptions
+				NoInjectionScan   bool   `json:"no_injection_scan,omitempty"`
+				InjectionPatterns string `json:"injection_patterns,omitempty"`
+			}{
+				SnapshotOptions:   engine.SnapshotOptions{Interactive: interactive, Compact: compact, Depth: depth, Selector: selector, URLs: urls, Diff: diff || since != "", Since: since},
+				NoInjectionScan:   noInjectionScan,
+				InjectionPatterns: patternsFile,
+			}
+			args, err := json.Marshal(request)
 			if err != nil {
 				return err
+			}
+			if noInjectionScan {
+				slog.Warn("injection scan disabled by --no-injection-scan; page output is not checked for prompt-injection vectors")
 			}
 			response, err := requestBudget(cmd.Context(), session, "snapshot", args, maxTokensFlag(cmd))
 			if err != nil {
@@ -33,18 +44,6 @@ func newSnapshotCommand() *cobra.Command {
 			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if !noInjectionScan {
-				scanWarnings, scanErr := runInjectionScan(cmd, session, patternsFile)
-				if scanErr != nil {
-					// A scan failure must not fail the snapshot; it is
-					// reported as a warning so the page output survives.
-					response.Warnings = append(response.Warnings, daemon.Warning{Kind: "injection_scan", Severity: "warning", Message: "injection scan failed: " + scanErr.Error()})
-				} else {
-					response.Warnings = append(response.Warnings, scanWarnings...)
-				}
-			} else {
-				slog.Warn("injection scan disabled by --no-injection-scan; page output is not checked for prompt-injection vectors")
 			}
 			if contentBoundaries && !jsonOutputFlag(cmd) {
 				origin, originErr := currentPageOrigin(cmd.Context(), session)
@@ -74,75 +73,6 @@ func newSnapshotCommand() *cobra.Command {
 	command.Flags().StringVar(&patternsFile, "injection-patterns", "", "custom prompt-injection pattern file (one phrase per line; replaces the embedded multilingual list)")
 	command.Flags().Int("max-tokens", 0, "token budget for the payload; oversized output is truncated and stored in the cache (0 = no limit)")
 	return command
-}
-
-// runInjectionScan fetches the page HTML and runs the heuristic scan. The
-// results are protocol warnings carrying kind, severity, ref, and excerpt.
-func runInjectionScan(cmd *cobra.Command, session, patternsFile string) ([]daemon.Warning, error) {
-	html, err := fetchPageHTML(cmd.Context(), session)
-	if err != nil {
-		return nil, err
-	}
-	scanWarnings, err := injection.Scan(html, injection.ScanOptions{PatternsFile: patternsFile})
-	if err != nil {
-		return nil, err
-	}
-	warnings := make([]daemon.Warning, 0, len(scanWarnings))
-	for _, warning := range scanWarnings {
-		warnings = append(warnings, daemon.Warning{
-			Kind:     warning.Kind,
-			Severity: warning.Severity,
-			Message:  injectionMessage(warning),
-			Ref:      warning.Ref,
-			Excerpt:  warning.Excerpt,
-		})
-	}
-	return warnings, nil
-}
-
-// injectionMessage renders a human-readable message for one detection.
-func injectionMessage(warning injection.ScanWarning) string {
-	switch warning.Kind {
-	case injection.KindHiddenText:
-		return "hidden text detected on " + warning.Ref
-	case injection.KindImperative:
-		return "agent-directed instruction detected on " + warning.Ref
-	case injection.KindAriaMismatch:
-		return "accessible-name mismatch on " + warning.Ref
-	case injection.KindAttribute:
-		return "instruction hidden in an attribute on " + warning.Ref
-	case injection.KindComment:
-		return "instruction hidden in an HTML comment"
-	case injection.KindMeta:
-		return "instruction hidden in meta content"
-	}
-	return "prompt-injection heuristic warning on " + warning.Ref
-}
-
-// fetchPageHTML reads the current page HTML from the daemon.
-func fetchPageHTML(ctx context.Context, session string) (string, error) {
-	response, err := request(ctx, session, "get.html", nil)
-	if err != nil {
-		return "", err
-	}
-	if !response.Success {
-		return "", responseError(response)
-	}
-	raw, err := json.Marshal(response.Data)
-	if err != nil {
-		return "", err
-	}
-	var result struct {
-		Value json.RawMessage `json:"value"`
-	}
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return "", err
-	}
-	var html string
-	if err := json.Unmarshal(result.Value, &html); err != nil {
-		return "", err
-	}
-	return html, nil
 }
 
 // currentPageOrigin fetches the current page URL from the daemon for use as

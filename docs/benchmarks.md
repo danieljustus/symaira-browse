@@ -58,3 +58,22 @@ and payload sizing without requiring Chrome or CGO. It does not measure CDP
 latency, Chrome's accessibility-tree generation, or a particular LLM tokenizer.
 A future Chrome-backed benchmark can reuse the same result schema and thresholds
 when a hermetic browser is available in CI.
+
+## Prompt injection scan benchmark
+
+Issue #192 measures the execution time and allocation overhead of `injection.Scan` over a large HTML fixture (~100 KB, ~500 DOM elements) before and after compiling the pattern list into a single compiled matcher and caching the parsed pattern sets.
+
+### Reproduce
+
+```text
+CGO_ENABLED=0 go test -bench=BenchmarkScan -benchmem -count=1 ./internal/injection
+```
+
+### Measurements
+
+| Implementation | Latency (ns/op) | Memory (B/op) | Allocations (allocs/op) |
+|---|---:|---:|---:|
+| Before (linear pattern loop, parsed per scan) | ~4,700,000 ns/op (4.70 ms) | 1,783,724 B/op (1.78 MB) | 89,092 allocs/op |
+| After (compiled-once cached matcher) | ~4,140,000 ns/op (4.14 ms) | 1,767,932 B/op (1.77 MB) | 88,871 allocs/op |
+
+The compiled pattern matcher evaluates all candidate injection phrases in a single traversal pass while avoiding redundant pattern file reading and parsing across subsequent scan invocations.

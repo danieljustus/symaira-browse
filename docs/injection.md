@@ -54,6 +54,4 @@ Menüs) — deshalb ist `hidden_text` nur `medium` und der Scan abschaltbar.
   Fremd-Origins nicht.
 - Farbvergleich: Hex und eine kleine Named-Color-Menge; `rgb()/hsl()` und
   vererbte Hintergründe werden nicht aufgelöst.
-- Der Scan läuft CLI-seitig auf dem Snapshot-Pfad. Die MCP-Tools erben den
-  Scan, sobald die MCP- und die Injection-Welle gemergt sind (Follow-up auf
-  dem MCP-Pfad).
+- Der Scan läuft im Daemon auf dem Snapshot-Erfassungspfad (`internal/daemon/capture_frames.go`), sodass Snapshot-Baum und Warnungen in einem einzigen Frame zurückgegeben werden und MCP-Tools wie CLI-Aufrufe die Warnungen direkt erhalten.
