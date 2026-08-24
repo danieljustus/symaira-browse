@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.2.2] - 2026-08-24
+
+### Fixed
+
+- symguard delegation now speaks the guard's stdin JSON contract with risk-level
+  mapping (`read`→low … `eval`/`credential`→critical); daemon commands are no
+  longer denied with "decide: empty request" when symguard is installed (#234)
+- `tab`/`frame`/`dialog`/`a11y` commands resolve the daemon socket path first and
+  reach a running daemon instead of failing with "socket path is required" (#235)
+- Release workflow: removed the raw-binary DMG step (CLI ships via tar.gz +
+  Homebrew) (#232)
+- Release workflow: a pre-existing release for the tag is reset before
+  GoReleaser republishes, so re-runs no longer fail with 422 already_exists (#233)
+
 ## [v0.2.1] - 2026-08-24
 
 ### Fixed
@@ -126,6 +140,9 @@ Initial release of `symbrowse`, the agent-operable browser automation CLI.
   badges, go install quickstart, issue forms and PR template, Apache-2.0
   LICENSE (#106, #124, #140, #139, #120)
 
-[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.2.2...HEAD
+[v0.2.2]: https://github.com/danieljustus/symaira-browse/compare/v0.2.1...v0.2.2
+[v0.2.1]: https://github.com/danieljustus/symaira-browse/compare/v0.2.0...v0.2.1
+[v0.2.0]: https://github.com/danieljustus/symaira-browse/compare/v0.1.1...v0.2.0
 [v0.1.1]: https://github.com/danieljustus/symaira-browse/compare/v0.1.0...v0.1.1
 [v0.1.0]: https://github.com/danieljustus/symaira-browse/releases/tag/v0.1.0
