@@ -10,9 +10,10 @@ import (
 func newAuthCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "auth",
-		Short: "Credential management through symvault (no plaintext)",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "auth",
+		Short:   "Credential management through symvault (no plaintext)",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newAuthLoginCommand(&session))

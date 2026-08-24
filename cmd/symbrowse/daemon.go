@@ -31,9 +31,10 @@ func newDaemonCommand() *cobra.Command {
 	var ssrf, allowPrivate, headless bool
 	var engineKind string
 	command := &cobra.Command{
-		Use:   "daemon",
-		Short: "Run or inspect the symbrowse daemon",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDDebug,
+		Use:     "daemon",
+		Short:   "Run or inspect the symbrowse daemon",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runDaemon(cmd, session)
 

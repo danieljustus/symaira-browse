@@ -12,9 +12,10 @@ import (
 func newSessionCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "session",
-		Short: "Inspect browser sessions",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "session",
+		Short:   "Inspect browser sessions",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newSessionListCommand(&session))

@@ -11,9 +11,10 @@ func newHandoffCommand() *cobra.Command {
 	var session, timeout string
 	var jsonOutput bool
 	command := &cobra.Command{
-		Use:   "handoff --reason <text>",
-		Short: "Hand the session over to the human without losing it (2FA, CAPTCHA, approval)",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "handoff --reason <text>",
+		Short:   "Hand the session over to the human without losing it (2FA, CAPTCHA, approval)",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			reason, _ := cmd.Flags().GetString("reason")
 			if reason == "" {

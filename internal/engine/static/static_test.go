@@ -363,7 +363,7 @@ func TestStaticEngineUserAgentPropagated(t *testing.T) {
 	}
 }
 
-func TestStaticEnginePipelineCache(t *testing.T) {
+func TestStaticEngineAlwaysMaterializesDespiteCacheOptions(t *testing.T) {
 	fetchCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fetchCount++
@@ -371,10 +371,9 @@ func TestStaticEnginePipelineCache(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	tempDir := t.TempDir()
 	e := NewWithGuard(GuardOptions{
 		AllowPrivate: true,
-		CacheDir:     tempDir,
+		CacheDir:     t.TempDir(),
 	})
 	defer func() { _ = e.Close() }()
 
@@ -387,13 +386,29 @@ func TestStaticEnginePipelineCache(t *testing.T) {
 		t.Fatalf("fetchCount = %d, want 1", fetchCount)
 	}
 
-	// Second fetch: served from cache
+	// Second fetch: served fresh (the engine disables the pipeline response
+	// cache because a cached result would skip Materialize).
 	_, err = e.Navigate(context.Background(), engine.Page{}, server.URL)
 	if err != nil {
 		t.Fatalf("second navigate: %v", err)
 	}
-	if fetchCount != 1 {
-		t.Fatalf("fetchCount after second navigate = %d, want 1 (cache hit)", fetchCount)
+	if fetchCount != 2 {
+		t.Fatalf("fetchCount after second navigate = %d, want 2 (response cache disabled)", fetchCount)
+	}
+	// Cache options must not suppress materialization: the engine needs its
+	// own DOM for every navigation so later inspections work.
+	if _, err = e.Navigate(context.Background(), engine.Page{}, server.URL); err != nil {
+		t.Fatalf("third navigate: %v", err)
+	}
+	if fetchCount != 3 {
+		t.Fatalf("fetchCount after third navigate = %d, want 3 (no response cache)", fetchCount)
+	}
+	state, err := e.NavigationState(context.Background(), engine.Page{})
+	if err != nil {
+		t.Fatalf("navigation state: %v", err)
+	}
+	if state.URL == "" || state.HTTPStatus != 200 {
+		t.Fatalf("state = %+v", state)
 	}
 }
 

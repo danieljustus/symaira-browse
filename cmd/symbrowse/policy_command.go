@@ -10,9 +10,10 @@ import (
 func newPolicyCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "policy",
-		Short: "Inspect the local risk policy",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDDebug,
+		Use:     "policy",
+		Short:   "Inspect the local risk policy",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newPolicyExplainCommand(&session))

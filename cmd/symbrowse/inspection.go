@@ -18,7 +18,11 @@ func newInspectionCommands() []*cobra.Command {
 
 func newGetCommand() *cobra.Command {
 	var session string
-	command := &cobra.Command{Use: "get", Short: "Inspect page and element values"}
+	command := &cobra.Command{
+		GroupID: groupIDCore,
+		Use:     "get",
+		Short:   "Inspect page and element values",
+	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.PersistentFlags().Int("max-tokens", 0, "token budget for the payload; oversized output is truncated and stored in the cache (0 = no limit)")
 	for _, kind := range []engine.InspectionKind{engine.InspectText, engine.InspectHTML, engine.InspectValue, engine.InspectAttr, engine.InspectTitle, engine.InspectURL, engine.InspectCount, engine.InspectBox, engine.InspectStyles} {
@@ -29,7 +33,11 @@ func newGetCommand() *cobra.Command {
 
 func newIsCommand() *cobra.Command {
 	var session string
-	command := &cobra.Command{Use: "is", Short: "Check page and element state"}
+	command := &cobra.Command{
+		GroupID: groupIDCore,
+		Use:     "is",
+		Short:   "Check page and element state",
+	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	for _, kind := range []engine.InspectionKind{engine.InspectVisible, engine.InspectEnabled, engine.InspectChecked} {
 		command.AddCommand(newInspectionLeafCommand("is", kind, &session, true))

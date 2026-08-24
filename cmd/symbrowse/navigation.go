@@ -14,6 +14,23 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/exitcodes"
 )
 
+func navigationShort(name string) string {
+	switch name {
+	case "open":
+		return "Open a URL in the browser and wait for load"
+	case "goto":
+		return "Navigate to a URL (alias for open)"
+	case "back":
+		return "Navigate back in page history"
+	case "forward":
+		return "Navigate forward in page history"
+	case "reload":
+		return "Reload the current page"
+	default:
+		return "Navigate the browser"
+	}
+}
+
 func newNavigationCommands() []*cobra.Command {
 	return []*cobra.Command{
 		newNavigateCommand("open"),
@@ -27,23 +44,33 @@ func newNavigationCommands() []*cobra.Command {
 
 func newNavigateCommand(name string) *cobra.Command {
 	var session string
-	command := &cobra.Command{Use: name + " [url]", Short: "Navigate the browser", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if (name == "open" || name == "goto") && len(args) != 1 {
-			return exitcodes.Wrapf(nil, exitcodes.ExitNoInput, exitcodes.KindValidation, "navigation URL is required")
-		}
-		if name != "open" && name != "goto" && len(args) != 0 {
-			return exitcodes.Wrapf(nil, exitcodes.ExitNoInput, exitcodes.KindValidation, "this navigation command does not accept arguments")
-		}
-		var raw json.RawMessage
-		if len(args) == 1 {
-			raw, _ = json.Marshal(map[string]string{"url": args[0]})
-		}
-		response, err := navigationRequest(cmd.Context(), session, name, raw)
-		if err != nil {
-			return err
-		}
-		return writeDaemonResponse(cmd, response, false)
-	}}
+	groupID := groupIDNav
+	if name == "open" || name == "goto" {
+		groupID = groupIDCore
+	}
+	command := &cobra.Command{
+		GroupID: groupID,
+		Use:     name + " [url]",
+		Short:   navigationShort(name),
+		Args:    cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if (name == "open" || name == "goto") && len(args) != 1 {
+				return exitcodes.Wrapf(nil, exitcodes.ExitNoInput, exitcodes.KindValidation, "navigation URL is required")
+			}
+			if name != "open" && name != "goto" && len(args) != 0 {
+				return exitcodes.Wrapf(nil, exitcodes.ExitNoInput, exitcodes.KindValidation, "this navigation command does not accept arguments")
+			}
+			var raw json.RawMessage
+			if len(args) == 1 {
+				raw, _ = json.Marshal(map[string]string{"url": args[0]})
+			}
+			response, err := navigationRequest(cmd.Context(), session, name, raw)
+			if err != nil {
+				return err
+			}
+			return writeDaemonResponse(cmd, response, false)
+		},
+	}
 	command.Flags().StringVar(&session, "session", "default", "session name")
 	return command
 }
@@ -51,21 +78,24 @@ func newNavigateCommand(name string) *cobra.Command {
 func newWaitCommand() *cobra.Command {
 	var session, textValue, urlValue, loadValue, state string
 	var milliseconds int64
-	command := &cobra.Command{Use: "wait [selector]", Short: "Wait for a browser condition", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		condition, err := waitConditionFromFlags(args, milliseconds, textValue, urlValue, loadValue, state)
-		if err != nil {
-			return err
-		}
-		raw, err := json.Marshal(condition)
-		if err != nil {
-			return err
-		}
-		response, err := navigationRequest(cmd.Context(), session, "wait", raw)
-		if err != nil {
-			return err
-		}
-		return writeDaemonResponse(cmd, response, false)
-	}}
+	command := &cobra.Command{
+		GroupID: groupIDCore,
+		Use:     "wait [selector]",
+		Short:   "Wait for a browser condition", Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+			condition, err := waitConditionFromFlags(args, milliseconds, textValue, urlValue, loadValue, state)
+			if err != nil {
+				return err
+			}
+			raw, err := json.Marshal(condition)
+			if err != nil {
+				return err
+			}
+			response, err := navigationRequest(cmd.Context(), session, "wait", raw)
+			if err != nil {
+				return err
+			}
+			return writeDaemonResponse(cmd, response, false)
+		}}
 	command.Flags().StringVar(&session, "session", "default", "session name")
 	command.Flags().Int64Var(&milliseconds, "ms", 0, "wait for milliseconds")
 	command.Flags().StringVar(&textValue, "text", "", "wait for text")

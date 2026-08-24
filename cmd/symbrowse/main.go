@@ -18,6 +18,15 @@ import (
 	symversion "github.com/danieljustus/symaira-browse/internal/version"
 )
 
+const (
+	groupIDCore    = "core"
+	groupIDNav     = "nav"
+	groupIDState   = "state"
+	groupIDNetwork = "network"
+	groupIDDebug   = "debug"
+	groupIDFlows   = "flows"
+)
+
 // version is replaced at build time by the Makefile's VERSION value.
 var version = "dev"
 
@@ -30,6 +39,14 @@ func newRootCommand() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.AddGroup(
+		&cobra.Group{ID: groupIDCore, Title: "Core Commands:"},
+		&cobra.Group{ID: groupIDNav, Title: "Navigation Commands:"},
+		&cobra.Group{ID: groupIDState, Title: "State Commands:"},
+		&cobra.Group{ID: groupIDNetwork, Title: "Network Commands:"},
+		&cobra.Group{ID: groupIDDebug, Title: "Debug Commands:"},
+		&cobra.Group{ID: groupIDFlows, Title: "Flows Commands:"},
+	)
 	// The global --json flag switches every command to the unified
 	// machine-readable output envelope (docs/errors.md, internal/output).
 	root.PersistentFlags().Bool("json", false, "print the unified machine-readable output envelope")
@@ -85,9 +102,10 @@ func newRootCommand() *cobra.Command {
 
 func newVersionCommand() *cobra.Command {
 	command := &cobra.Command{
-		Use:   "version",
-		Short: "Print the symbrowse version",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDDebug,
+		Use:     "version",
+		Short:   "Print the symbrowse version",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			// version --json is the versionkit handshake payload
 			// ({tool, version, schema_version}) consumed by GUI clients
@@ -151,7 +169,11 @@ func newConfigCommand() *cobra.Command {
 	show.Flags().StringVar(&stateDir, "state-dir", "", "override the state directory")
 	show.Flags().StringVar(&executablePath, "executable-path", "", "override the browser executable path")
 
-	command := &cobra.Command{Use: "config", Short: "Inspect symbrowse configuration"}
+	command := &cobra.Command{
+		GroupID: groupIDDebug,
+		Use:     "config",
+		Short:   "Inspect symbrowse configuration",
+	}
 	command.AddCommand(show)
 	return command
 }
@@ -159,9 +181,10 @@ func newConfigCommand() *cobra.Command {
 func newDoctorCommand() *cobra.Command {
 	var fix bool
 	command := &cobra.Command{
-		Use:   "doctor",
-		Short: "Check browser discovery and local runtime prerequisites",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDDebug,
+		Use:     "doctor",
+		Short:   "Check browser discovery and local runtime prerequisites",
+		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load()
 			if err != nil {

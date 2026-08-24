@@ -22,9 +22,10 @@ func newStateCommands() []*cobra.Command {
 func newCookiesCommand() *cobra.Command {
 	var session, reveal string
 	command := &cobra.Command{
-		Use:   "cookies",
-		Short: "Inspect and manage cookies of the current page origin",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "cookies",
+		Short:   "Inspect and manage cookies of the current page origin",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.PersistentFlags().StringVar(&reveal, "reveal", "", "show cookie values (default: masked); accepts a comma-separated allowlist of cookie names or \"all\"")
@@ -135,9 +136,10 @@ func newCookiesClearCommand(session *string) *cobra.Command {
 func newStorageCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "storage",
-		Short: "Inspect and manage per-origin web storage",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "storage",
+		Short:   "Inspect and manage per-origin web storage",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newStorageGetCommand(&session))

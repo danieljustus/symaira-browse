@@ -12,9 +12,10 @@ import (
 func newEvalCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "eval <expression>",
-		Short: "Execute JavaScript in the active page (issue #60)",
-		Args:  cobra.ArbitraryArgs,
+		GroupID: groupIDDebug,
+		Use:     "eval <expression>",
+		Short:   "Execute JavaScript in the active page (issue #60)",
+		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			expression, err := evalExpression(cmd, args)
 			if err != nil {

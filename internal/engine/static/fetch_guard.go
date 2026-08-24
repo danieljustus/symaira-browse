@@ -83,7 +83,12 @@ func (g GuardOptions) pipelineOptions() pipeline.Options {
 			IncludeLinks: g.IncludeLinks,
 		},
 		Cache: pipeline.CacheOptions{
-			NoCache:  g.NoCache,
+			// A cache hit returns early without calling Materialize, so the
+			// engine would keep a nil DOM and every subsequent inspection
+			// would fail with "no page loaded". The static engine must always
+			// materialize its own document, therefore the pipeline response
+			// cache stays off for engine navigation regardless of options.
+			NoCache:  true,
 			Dir:      g.CacheDir,
 			TTL:      g.CacheTTL,
 			MaxSize:  g.CacheMaxSize,

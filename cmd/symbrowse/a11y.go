@@ -14,9 +14,10 @@ func newA11yCommand() *cobra.Command {
 	var selector string
 	var session string
 	command := &cobra.Command{
-		Use:   "a11y [url]",
-		Short: "Run an axe-core accessibility audit on the current page",
-		Args:  cobra.MaximumNArgs(1),
+		GroupID: groupIDDebug,
+		Use:     "a11y [url]",
+		Short:   "Run an axe-core accessibility audit on the current page",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var tagList []string
 			if strings.TrimSpace(tags) != "" {

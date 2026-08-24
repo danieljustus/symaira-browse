@@ -27,8 +27,9 @@ const (
 func newUpgradeCommand() *cobra.Command {
 	var checkOnly bool
 	command := &cobra.Command{
-		Use:   "upgrade",
-		Short: "Check for and apply symbrowse updates",
+		GroupID: groupIDDebug,
+		Use:     "upgrade",
+		Short:   "Check for and apply symbrowse updates",
 		Long: "upgrade checks GitHub for a newer release (cached for 24h), " +
 			"verifies the asset checksum (and cosign signature when available), " +
 			"and atomically replaces the running binary with backup and rollback. " +

@@ -38,8 +38,9 @@ func marshalArgs(args any) []byte {
 func newTabCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "tab",
-		Short: "Manage session tabs (list, new, switch, close)",
+		GroupID: groupIDNav,
+		Use:     "tab",
+		Short:   "Manage session tabs (list, new, switch, close)",
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
 
@@ -103,8 +104,9 @@ func newTabCommand() *cobra.Command {
 func newFrameCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "frame",
-		Short: "Address nested frames (tree, select, main)",
+		GroupID: groupIDNav,
+		Use:     "frame",
+		Short:   "Address nested frames (tree, select, main)",
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
 	tree := &cobra.Command{
@@ -138,8 +140,9 @@ func newFrameCommand() *cobra.Command {
 func newDialogCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "dialog",
-		Short: "Handle JavaScript dialogs (accept, dismiss, status, auto)",
+		GroupID: groupIDNav,
+		Use:     "dialog",
+		Short:   "Handle JavaScript dialogs (accept, dismiss, status, auto)",
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "daemon session name")
 	status := &cobra.Command{

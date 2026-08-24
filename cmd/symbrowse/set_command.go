@@ -14,9 +14,10 @@ import (
 func newSetCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
-		Use:   "set",
-		Short: "Apply session-wide emulation settings (viewport, device, geo, offline, headers, media, user-agent)",
-		Args:  cobra.NoArgs,
+		GroupID: groupIDState,
+		Use:     "set",
+		Short:   "Apply session-wide emulation settings (viewport, device, geo, offline, headers, media, user-agent)",
+		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.AddCommand(newSetViewportCommand(&session))

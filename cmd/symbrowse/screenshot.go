@@ -18,9 +18,10 @@ func newScreenshotCommand() *cobra.Command {
 	var selector, format, screenshotDir string
 	var quality int
 	command := &cobra.Command{
-		Use:   "screenshot [path]",
-		Short: "Capture the page (viewport, --full page, or --selector element)",
-		Args:  cobra.MaximumNArgs(1),
+		GroupID: groupIDCore,
+		Use:     "screenshot [path]",
+		Short:   "Capture the page (viewport, --full page, or --selector element)",
+		Args:    cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload := map[string]any{
 				"full":     full,
