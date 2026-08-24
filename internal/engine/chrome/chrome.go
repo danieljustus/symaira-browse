@@ -19,6 +19,7 @@ import (
 
 	cdproto "github.com/chromedp/cdproto"
 	"github.com/chromedp/cdproto/cdp"
+
 	"github.com/danieljustus/symaira-browse/internal/engine"
 )
 

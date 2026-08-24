@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sync"
-	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 )
@@ -44,26 +43,6 @@ func requestBudget(ctx context.Context, session, command string, args []byte, ma
 		Session:   session,
 		RequestID: nextRequestID(),
 		MaxTokens: maxTokens,
-	})
-}
-
-// requestWithTimeout is request with an explicit client timeout (used by
-// lifecycle commands that deliberately bypass autostart).
-func requestWithTimeout(ctx context.Context, session, command string, args []byte, timeout time.Duration) (daemon.Response, error) {
-	path, err := daemon.SocketPath(session)
-	if err != nil {
-		return daemon.Response{}, err
-	}
-	client := daemon.NewClient(daemon.ClientOptions{
-		SocketPath:     path,
-		Session:        session,
-		StartupTimeout: timeout,
-	})
-	return client.Request(ctx, daemon.Frame{
-		Cmd:       command,
-		Args:      args,
-		Session:   session,
-		RequestID: nextRequestID(),
 	})
 }
 

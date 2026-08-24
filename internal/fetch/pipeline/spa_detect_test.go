@@ -4,8 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danieljustus/symaira-browse/internal/fetch/semantic"
 	"golang.org/x/net/html"
+
+	"github.com/danieljustus/symaira-browse/internal/fetch/semantic"
 )
 
 func parseSPATestHTML(t *testing.T, h string) (*html.Node, []byte) {
