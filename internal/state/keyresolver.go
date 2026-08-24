@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 // EnvKeyName is the documented fallback environment variable. It must hold a
@@ -26,6 +27,8 @@ const (
 // KeyResolver resolves the state-encryption key in the fixed architecture
 // order: symvault (runtime detection), OS keychain, environment variable.
 // The lookup functions are fields so tests can inject fakes.
+// Resolution results are cached behind a mutex so providers are called at
+// most once per resolver lifetime unless Invalidate or Reset is called.
 type KeyResolver struct {
 	LookPath func(string) (string, error)
 	RunVault func(string, ...string) ([]byte, error)
@@ -33,6 +36,11 @@ type KeyResolver struct {
 	// (nil, false) when no item exists.
 	KeychainGet func(service, account string) ([]byte, bool, error)
 	Env         func(string) string
+
+	mu           sync.Mutex
+	resolved     bool
+	cachedKey    []byte
+	cachedSource KeySource
 }
 
 // NewKeyResolver creates a resolver with production lookups.
@@ -51,38 +59,87 @@ func runCommand(name string, args ...string) ([]byte, error) {
 
 // Key implements KeyProvider. It returns KeySourceNone with a nil key when no
 // source is configured so callers can fall back to plaintext.
+// Results are cached after the first successful resolution.
 func (r *KeyResolver) Key() ([]byte, KeySource, error) {
-	if key, err := r.vaultKey(); err != nil {
-		return nil, "", err
-	} else if key != nil {
-		return key, KeySourceVault, nil
-	}
-	if key, ok, err := r.KeychainGet(KeychainService, KeychainAccount); err != nil {
-		return nil, "", err
-	} else if ok {
-		return key, KeySourceKeychain, nil
-	}
-	if raw := r.Env(EnvKeyName); raw != "" {
-		key, err := parseHexKey(raw)
-		if err != nil {
-			return nil, "", fmt.Errorf("%s: %w", EnvKeyName, err)
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.resolved {
+		if r.cachedKey == nil {
+			return nil, r.cachedSource, nil
 		}
-		return key, KeySourceEnv, nil
+		return append([]byte(nil), r.cachedKey...), r.cachedSource, nil
 	}
-	return nil, KeySourceNone, nil
+	key, source, err := r.resolve()
+	if err != nil {
+		return nil, "", err
+	}
+	r.resolved = true
+	r.cachedKey = key
+	r.cachedSource = source
+	if key == nil {
+		return nil, source, nil
+	}
+	return append([]byte(nil), key...), source, nil
 }
 
 // Source reports which key source would currently be used, without exposing
-// the key itself.
+// the key itself. It uses the cached resolution if available.
 func (r *KeyResolver) Source() (KeySource, error) {
-	key, source, err := r.Key()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.resolved {
+		return r.cachedSource, nil
+	}
+	key, source, err := r.resolve()
 	if err != nil {
 		return "", err
 	}
-	if key == nil {
-		return KeySourceNone, nil
-	}
+	r.resolved = true
+	r.cachedKey = key
+	r.cachedSource = source
 	return source, nil
+}
+
+// Invalidate clears the cached key resolution so subsequent Key/Source calls
+// re-query the underlying key providers.
+func (r *KeyResolver) Invalidate() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.resolved = false
+	r.cachedKey = nil
+	r.cachedSource = ""
+}
+
+// Reset clears the cached key resolution; alias for Invalidate.
+func (r *KeyResolver) Reset() {
+	r.Invalidate()
+}
+
+func (r *KeyResolver) resolve() ([]byte, KeySource, error) {
+	if r.LookPath != nil && r.RunVault != nil {
+		if key, err := r.vaultKey(); err != nil {
+			return nil, "", err
+		} else if key != nil {
+			return key, KeySourceVault, nil
+		}
+	}
+	if r.KeychainGet != nil {
+		if key, ok, err := r.KeychainGet(KeychainService, KeychainAccount); err != nil {
+			return nil, "", err
+		} else if ok {
+			return key, KeySourceKeychain, nil
+		}
+	}
+	if r.Env != nil {
+		if raw := r.Env(EnvKeyName); raw != "" {
+			key, err := parseHexKey(raw)
+			if err != nil {
+				return nil, "", fmt.Errorf("%s: %w", EnvKeyName, err)
+			}
+			return key, KeySourceEnv, nil
+		}
+	}
+	return nil, KeySourceNone, nil
 }
 
 // vaultKey resolves the key from symvault when the binary is present and the

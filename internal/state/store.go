@@ -3,6 +3,7 @@
 package state
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,11 +19,22 @@ import (
 )
 
 // SchemaVersion is the stable version of the on-disk state schema.
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 // DefaultExpireDays is the retention window applied when
 // SYMBROWSE_STATE_EXPIRE_DAYS is unset or invalid.
 const DefaultExpireDays = 30
+
+// stateHeader is the unencrypted metadata header stored at the start of every
+// state file (after fileMagic). It contains retention and format metadata so
+// clean and expired checks can run without resolving keys or decrypting the body.
+// The header must never contain sensitive state values (cookies, storage).
+type stateHeader struct {
+	SchemaVersion int    `json:"schema_version"`
+	SavedAt       string `json:"saved_at"`
+	ExpiresAt     string `json:"expires_at"`
+	KeySource     string `json:"key_source,omitempty"`
+}
 
 // OriginState holds the session data for one origin. Storage is keyed per
 // origin so state can never leak across origins.
@@ -141,6 +153,9 @@ func (s *Store) Save(st *State) error {
 	now := s.now()
 	st.SavedAt = now.UTC().Format(time.RFC3339Nano)
 	st.ExpiresAt = now.Add(s.expireIn).UTC().Format(time.RFC3339Nano)
+	if st.KeySource == "" {
+		st.KeySource = string(s.KeySource())
+	}
 	if st.Origins == nil {
 		st.Origins = map[string]OriginState{}
 	}
@@ -174,6 +189,43 @@ func (s *Store) Load(name string) (*State, error) {
 	return st, nil
 }
 
+// readHeader reads the state metadata header without decrypting the payload.
+// For v2+ files, it parses the unencrypted header line. For legacy v1 files,
+// it delegates to decode (which decrypts).
+func (s *Store) readHeader(name string) (stateHeader, error) {
+	if err := ValidateName(name); err != nil {
+		return stateHeader{}, err
+	}
+	raw, err := os.ReadFile(s.path(name))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return stateHeader{}, fmt.Errorf("state %q not found", name)
+		}
+		return stateHeader{}, fmt.Errorf("read state %q: %w", name, err)
+	}
+	if !bytes.HasPrefix(raw, fileMagic) {
+		return stateHeader{}, fmt.Errorf("state %q: file is not a symbrowse state file", name)
+	}
+	data := raw[len(fileMagic):]
+	if newlineIdx := bytes.IndexByte(data, '\n'); newlineIdx != -1 {
+		var hdr stateHeader
+		if err := json.Unmarshal(data[:newlineIdx], &hdr); err == nil && hdr.SchemaVersion >= 2 {
+			return hdr, nil
+		}
+	}
+	// Legacy v1 or malformed file: delegate to decode to read metadata.
+	st, err := s.decode(raw)
+	if err != nil {
+		return stateHeader{}, fmt.Errorf("decode state %q: %w", name, err)
+	}
+	return stateHeader{
+		SchemaVersion: st.SchemaVersion,
+		SavedAt:       st.SavedAt,
+		ExpiresAt:     st.ExpiresAt,
+		KeySource:     st.KeySource,
+	}, nil
+}
+
 // List returns the names of all stored states, sorted for deterministic
 // output. Expired states are included so callers can report them.
 func (s *Store) List() ([]string, error) {
@@ -203,27 +255,29 @@ func (s *Store) Remove(name string) error {
 	return nil
 }
 
-// Clean removes states whose ExpiresAt lies before now. It returns the names
-// of the removed states.
+// Clean removes states whose ExpiresAt lies before now. It reads the
+// unencrypted header of each state file without resolving encryption keys.
+// Decryption failures and malformed files are returned as errors.
 func (s *Store) Clean() ([]string, error) {
-	return s.clean(func(st *State) bool {
-		expiresAt, err := time.Parse(time.RFC3339Nano, st.ExpiresAt)
+	now := s.now()
+	return s.clean(func(hdr stateHeader) bool {
+		expiresAt, err := time.Parse(time.RFC3339Nano, hdr.ExpiresAt)
 		if err != nil {
 			return false
 		}
-		return expiresAt.Before(s.now())
+		return expiresAt.Before(now)
 	})
 }
 
 // CleanOlderThan removes states whose SavedAt is older than the given age.
-// It is the backing implementation of `state clean --older-than <tage>`.
+// It is the backing implementation of `state clean --older-than <days>`.
 func (s *Store) CleanOlderThan(age time.Duration) ([]string, error) {
 	if age <= 0 {
 		return nil, errors.New("age must be positive")
 	}
 	cutoff := s.now().Add(-age)
-	return s.clean(func(st *State) bool {
-		savedAt, err := time.Parse(time.RFC3339Nano, st.SavedAt)
+	return s.clean(func(hdr stateHeader) bool {
+		savedAt, err := time.Parse(time.RFC3339Nano, hdr.SavedAt)
 		if err != nil {
 			return false
 		}
@@ -231,27 +285,29 @@ func (s *Store) CleanOlderThan(age time.Duration) ([]string, error) {
 	})
 }
 
-func (s *Store) clean(expired func(*State) bool) ([]string, error) {
+func (s *Store) clean(expired func(stateHeader) bool) ([]string, error) {
 	names, err := s.List()
 	if err != nil {
 		return nil, err
 	}
 	var removed []string
 	for _, name := range names {
-		st, err := s.Load(name)
+		hdr, err := s.readHeader(name)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("clean state %q: %w", name, err)
 		}
-		if expired(st) {
-			if err := s.Remove(name); err == nil {
-				removed = append(removed, name)
+		if expired(hdr) {
+			if err := s.Remove(name); err != nil {
+				return nil, fmt.Errorf("remove state %q: %w", name, err)
 			}
+			removed = append(removed, name)
 		}
 	}
 	return removed, nil
 }
 
 // Expired returns the names of stored states that are already expired.
+// It reads unencrypted metadata headers without decrypting payloads.
 func (s *Store) Expired() ([]string, error) {
 	names, err := s.List()
 	if err != nil {
@@ -260,11 +316,11 @@ func (s *Store) Expired() ([]string, error) {
 	now := s.now()
 	var expired []string
 	for _, name := range names {
-		st, err := s.Load(name)
+		hdr, err := s.readHeader(name)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("check expired state %q: %w", name, err)
 		}
-		expiresAt, parseErr := time.Parse(time.RFC3339Nano, st.ExpiresAt)
+		expiresAt, parseErr := time.Parse(time.RFC3339Nano, hdr.ExpiresAt)
 		if parseErr != nil {
 			continue
 		}

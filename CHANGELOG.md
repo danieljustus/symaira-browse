@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Memoize state encryption key resolution and add unencrypted metadata header to state files (schema version 2) (#193)
+
 ## [v0.1.1] - 2026-08-12
 
 ### Security
