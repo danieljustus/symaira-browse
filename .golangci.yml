@@ -17,16 +17,5 @@ linters:
       - third_party$
       - builtin$
       - examples$
-formatters:
-  enable:
-    - goimports
-  settings:
-    goimports:
-      local-prefixes:
-        - github.com/danieljustus/symaira-browse
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
+# Formatting is enforced by make fmt-check with the repository's Go 1.26.5
+# toolchain. golangci-lint's goimports formatter may embed a newer gofmt.
