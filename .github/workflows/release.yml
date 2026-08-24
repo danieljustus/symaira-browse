@@ -70,27 +70,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
 
-      - name: Build and upload macOS DMG (Intel + Apple Silicon)
-        if: runner.os == 'macOS'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          VER="${GITHUB_REF_NAME#v}"
-          mkdir -p dist/dmg
-          # Copy macOS binaries from GoReleaser's dist output into the DMG staging dir
-          cp dist/symbrowse_darwin_amd64*/symbrowse dist/dmg/symbrowse-x86_64
-          cp dist/symbrowse_darwin_arm64*/symbrowse dist/dmg/symbrowse-aarch64
-          DMG_PATH="dist/symbrowse_${VER}_universal.dmg"
-          hdiutil create -volname "symbrowse ${VER}" -srcfolder dist/dmg -ov -format UDZO "$DMG_PATH"
-          echo "DMG created: $DMG_PATH"
-          ls -lh "$DMG_PATH"
-          # Upload DMG to the existing GitHub Release
-          gh release upload "v${VER}" "$DMG_PATH"
-          # Also compute and upload checksum
-          shasum -a 256 "$DMG_PATH" > "dist/${VER}_dmg_checksums.txt"
-          gh release upload "v${VER}" "dist/${VER}_dmg_checksums.txt"
-
       - name: Notarize macOS binaries
         if: steps.signing.outputs.signed == 'true'
         env:
