@@ -74,7 +74,7 @@ func writeFindResponse(cmd *cobra.Command, response daemon.Response) error {
 		return responseError(response)
 	}
 	if jsonOutputFlag(cmd) {
-		return writeDaemonResponse(cmd, response, false)
+		return writeDaemonResponse(cmd, response)
 	}
 	var result engine.FindResult
 	raw, err := json.Marshal(response.Data)

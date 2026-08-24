@@ -42,7 +42,7 @@ func newScreenshotCommand() *cobra.Command {
 				return responseError(response)
 			}
 			if jsonOutputFlag(cmd) {
-				return writeEnvelopeFromResponse(cmd, response, true)
+				return writeEnvelopeFromResponse(cmd, response)
 			}
 			result, _ := response.Data.(map[string]any)
 			path, _ := result["path"].(string)

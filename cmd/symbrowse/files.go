@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newUploadCommand() *cobra.Command {
@@ -31,6 +33,9 @@ func newUploadCommand() *cobra.Command {
 			}
 			if !response.Success {
 				return responseError(response)
+			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "uploaded %d file(s)\n", len(args)-1)
 			return err
@@ -68,11 +73,8 @@ func newDownloadsCommand() *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			jsonOutput, _ := cmd.Flags().GetBool("json")
-			if jsonOutput {
-				raw, _ := json.MarshalIndent(response.Data, "", "  ")
-				_, err := fmt.Fprintln(cmd.OutOrStdout(), string(raw))
-				return err
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payload, _ := response.Data.(map[string]any)
 			downloads, _ := payload["downloads"].([]any)
@@ -95,7 +97,6 @@ func newDownloadsCommand() *cobra.Command {
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.Flags().String("dir", "", "set the download directory first")
-	command.Flags().Bool("json", false, "print the raw JSON payload")
 	return command
 }
 
