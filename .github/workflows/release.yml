@@ -78,8 +78,9 @@ jobs:
           set -euo pipefail
           VER="${GITHUB_REF_NAME#v}"
           mkdir -p dist/dmg
-          cp dist/symbrowse_*_darwin_amd64/symbrowse dist/dmg/symbrowse-x86_64
-          cp dist/symbrowse_*_darwin_arm64/symbrowse dist/dmg/symbrowse-aarch64
+          # Copy macOS binaries from GoReleaser's dist output into the DMG staging dir
+          cp dist/symbrowse_darwin_amd64*/symbrowse dist/dmg/symbrowse-x86_64
+          cp dist/symbrowse_darwin_arm64*/symbrowse dist/dmg/symbrowse-aarch64
           DMG_PATH="dist/symbrowse_${VER}_universal.dmg"
           hdiutil create -volname "symbrowse ${VER}" -srcfolder dist/dmg -ov -format UDZO "$DMG_PATH"
           echo "DMG created: $DMG_PATH"
@@ -87,8 +88,8 @@ jobs:
           # Upload DMG to the existing GitHub Release
           gh release upload "v${VER}" "$DMG_PATH"
           # Also compute and upload checksum
-          shasum -a 256 "$DMG_PATH" > "dist/${{ github.ref_name }}_dmg_checksums.txt"
-          gh release upload "v${VER}" "dist/${{ github.ref_name }}_dmg_checksums.txt"
+          shasum -a 256 "$DMG_PATH" > "dist/${VER}_dmg_checksums.txt"
+          gh release upload "v${VER}" "dist/${VER}_dmg_checksums.txt"
 
       - name: Notarize macOS binaries
         if: steps.signing.outputs.signed == 'true'
