@@ -7,19 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Breaking
+## [v0.2.1] - 2026-08-24
 
-- **`--json` output is now the unified envelope** (`{success, data, warnings}`)
-  instead of raw JSON payloads. All commands that previously emitted raw JSON
-  via a local `--json` flag now route through the root persistent `--json`
-  flag and the shared output envelope. `version --json` is unchanged
-  (versionkit handshake). SchemaVersion bumped from 1 to 2 in
-  `internal/version`.
+### Fixed
 
-### Changed
+- Skip all POSIX permission-model tests on Windows — `os.Chmod(0500/0000)` does
+  not enforce read-only semantics on Windows ACLs. Skips added to 7 tests across
+  `internal/fetch/cache` and `internal/fetch/pipeline` (#216)
 
-- Memoize state encryption key resolution and add unencrypted metadata header to state files (schema version 2) (#193)
-- Bump symaira-corekit from v0.9.1 to v0.11.0 (#214)
+### Added
+
+- `.github/CODEOWNERS` for reviewer auto-routing (#223)
+- macOS universal `.dmg` build (Intel + Apple Silicon) in release workflow (#225)
 
 ## [v0.2.0] - 2026-08-24
 
@@ -36,15 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Memoize state encryption key resolution and add unencrypted metadata header to state files (schema version 2) (#193)
 - Bump symaira-corekit from v0.9.1 to v0.11.0 (#214)
-
-### Fixed
-
-- Skip POSIX permission-model tests on Windows (not enforced by Windows ACLs) (#216)
-
-### Added
-
-- Add `.github/CODEOWNERS` for reviewer auto-routing (#223)
-- Add macOS `.dmg` build step (universal Intel+Apple Silicon) to release workflow (#225)
 
 ## [v0.1.1] - 2026-08-12
 
