@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newHandoffCommand() *cobra.Command {
 	var session, timeout string
-	var jsonOutput bool
 	command := &cobra.Command{
 		GroupID: groupIDState,
 		Use:     "handoff --reason <text>",
@@ -32,8 +33,8 @@ func newHandoffCommand() *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			raw, _ := json.MarshalIndent(response.Data, "", "  ")
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
@@ -42,6 +43,5 @@ func newHandoffCommand() *cobra.Command {
 	}
 	command.Flags().StringVar(&session, "session", "default", "session name")
 	command.Flags().StringVar(&timeout, "timeout", "5m", "maximum wait before the handoff times out")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }

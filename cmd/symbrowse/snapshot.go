@@ -104,5 +104,5 @@ func currentPageOrigin(ctx context.Context, session string) (string, error) {
 }
 
 func writeSnapshotResponse(cmd *cobra.Command, response daemon.Response, _ bool) error {
-	return writeDaemonResponse(cmd, response, false)
+	return writeDaemonResponse(cmd, response)
 }

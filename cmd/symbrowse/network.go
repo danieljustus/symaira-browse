@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newNetworkCommand() *cobra.Command {
@@ -27,7 +29,6 @@ func newNetworkCommand() *cobra.Command {
 }
 
 func newNetworkRequestsCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	var filter, requestType, method string
 	var status int
 	command := &cobra.Command{
@@ -61,7 +62,7 @@ func newNetworkRequestsCommand(session *string) *cobra.Command {
 				}
 				filtered = append(filtered, entry)
 			}
-			if jsonOutput {
+			if jsonOutputFlag(cmd) {
 				raw, _ := json.MarshalIndent(map[string]any{"requests": filtered, "count": len(filtered)}, "", "  ")
 				_, err := fmt.Fprintln(cmd.OutOrStdout(), string(raw))
 				return err
@@ -76,7 +77,6 @@ func newNetworkRequestsCommand(session *string) *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the raw JSON payload")
 	command.Flags().StringVar(&filter, "filter", "", "only URLs containing this substring")
 	command.Flags().StringVar(&requestType, "type", "", "only this resource type (document, xhr, script, ...)")
 	command.Flags().StringVar(&method, "method", "", "only this HTTP method")
@@ -86,7 +86,6 @@ func newNetworkRequestsCommand(session *string) *cobra.Command {
 }
 
 func newNetworkRequestCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "request <id>",
 		Short: "Show one captured request by id",
@@ -100,12 +99,14 @@ func newNetworkRequestCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
+			}
 			raw, _ := json.MarshalIndent(response.Data, "", "  ")
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
 			return err
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the raw JSON payload")
 	return command
 }
 

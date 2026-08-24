@@ -34,7 +34,7 @@ func newSessionListCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, false)
+			return writeDaemonResponse(cmd, response)
 		},
 	}
 	return command
@@ -50,7 +50,7 @@ func newSessionInfoCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, false)
+			return writeDaemonResponse(cmd, response)
 		},
 	}
 	return command

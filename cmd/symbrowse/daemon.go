@@ -55,7 +55,6 @@ func newDaemonCommand() *cobra.Command {
 }
 
 func newDaemonStatusCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "status",
 		Short: "Show daemon status",
@@ -65,15 +64,13 @@ func newDaemonStatusCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, jsonOutput)
+			return writeDaemonResponse(cmd, response)
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable status payload")
 	return command
 }
 
 func newDaemonStopCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the running daemon",
@@ -83,10 +80,9 @@ func newDaemonStopCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, jsonOutput)
+			return writeDaemonResponse(cmd, response)
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the machine-readable stop payload")
 	return command
 }
 
@@ -421,6 +417,6 @@ func daemonLifecycleRequest(ctx context.Context, session, command string, autost
 	return requestNoAutostart(ctx, session, command)
 }
 
-func writeDaemonResponse(cmd *cobra.Command, response daemon.Response, jsonOutput bool) error {
-	return writeEnvelopeFromResponse(cmd, response, jsonOutput)
+func writeDaemonResponse(cmd *cobra.Command, response daemon.Response) error {
+	return writeEnvelopeFromResponse(cmd, response)
 }

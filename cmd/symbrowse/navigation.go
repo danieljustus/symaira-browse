@@ -68,7 +68,7 @@ func newNavigateCommand(name string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, false)
+			return writeDaemonResponse(cmd, response)
 		},
 	}
 	command.Flags().StringVar(&session, "session", "default", "session name")
@@ -94,7 +94,7 @@ func newWaitCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeDaemonResponse(cmd, response, false)
+			return writeDaemonResponse(cmd, response)
 		}}
 	command.Flags().StringVar(&session, "session", "default", "session name")
 	command.Flags().Int64Var(&milliseconds, "ms", 0, "wait for milliseconds")

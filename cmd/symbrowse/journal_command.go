@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newJournalCommand() *cobra.Command {
@@ -23,7 +25,6 @@ func newJournalCommand() *cobra.Command {
 
 func newJournalTailCommand(session *string) *cobra.Command {
 	var lines int
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "tail",
 		Short: "Show the last journal entries of a session",
@@ -38,23 +39,21 @@ func newJournalTailCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			entries := journalEntriesFromResponse(response.Data)
 			for _, entry := range entries {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\n", entry.Timestamp, entry.Command, entry.RiskClass, entry.Decider, entry.Result)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s	%s	%s	%s	%s\n", entry.Timestamp, entry.Command, entry.RiskClass, entry.Decider, entry.Result)
 			}
 			return nil
 		},
 	}
 	command.Flags().IntVar(&lines, "lines", 10, "number of entries to show")
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }
 
 func newJournalShowCommand(session *string) *cobra.Command {
-	var jsonOutput bool
 	command := &cobra.Command{
 		Use:   "show",
 		Short: "Show the full journal of a session",
@@ -69,17 +68,16 @@ func newJournalShowCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(response.Data)
+			if jsonOutputFlag(cmd) {
+				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			entries := journalEntriesFromResponse(response.Data)
 			for _, entry := range entries {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\t%s\n", entry.Timestamp, entry.Command, entry.RiskClass, entry.Decider, entry.Result)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s	%s	%s	%s	%s\n", entry.Timestamp, entry.Command, entry.RiskClass, entry.Decider, entry.Result)
 			}
 			return nil
 		},
 	}
-	command.Flags().BoolVar(&jsonOutput, "json", false, "print the stable machine-readable schema")
 	return command
 }
 

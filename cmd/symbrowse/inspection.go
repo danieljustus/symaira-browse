@@ -124,7 +124,7 @@ func writeInspectionResponse(cmd *cobra.Command, response daemon.Response, state
 		return responseError(response)
 	}
 	if jsonOutputFlag(cmd) {
-		return writeDaemonResponse(cmd, response, false)
+		return writeDaemonResponse(cmd, response)
 	}
 	var result struct {
 		Kind  engine.InspectionKind `json:"kind"`

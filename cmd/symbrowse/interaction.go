@@ -122,7 +122,7 @@ func newInteractionCommand(action engine.InteractionAction) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			return writeDaemonResponse(cmd, response, false)
+			return writeDaemonResponse(cmd, response)
 		},
 	}
 	command.Flags().StringVar(&session, "session", "default", "session name")

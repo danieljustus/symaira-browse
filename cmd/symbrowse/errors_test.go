@@ -43,10 +43,10 @@ func TestPrintErrorEntries(t *testing.T) {
 			want: "",
 		},
 		{
-			name:       "json mode prints the raw payload",
+			name:       "json mode prints the unified envelope",
 			data:       map[string]any{"entries": []any{map[string]any{"text": "TypeError: x", "stacktrace": []any{"file.js:1"}}}},
 			jsonOutput: true,
-			want:       "{\n  \"entries\": [\n    {\n      \"stacktrace\": [\n        \"file.js:1\"\n      ],\n      \"text\": \"TypeError: x\"\n    }\n  ]\n}\n",
+			want:       `{"success":true,"data":{"entries":[{"stacktrace":["file.js:1"],"text":"TypeError: x"}]}}` + "\n",
 		},
 		{
 			name:    "write failure is returned",
@@ -57,10 +57,13 @@ func TestPrintErrorEntries(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			command, buffer := newOutputCommand(t)
+			if tc.jsonOutput {
+				_ = command.Flags().Set("json", "true")
+			}
 			if tc.wantErr != "" {
 				command.SetOut(failingWriter{})
 			}
-			err := printErrorEntries(command, tc.data, tc.jsonOutput)
+			err := printErrorEntries(command, tc.data, jsonOutputFlag(command))
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("err = %v, want containing %q", err, tc.wantErr)
