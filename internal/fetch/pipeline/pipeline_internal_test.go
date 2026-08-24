@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -325,6 +326,9 @@ func TestRun_MaterializeError(t *testing.T) {
 }
 
 func TestRun_CachePutFailureLogged(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX chmod semantics do not apply on Windows")
+	}
 	srv := serveInternalServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusOK)

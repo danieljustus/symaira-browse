@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -385,6 +386,9 @@ func TestTruncateAndStore_EmptyStoreDir(t *testing.T) {
 }
 
 func TestTruncateAndStore_MkdirAllError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX chmod semantics do not apply on Windows")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root can create directories in read-only locations")
 	}
@@ -413,6 +417,9 @@ func TestTruncateAndStore_MkdirAllError(t *testing.T) {
 }
 
 func TestTruncateAndStore_WriteFileError(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX chmod semantics do not apply on Windows")
+	}
 	if os.Getuid() == 0 {
 		t.Skip("root can write into read-only directories")
 	}
