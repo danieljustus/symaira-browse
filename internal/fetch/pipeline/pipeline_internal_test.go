@@ -371,6 +371,10 @@ func TestRun_CachePutFailureLogged(t *testing.T) {
 
 func serveInternalServer(t *testing.T, h http.Handler) *httptest.Server {
 	t.Helper()
+	// Tests that omit Cache.Dir resolve to the real ~/.cache/symfetch. Point
+	// HOME at a temp dir so runs are hermetic and cannot collide with the
+	// developer's real cache entries.
+	t.Setenv("HOME", t.TempDir())
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	return srv
