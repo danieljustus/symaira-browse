@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	cdproto "github.com/chromedp/cdproto"
+
 	"github.com/danieljustus/symaira-browse/internal/engine"
 )
 

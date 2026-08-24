@@ -11,9 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/danieljustus/symaira-browse/internal/output"
 	"github.com/danieljustus/symaira-corekit/updatecheck"
 	"github.com/danieljustus/symaira-corekit/updatecheck/installmethod"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 // releaseServer serves a fake GitHub latest-release payload over TLS (the

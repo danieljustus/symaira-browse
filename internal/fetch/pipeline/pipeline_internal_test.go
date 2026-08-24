@@ -13,12 +13,13 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/net/html"
+
 	"github.com/danieljustus/symaira-browse/internal/fetch/agentdom"
 	"github.com/danieljustus/symaira-browse/internal/fetch/cache"
 	"github.com/danieljustus/symaira-browse/internal/fetch/dom"
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
 	"github.com/danieljustus/symaira-browse/internal/fetch/robots"
-	"golang.org/x/net/html"
 )
 
 type fakeClient struct {
@@ -1793,7 +1794,7 @@ func TestFindCandidatesFromSitemaps_MaxEntriesTruncation(t *testing.T) {
 	b.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
 	b.WriteString("\n<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n")
 	for i := 0; i < maxSitemapEntries+1; i++ {
-		b.WriteString(fmt.Sprintf("  <url><loc>https://example.com/page-%d</loc></url>\n", i))
+		_, _ = fmt.Fprintf(&b, "  <url><loc>https://example.com/page-%d</loc></url>\n", i)
 	}
 	b.WriteString("</urlset>")
 
