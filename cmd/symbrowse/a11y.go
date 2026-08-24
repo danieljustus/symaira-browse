@@ -30,7 +30,11 @@ func newA11yCommand() *cobra.Command {
 			argsPayload := map[string]any{"tags": tagList, "selector": selector}
 			if len(args) == 1 {
 				// Navigate first when a URL is given, then audit.
-				client := daemon.NewClient(daemon.ClientOptions{Session: session})
+				path, err := daemon.SocketPath(session)
+				if err != nil {
+					return err
+				}
+				client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
 				if _, err := client.Request(cmd.Context(), daemon.Frame{
 					Cmd: "open", Args: marshalArgs(map[string]any{"url": args[0]}), Session: session,
 				}); err != nil {

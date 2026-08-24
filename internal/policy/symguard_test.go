@@ -2,6 +2,7 @@ package policy
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -77,6 +78,94 @@ func TestGuardDecide(t *testing.T) {
 	}
 	if outcome.Decision != Deny || outcome.Reason != "test guard says no" {
 		t.Fatalf("outcome = %+v", outcome)
+	}
+}
+
+func TestGuardRiskLevelMapping(t *testing.T) {
+	tests := []struct {
+		class RiskClass
+		want  string
+	}{
+		{ClassRead, "low"},
+		{ClassNavigate, "medium"},
+		{ClassInteract, "medium"},
+		{ClassDownload, "medium"},
+		{ClassSubmit, "high"},
+		{ClassUpload, "high"},
+		{ClassNetworkMock, "high"},
+		{ClassEval, "critical"},
+		{ClassCredential, "critical"},
+	}
+	for _, tt := range tests {
+		got, err := guardRiskLevel(tt.class)
+		if err != nil {
+			t.Fatalf("guardRiskLevel(%s): %v", tt.class, err)
+		}
+		if got != tt.want {
+			t.Fatalf("guardRiskLevel(%s) = %q, want %q", tt.class, got, tt.want)
+		}
+	}
+	if _, err := guardRiskLevel(RiskClass("unknown")); err == nil {
+		t.Fatal("guardRiskLevel(unknown) should fail")
+	}
+}
+
+// TestGuardDecideSendsStdinJSON verifies the wire contract against a fake
+// guard that echoes the stdin request back as its reason: the request must
+// be one JSON object with the mapped risk_class field, sent via stdin, not
+// as CLI flags.
+func TestGuardDecideSendsStdinJSON(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "symguard")
+	sentPath := filepath.Join(dir, "sent.json")
+	// The fake guard writes its stdin to a file (no JSON escaping needed in
+	// shell) and answers a valid allow verdict.
+	script := "#!/bin/sh\ncat > \"$SENT_FILE\"\nprintf '%s\\n' '{\"decision\":\"allow\",\"reason\":\"ok\"}'\n"
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	guard := &Guard{Executable: path, Timeout: 2 * time.Second}
+	t.Setenv("SENT_FILE", sentPath)
+	outcome, err := guard.Decide(context.Background(), GuardInput{
+		Command:  "open",
+		Class:    ClassNavigate,
+		Domain:   "example.com",
+		Warnings: []string{"warn-1"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Decision != Allow {
+		t.Fatalf("decision = %s, want allow", outcome.Decision)
+	}
+	raw, err := os.ReadFile(sentPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sent struct {
+		Command   string   `json:"command"`
+		RiskClass string   `json:"risk_class"`
+		Domain    string   `json:"domain"`
+		Warnings  []string `json:"warnings"`
+	}
+	if err := json.Unmarshal(raw, &sent); err != nil {
+		t.Fatalf("stdin payload not valid JSON: %v (payload=%q)", err, string(raw))
+	}
+	if sent.Command != "open" {
+		t.Fatalf("command = %q, want open", sent.Command)
+	}
+	if sent.RiskClass != "medium" {
+		t.Fatalf("risk_class = %q, want medium (mapped from navigate)", sent.RiskClass)
+	}
+	if sent.Domain != "example.com" {
+		t.Fatalf("domain = %q, want example.com", sent.Domain)
+	}
+	if len(sent.Warnings) != 1 || sent.Warnings[0] != "warn-1" {
+		t.Fatalf("warnings = %v, want [warn-1]", sent.Warnings)
 	}
 }
 

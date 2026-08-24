@@ -10,8 +10,15 @@ import (
 )
 
 // sendSimpleFrame sends one daemon frame and writes the envelope response.
+// The socket path is resolved first — like requestBudget — so the frame
+// reaches the running daemon instead of failing with "socket path is
+// required".
 func sendSimpleFrame(cmd *cobra.Command, session, command string, args any) error {
-	client := daemon.NewClient(daemon.ClientOptions{Session: session})
+	path, err := daemon.SocketPath(session)
+	if err != nil {
+		return err
+	}
+	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
 	raw := marshalArgs(args)
 	response, err := client.Request(cmd.Context(), daemon.Frame{Cmd: command, Args: raw, Session: session})
 	if err != nil {

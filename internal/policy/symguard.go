@@ -16,9 +16,17 @@ import (
 // guard is detected at runtime and invoked as a subprocess — there is no
 // compile-time import of symaira-guard (standalone-first).
 //
-// Contract: a guard that is present and configured decides; a missing guard
-// falls back to the local policy; a guard failure denies with a clear reason
-// instead of silently allowing.
+// Wire contract (symguard decide, stdin JSON → stdout JSON):
+//
+//	request:  {"command": "...", "risk_class": "low|medium|high|critical",
+//	           "domain": "...", "warnings": ["..."]}
+//	response: {"decision": "allow|confirm|deny", "reason": "..."}
+//
+// symbrowse classifies with its own risk vocabulary (read, navigate, …);
+// the risk class is mapped to the guard's four levels before sending. Every
+// failure mode — missing binary, non-zero exit, timeout, unparseable or
+// invalid verdict — is returned as an error so the caller can deny instead
+// of silently allowing.
 type Guard struct {
 	// Executable is the resolved symguard binary path.
 	Executable string
@@ -60,11 +68,35 @@ func (g *Guard) Active() bool { return g != nil && g.Executable != "" }
 // GuardInput is the decision request sent to the guard: the classified
 // command, its risk class, the target domain and any collected warnings.
 type GuardInput struct {
-	Command  string    `json:"command"`
-	Class    RiskClass `json:"class"`
-	Domain   string    `json:"domain"`
-	Warnings []string  `json:"warnings,omitempty"`
-	Mode     Mode      `json:"mode,omitempty"`
+	Command  string
+	Class    RiskClass
+	Domain   string
+	Warnings []string
+}
+
+// guardRiskLevel maps a symbrowse risk class onto symguard's four risk
+// levels. The mapping is deliberately conservative: classes that can change
+// state or exfiltrate data are rated at least "high", code execution and
+// credentials are "critical".
+func guardRiskLevel(class RiskClass) (string, error) {
+	switch class {
+	case ClassRead:
+		return "low", nil
+	case ClassNavigate:
+		return "medium", nil
+	case ClassInteract:
+		return "medium", nil
+	case ClassDownload:
+		return "medium", nil
+	case ClassSubmit, ClassUpload:
+		return "high", nil
+	case ClassNetworkMock:
+		return "high", nil
+	case ClassEval, ClassCredential:
+		return "critical", nil
+	default:
+		return "", fmt.Errorf("symguard: no risk level for class %q", class)
+	}
 }
 
 // GuardOutcome is the guard's verdict.
@@ -73,24 +105,35 @@ type GuardOutcome struct {
 	Reason   string   `json:"reason,omitempty"`
 }
 
-// Decide asks symguard for the verdict via `symguard decide` with
-// line-oriented JSON flags. Every failure mode — missing binary, non-zero
-// exit, timeout, unparseable or invalid verdict — is returned as an error so
-// the caller can deny instead of silently allowing.
+// Decide asks symguard for the verdict via `symguard decide`, sending the
+// request as one JSON object on stdin. Every failure mode — missing binary,
+// non-zero exit, timeout, unparseable or invalid verdict — is returned as an
+// error so the caller can deny instead of silently allowing.
 func (g *Guard) Decide(ctx context.Context, input GuardInput) (GuardOutcome, error) {
 	if !g.Active() {
 		return GuardOutcome{}, fmt.Errorf("symguard is not configured")
 	}
-	warnings, _ := json.Marshal(input.Warnings)
-	args := []string{
-		"decide",
-		"--command", input.Command,
-		"--class", string(input.Class),
-		"--domain", input.Domain,
-		"--mode", string(input.Mode),
-		"--warnings", string(warnings),
+	level, err := guardRiskLevel(input.Class)
+	if err != nil {
+		return GuardOutcome{}, err
 	}
-	command := exec.CommandContext(ctx, g.Executable, args...)
+	payload := struct {
+		Command   string   `json:"command"`
+		RiskClass string   `json:"risk_class"`
+		Domain    string   `json:"domain"`
+		Warnings  []string `json:"warnings,omitempty"`
+	}{
+		Command:   input.Command,
+		RiskClass: level,
+		Domain:    input.Domain,
+		Warnings:  input.Warnings,
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return GuardOutcome{}, fmt.Errorf("symguard: marshal request: %w", err)
+	}
+	command := exec.CommandContext(ctx, g.Executable, "decide")
+	command.Stdin = bytes.NewReader(raw)
 	var stdout, stderr bytes.Buffer
 	command.Stdout = &stdout
 	command.Stderr = &stderr
@@ -98,7 +141,8 @@ func (g *Guard) Decide(ctx context.Context, input GuardInput) (GuardOutcome, err
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, g.Timeout)
 		defer cancel()
-		command = exec.CommandContext(ctx, g.Executable, args...)
+		command = exec.CommandContext(ctx, g.Executable, "decide")
+		command.Stdin = bytes.NewReader(raw)
 		command.Stdout = &stdout
 		command.Stderr = &stderr
 	}
