@@ -34,7 +34,7 @@ func newScreenshotCommand() *cobra.Command {
 				payload["path"] = args[0]
 			}
 			raw, _ := json.Marshal(payload)
-			response, err := stateRequest(cmd.Context(), session, "screenshot", raw)
+			response, err := daemonRequest(cmd.Context(), session, "screenshot", raw)
 			if err != nil {
 				return err
 			}

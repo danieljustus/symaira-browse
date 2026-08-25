@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newUploadCommand() *cobra.Command {
@@ -27,15 +25,15 @@ func newUploadCommand() *cobra.Command {
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, _ := json.Marshal(map[string]any{"selector": args[0], "files": args[1:]})
-			response, err := stateRequest(cmd.Context(), session, "upload", payload)
+			response, err := daemonRequest(cmd.Context(), session, "upload", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "uploaded %d file(s)\n", len(args)-1)
 			return err
@@ -55,7 +53,7 @@ func newDownloadsCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if dir, _ := cmd.Flags().GetString("dir"); dir != "" {
 				payload, _ := json.Marshal(map[string]any{"dir": dir})
-				response, err := stateRequest(cmd.Context(), session, "download.setdir", payload)
+				response, err := daemonRequest(cmd.Context(), session, "download.setdir", payload)
 				if err != nil {
 					return err
 				}
@@ -66,15 +64,15 @@ func newDownloadsCommand() *cobra.Command {
 					return err
 				}
 			}
-			response, err := stateRequest(cmd.Context(), session, "downloads.list", nil)
+			response, err := daemonRequest(cmd.Context(), session, "downloads.list", nil)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payload, _ := response.Data.(map[string]any)
 			downloads, _ := payload["downloads"].([]any)

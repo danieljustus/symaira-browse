@@ -66,7 +66,7 @@ func newBatchCommand() *cobra.Command {
 				return err
 			}
 			if len(commands) == 0 {
-				return errors.New("batch requires at least one command")
+				return invalidArgs("batch requires at least one command")
 			}
 			options := batchOptions{Commands: commands, Bail: bail, DryRun: dryRun}
 			report := runBatch(cmd.Context(), newRootCommand(), options, runBatchItem)

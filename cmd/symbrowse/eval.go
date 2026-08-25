@@ -22,7 +22,7 @@ func newEvalCommand() *cobra.Command {
 				return err
 			}
 			payload, _ := json.Marshal(map[string]any{"expression": expression})
-			response, err := stateRequest(cmd.Context(), session, "eval", payload)
+			response, err := daemonRequest(cmd.Context(), session, "eval", payload)
 			if err != nil {
 				return err
 			}
@@ -52,12 +52,12 @@ func evalExpression(cmd *cobra.Command, args []string) (string, error) {
 	} else if len(args) > 0 {
 		expression = args[0]
 	} else {
-		return "", fmt.Errorf("eval requires an expression argument (or --stdin)")
+		return "", invalidArgs("eval requires an expression argument (or --stdin)")
 	}
 	if encoded {
 		raw, err := base64.StdEncoding.DecodeString(expression)
 		if err != nil {
-			return "", fmt.Errorf("decode base64 expression: %w", err)
+			return "", invalidArgs("decode base64 expression: %v", err)
 		}
 		expression = string(raw)
 	}

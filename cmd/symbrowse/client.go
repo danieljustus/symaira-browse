@@ -24,14 +24,14 @@ func nextRequestID() string {
 	return fmt.Sprintf("%d", id)
 }
 
-// request sends one daemon frame with the standard session resolution.
-func request(ctx context.Context, session, command string, args []byte) (daemon.Response, error) {
-	return requestBudget(ctx, session, command, args, nil)
+// daemonRequest sends one daemon frame with the standard session resolution.
+func daemonRequest(ctx context.Context, session, command string, args []byte) (daemon.Response, error) {
+	return daemonRequestBudget(ctx, session, command, args, nil)
 }
 
-// requestBudget is request with an optional token budget: the daemon
+// daemonRequestBudget is daemonRequest with an optional token budget: the daemon
 // truncates oversized payloads and returns a cache handle.
-func requestBudget(ctx context.Context, session, command string, args []byte, maxTokens *int) (daemon.Response, error) {
+func daemonRequestBudget(ctx context.Context, session, command string, args []byte, maxTokens *int) (daemon.Response, error) {
 	path, err := daemon.SocketPath(session)
 	if err != nil {
 		return daemon.Response{}, err
@@ -46,7 +46,7 @@ func requestBudget(ctx context.Context, session, command string, args []byte, ma
 	})
 }
 
-// requestNoAutostart is request() without daemon autostart (used by status,
+// requestNoAutostart is daemonRequest() without daemon autostart (used by status,
 // stop, and session inspection so those commands do not create a daemon).
 func requestNoAutostart(ctx context.Context, session, command string) (daemon.Response, error) {
 	path, err := daemon.SocketPath(session)

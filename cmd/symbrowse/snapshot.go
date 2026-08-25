@@ -39,7 +39,7 @@ func newSnapshotCommand() *cobra.Command {
 			if noInjectionScan {
 				slog.Warn("injection scan disabled by --no-injection-scan; page output is not checked for prompt-injection vectors")
 			}
-			response, err := requestBudget(cmd.Context(), session, "snapshot", args, maxTokensFlag(cmd))
+			response, err := daemonRequestBudget(cmd.Context(), session, "snapshot", args, maxTokensFlag(cmd))
 			if err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ func newSnapshotCommand() *cobra.Command {
 // currentPageOrigin fetches the current page URL from the daemon for use as
 // the content-boundary origin.
 func currentPageOrigin(ctx context.Context, session string) (string, error) {
-	response, err := request(ctx, session, "get.url", nil)
+	response, err := daemonRequest(ctx, session, "get.url", nil)
 	if err != nil {
 		return "", err
 	}

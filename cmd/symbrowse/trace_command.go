@@ -34,7 +34,7 @@ func newTraceExportCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			request := map[string]any{"session": *session}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "journal.show", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "journal.show", payload)
 			if err != nil {
 				return err
 			}
@@ -71,15 +71,15 @@ func newTraceReplayCommand(session *string) *cobra.Command {
 				return err
 			}
 			raw, _ := json.Marshal(map[string]any{"steps": file.Steps})
-			response, err := stateRequest(cmd.Context(), *session, "trace.replay", raw)
+			response, err := daemonRequest(cmd.Context(), *session, "trace.replay", raw)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			raw, _ = json.MarshalIndent(response.Data, "", "  ")
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))

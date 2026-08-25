@@ -36,7 +36,7 @@ func newFlowRecordCommand() *cobra.Command {
 				return responseError(response)
 			}
 			if args[0] != "stop" {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
+				return writeEnvelopeFromResponse(cmd, response)
 			}
 			return writeFlowDraft(cmd, response)
 		},

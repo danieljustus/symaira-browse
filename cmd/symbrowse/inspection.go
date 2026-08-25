@@ -62,24 +62,24 @@ func newInspectionLeafCommand(group string, kind engine.InspectionKind, session 
 		Args: func(_ *cobra.Command, args []string) error {
 			if kind == engine.InspectTitle || kind == engine.InspectURL {
 				if len(args) > 1 {
-					return fmt.Errorf("get %s accepts at most one selector", kind)
+					return invalidArgs("get %s accepts at most one selector", kind)
 				}
 				return nil
 			}
 			if kind == engine.InspectAttr {
 				if len(args) != 2 {
-					return errors.New("get attr requires a selector and attribute name")
+					return invalidArgs("get attr requires a selector and attribute name")
 				}
 				return nil
 			}
 			if kind == engine.InspectStyles {
 				if len(args) < 1 {
-					return errors.New("get styles requires a selector")
+					return invalidArgs("get styles requires a selector")
 				}
 				return nil
 			}
 			if len(args) != 1 {
-				return fmt.Errorf("%s %s requires a selector", group, kind)
+				return invalidArgs("%s %s requires a selector", group, kind)
 			}
 			return nil
 		},
@@ -109,7 +109,7 @@ func inspectionRequest(cmd *cobra.Command, session, group string, request engine
 	if err != nil {
 		return daemon.Response{}, err
 	}
-	response, err := requestBudget(cmd.Context(), session, group+"."+string(request.Kind), args, maxTokensFlag(cmd))
+	response, err := daemonRequestBudget(cmd.Context(), session, group+"."+string(request.Kind), args, maxTokensFlag(cmd))
 	if err != nil {
 		return daemon.Response{}, err
 	}

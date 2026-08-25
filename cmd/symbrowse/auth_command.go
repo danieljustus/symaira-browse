@@ -32,7 +32,7 @@ func newAuthLoginCommand(session *string) *cobra.Command {
 				request["url"] = url
 			}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "auth.login", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "auth.login", payload)
 			if err != nil {
 				return err
 			}

@@ -257,7 +257,7 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 	root.SetArgs(args)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	if err := root.Execute(); err != nil {
+	if err := normalizeCommandError(root.Execute()); err != nil {
 		if structuredOutput(root) {
 			_ = writeErrorEnvelope(root, err)
 		} else {

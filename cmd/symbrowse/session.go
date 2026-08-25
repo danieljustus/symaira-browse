@@ -1,12 +1,7 @@
 package main
 
 import (
-	"context"
-	"errors"
-
 	"github.com/spf13/cobra"
-
-	"github.com/danieljustus/symaira-browse/internal/daemon"
 )
 
 func newSessionCommand() *cobra.Command {
@@ -30,7 +25,7 @@ func newSessionListCommand(session *string) *cobra.Command {
 		Short: "List sessions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := sessionRequest(cmd.Context(), *session, "session.list")
+			response, err := requestNoAutostart(cmd.Context(), *session, "session.list")
 			if err != nil {
 				return err
 			}
@@ -46,7 +41,7 @@ func newSessionInfoCommand(session *string) *cobra.Command {
 		Short: "Show session information",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := sessionRequest(cmd.Context(), *session, "session.info")
+			response, err := requestNoAutostart(cmd.Context(), *session, "session.info")
 			if err != nil {
 				return err
 			}
@@ -54,15 +49,4 @@ func newSessionInfoCommand(session *string) *cobra.Command {
 		},
 	}
 	return command
-}
-
-func sessionRequest(ctx context.Context, session, command string) (daemon.Response, error) {
-	response, err := requestNoAutostart(ctx, session, command)
-	if err != nil {
-		return daemon.Response{}, err
-	}
-	if !response.Success && response.Error == nil {
-		return daemon.Response{}, errors.New("session request failed")
-	}
-	return response, nil
 }

@@ -82,10 +82,7 @@ func newDiffSnapshotCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if !response.Success {
-				return responseError(response)
-			}
-			return writeEnvelope(cmd, output.OK(response.Data, nil))
+			return writeEnvelopeFromResponse(cmd, response)
 		},
 	}
 	command.Flags().StringVar(&baseline, "baseline", "", "baseline snapshot JSON file to compare against")
@@ -167,7 +164,7 @@ func newDiffScreenshotCommand(session *string) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if baseline == "" {
-				return errors.New("--baseline <png> is required")
+				return invalidArgs("--baseline <png> is required")
 			}
 			baselineData, err := os.ReadFile(baseline)
 			if err != nil {

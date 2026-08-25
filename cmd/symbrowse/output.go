@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -29,7 +28,7 @@ func resolveOutputFormat(cmd *cobra.Command) (output.Format, error) {
 	case output.FormatText, output.FormatJSON, output.FormatYAML:
 		return output.Format(format), nil
 	default:
-		return output.FormatText, fmt.Errorf("invalid --output format %q: want text, json or yaml", format)
+		return output.FormatText, invalidArgs("invalid --output format %q: want text, json or yaml", format)
 	}
 }
 

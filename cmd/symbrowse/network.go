@@ -7,8 +7,6 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newNetworkCommand() *cobra.Command {
@@ -36,7 +34,7 @@ func newNetworkRequestsCommand(session *string) *cobra.Command {
 		Short: "List captured requests (sensitive headers masked)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := stateRequestBudget(cmd.Context(), *session, "network.requests", nil, maxTokensFlag(cmd))
+			response, err := daemonRequestBudget(cmd.Context(), *session, "network.requests", nil, maxTokensFlag(cmd))
 			if err != nil {
 				return err
 			}
@@ -92,15 +90,15 @@ func newNetworkRequestCommand(session *string) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, _ := json.Marshal(map[string]any{"id": args[0]})
-			response, err := stateRequest(cmd.Context(), *session, "network.request", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "network.request", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			raw, _ := json.MarshalIndent(response.Data, "", "  ")
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
@@ -130,7 +128,7 @@ func newNetworkRouteCommand(session *string) *cobra.Command {
 				}
 			}
 			payload, _ := json.Marshal(route)
-			response, err := stateRequest(cmd.Context(), *session, "network.route", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "network.route", payload)
 			if err != nil {
 				return err
 			}
@@ -157,7 +155,7 @@ func newNetworkUnrouteCommand(session *string) *cobra.Command {
 			if len(args) == 1 {
 				payload, _ = json.Marshal(map[string]any{"pattern": args[0]})
 			}
-			response, err := stateRequest(cmd.Context(), *session, "network.unroute", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "network.unroute", payload)
 			if err != nil {
 				return err
 			}
@@ -179,7 +177,7 @@ func newNetworkHarCommand(session *string) *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, _ := json.Marshal(map[string]any{"action": args[0], "content": content})
-			response, err := stateRequest(cmd.Context(), *session, "network.har", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "network.har", payload)
 			if err != nil {
 				return err
 			}
