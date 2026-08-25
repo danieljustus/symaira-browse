@@ -49,7 +49,16 @@ func newRootCommand() *cobra.Command {
 	)
 	// The global --json flag switches every command to the unified
 	// machine-readable output envelope (docs/errors.md, internal/output).
-	root.PersistentFlags().Bool("json", false, "print the unified machine-readable output envelope")
+	// --output extends it with text|json|yaml; --json stays the shorthand
+	// for --output json with unchanged behaviour (issue #254).
+	root.PersistentFlags().Bool("json", false, "print the unified machine-readable output envelope (shorthand for --output json)")
+	root.PersistentFlags().String("output", "text", "output format: text, json or yaml (--json is shorthand for --output json)")
+	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
+		if _, err := resolveOutputFormat(cmd); err != nil {
+			return err
+		}
+		return nil
+	}
 	root.AddCommand(newVersionCommand())
 	root.AddCommand(newConfigCommand())
 	root.AddCommand(newDoctorCommand())
@@ -113,7 +122,7 @@ func newVersionCommand() *cobra.Command {
 			// deliberately bypasses the unified output envelope: the
 			// payload IS the contract (issue #32, ARCHITEKTUR.md §6.2).
 			info := symversion.Info(version)
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return info.Write(cmd.OutOrStdout())
 			}
 			_, err := fmt.Fprintln(cmd.OutOrStdout(), info.String())
@@ -156,7 +165,7 @@ func newConfigCommand() *cobra.Command {
 				return err
 			}
 			slog.Debug("configuration loaded", "command", "config show")
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(config.ShowOutputFor(result), nil))
 			}
 			return config.WriteShow(cmd.OutOrStdout(), result, false)
@@ -202,7 +211,7 @@ func newDoctorCommand() *cobra.Command {
 			if fix {
 				report.Fixes = doctor.FixInstructions(runtime.GOOS, options)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				if err := writeEnvelope(cmd, output.OK(report, nil)); err != nil {
 					return err
 				}
@@ -249,8 +258,8 @@ func runCLI(args []string, stdout, stderr io.Writer) int {
 	root.SetOut(stdout)
 	root.SetErr(stderr)
 	if err := root.Execute(); err != nil {
-		if jsonOutputFlag(root) {
-			_ = output.WriteError(stdout, err, true)
+		if structuredOutput(root) {
+			_ = writeErrorEnvelope(root, err)
 		} else {
 			_, _ = fmt.Fprintln(stderr, exitcodes.FormatCLIError(err))
 		}

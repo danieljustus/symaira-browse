@@ -43,7 +43,7 @@ func newStateSaveCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "saved state %q\n", args[0])
@@ -68,7 +68,7 @@ func newStateLoadCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "loaded state %q\n", args[0])
@@ -91,7 +91,7 @@ func newStateListCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payload := stateListFromResponse(response.Data)
@@ -119,7 +119,7 @@ func newStateShowCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			raw, _ := json.MarshalIndent(response.Data, "", "  ")
@@ -145,7 +145,7 @@ func newStateClearCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "cleared state %q\n", args[0])
@@ -182,7 +182,7 @@ func newStateCleanCommand(session *string) *cobra.Command {
 				return responseError(response)
 			}
 			cleanPayload := stateCleanFromResponse(response.Data)
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(cleanPayload, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "removed %d expired state(s)\n", len(cleanPayload.Removed))

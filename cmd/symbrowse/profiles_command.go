@@ -17,7 +17,7 @@ func newProfilesCommand() *cobra.Command {
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			found := profiles.Discover()
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(map[string]any{"profiles": found}, nil))
 			}
 			if len(found) == 0 {

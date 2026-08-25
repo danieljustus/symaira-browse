@@ -35,7 +35,7 @@ func newConsoleListCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			return printConsoleEntries(cmd, response.Data, jsonOutputFlag(cmd))
+			return printConsoleEntries(cmd, response.Data, structuredOutput(cmd))
 		},
 	}
 	command.Flags().Int("max-tokens", 0, "token budget for the payload; oversized output is truncated and stored in the cache (0 = no limit)")

@@ -62,7 +62,7 @@ func newNetworkRequestsCommand(session *string) *cobra.Command {
 				}
 				filtered = append(filtered, entry)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				raw, _ := json.MarshalIndent(map[string]any{"requests": filtered, "count": len(filtered)}, "", "  ")
 				_, err := fmt.Fprintln(cmd.OutOrStdout(), string(raw))
 				return err
@@ -99,7 +99,7 @@ func newNetworkRequestCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			raw, _ := json.MarshalIndent(response.Data, "", "  ")

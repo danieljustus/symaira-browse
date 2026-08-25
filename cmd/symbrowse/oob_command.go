@@ -35,7 +35,7 @@ func newOOBStatusCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payload := oobStatusFromResponse(response.Data)

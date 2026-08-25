@@ -46,7 +46,7 @@ func newSnapshotCommand() *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if contentBoundaries && !jsonOutputFlag(cmd) {
+			if contentBoundaries && !structuredOutput(cmd) {
 				origin, originErr := currentPageOrigin(cmd.Context(), session)
 				if originErr != nil {
 					return originErr

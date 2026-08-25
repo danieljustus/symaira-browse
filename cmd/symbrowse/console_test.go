@@ -56,12 +56,12 @@ func TestPrintConsoleEntries(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			command, buffer := newOutputCommand(t)
 			if tc.jsonOutput {
-				_ = command.Flags().Set("json", "true")
+				_ = command.PersistentFlags().Set("json", "true")
 			}
 			if tc.wantErr != "" {
 				command.SetOut(failingWriter{})
 			}
-			err := printConsoleEntries(command, tc.data, jsonOutputFlag(command))
+			err := printConsoleEntries(command, tc.data, structuredOutput(command))
 			if tc.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("err = %v, want containing %q", err, tc.wantErr)

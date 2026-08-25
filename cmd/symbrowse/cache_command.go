@@ -56,7 +56,7 @@ func newCacheGetCommand() *cobra.Command {
 				return err
 			}
 			if rangeSpec == "" {
-				if jsonOutputFlag(cmd) {
+				if structuredOutput(cmd) {
 					return writeEnvelope(cmd, output.OK(map[string]any{"cache_id": args[0], "content": string(content)}, nil))
 				}
 				_, err = fmt.Fprintln(cmd.OutOrStdout(), string(content))
@@ -67,7 +67,7 @@ func newCacheGetCommand() *cobra.Command {
 				return err
 			}
 			lines := budget.LineRange(content, start, end)
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(map[string]any{
 					"cache_id": args[0],
 					"range":    rangeSpec,
@@ -121,7 +121,7 @@ func newCacheListCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(map[string]any{"entries": entries}, nil))
 			}
 			if len(entries) == 0 {
@@ -162,7 +162,7 @@ func newCacheClearCommand() *cobra.Command {
 				return err
 			}
 			cleared := len(entries)
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(map[string]any{"cleared": cleared}, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "cleared %d cache entr%s\n", cleared, plural(cleared))

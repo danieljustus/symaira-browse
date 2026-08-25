@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/spf13/cobra"
 
@@ -10,20 +11,55 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
-// jsonOutputFlag reports whether the unified machine-readable envelope is
-// requested. The global --json flag is defined on the root command; every
-// subcommand inherits it.
-func jsonOutputFlag(cmd *cobra.Command) bool {
-	value, err := cmd.Flags().GetBool("json")
-	if err != nil {
-		return false
+// resolveOutputFormat reports the requested envelope format for a command.
+// The global --json flag is shorthand for --output json and wins over an
+// explicit --output value; --output accepts text, json or yaml. The flags are
+// read from the root persistent flag set so the resolution also works when a
+// command is driven without cobra Execute (unit tests).
+func resolveOutputFormat(cmd *cobra.Command) (output.Format, error) {
+	flags := cmd.Root().PersistentFlags()
+	if value, err := flags.GetBool("json"); err == nil && value {
+		return output.FormatJSON, nil
 	}
-	return value
+	format, err := flags.GetString("output")
+	if err != nil {
+		return output.FormatText, err
+	}
+	switch output.Format(format) {
+	case output.FormatText, output.FormatJSON, output.FormatYAML:
+		return output.Format(format), nil
+	default:
+		return output.FormatText, fmt.Errorf("invalid --output format %q: want text, json or yaml", format)
+	}
+}
+
+// structuredOutput reports whether the command should emit the unified
+// machine-readable envelope (json or yaml) instead of the human-readable text
+// rendering. It mirrors resolveOutputFormat without the error plumbing; an
+// invalid --output value falls back to false so the human-readable path can
+// surface the validation failure.
+func structuredOutput(cmd *cobra.Command) bool {
+	format, err := resolveOutputFormat(cmd)
+	return err == nil && format != output.FormatText
 }
 
 // writeEnvelope writes one unified envelope to the command output.
 func writeEnvelope(cmd *cobra.Command, envelope output.Envelope) error {
-	return output.Write(cmd.OutOrStdout(), envelope, jsonOutputFlag(cmd))
+	format, err := resolveOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	return output.Write(cmd.OutOrStdout(), envelope, format)
+}
+
+// writeErrorEnvelope writes one unified failure envelope to the command
+// output, falling back to text when the format flag itself is invalid.
+func writeErrorEnvelope(cmd *cobra.Command, err error) error {
+	format, formatErr := resolveOutputFormat(cmd)
+	if formatErr != nil {
+		format = output.FormatText
+	}
+	return output.WriteError(cmd.OutOrStdout(), err, format)
 }
 
 // writeEnvelopeFromResponse converts a daemon protocol response into the

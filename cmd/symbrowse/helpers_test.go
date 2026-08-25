@@ -150,7 +150,8 @@ func TestTokenize(t *testing.T) {
 func newOutputCommand(t *testing.T) (*cobra.Command, *bytes.Buffer) {
 	t.Helper()
 	command := &cobra.Command{}
-	command.Flags().Bool("json", false, "machine-readable output envelope")
+	command.PersistentFlags().Bool("json", false, "machine-readable output envelope")
+	command.PersistentFlags().String("output", "text", "output format: text, json or yaml")
 	buffer := new(bytes.Buffer)
 	command.SetOut(buffer)
 	command.SetErr(buffer)
