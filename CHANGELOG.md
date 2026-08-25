@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.2.3] - 2026-08-25
+
+### Added
+
+- README: "Why symbrowse" positioning section and Apache-2.0 license detection for the About sidebar (#241, #242)
+
+### Fixed
+
+- `open`/`read` failed with "browser executable is not configured" even when `doctor` found Chrome; the navigation runtime now falls back to the same platform discovery `doctor` uses, keeping `SYMBROWSE_EXECUTABLE_PATH` as an explicit override (#244, #251)
+- `session list`/`session info` silently autostarted a new daemon and Chrome instance; both inspection commands now use the no-autostart transport like `daemon status`/`daemon stop` (#246, #250)
+- Flaky, order-dependent tests in `internal/fetch/pipeline` (process-wide `HOME` is now set once per package run instead of per test) (#243, #249)
+- README documented `--engine static` as an `open`/`read` flag; the flag only exists on `symbrowse daemon` — the Quick Start now shows the actual two-step static-engine workflow (#245, #251)
+
+### Build
+
+- Makefile default `VERSION` is derived from the latest git tag instead of the stale hard-coded 0.1.1, so `make build && ./symbrowse version` matches the released version (#247, #248)
+
 ## [v0.2.2] - 2026-08-24
 
 ### Fixed
