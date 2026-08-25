@@ -46,8 +46,8 @@ func requestBudget(ctx context.Context, session, command string, args []byte, ma
 	})
 }
 
-// requestNoAutostart is request() without daemon autostart (used by status and
-// stop so those lifecycle commands do not create a daemon).
+// requestNoAutostart is request() without daemon autostart (used by status,
+// stop, and session inspection so those commands do not create a daemon).
 func requestNoAutostart(ctx context.Context, session, command string) (daemon.Response, error) {
 	path, err := daemon.SocketPath(session)
 	if err != nil {
