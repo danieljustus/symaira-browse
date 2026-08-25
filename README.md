@@ -18,7 +18,7 @@ Typischer Ablauf — `open` → `read` → Out-of-Band-Handoff (Auszug aus einer
 
 ```sh
 $ ./symbrowse version
-symbrowse 0.2.2
+symbrowse v0.2.3
 
 $ ./symbrowse --help
 Usage:
@@ -99,7 +99,7 @@ go install github.com/danieljustus/symaira-browse/cmd/symbrowse@latest
 The build is CGO-free by default. The `VERSION` variable can be overridden for a local build:
 
 ```sh
-make build VERSION=0.2.2
+make build VERSION=0.2.3
 ```
 
 ## Development
