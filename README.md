@@ -15,7 +15,7 @@
 ## Why symbrowse
 
 - **Agent-operable Chrome sessions** — a real Chrome instance driven over the DevTools Protocol, with durable sessions instead of one-shot page fetches. If JavaScript, redirects, cookies, or interaction are needed, this is the tool.
-- **Plain-HTTP fetch built in** — the absorbed `symfetch` static engine (`fetch_url`, `fetch_batch`, `wayback_snapshots`) serves fast static reads and Wayback discovery without a browser session.
+- **Plain-HTTP fetch through MCP** — the absorbed `symfetch` static engine exposes `fetch_url`, `fetch_batch` and `wayback_snapshots` as MCP tools; CLI users use `read` and `batch` without a browser session.
 - **Stable element references** — deterministic `@ref`s across navigation and re-renders, so an agent's plan doesn't break when the DOM reflows.
 - **Out-of-band handoff** — hand control to a human for 2FA, CAPTCHA, or approval mid-session, then resume agent control without losing state.
 - **Standalone-first** — runs on its own with no compile-time dependency on other Symaira tools; integrations are optional, runtime-only fallbacks.
@@ -59,37 +59,104 @@ SymFetch output schema. Without Chrome, use the JS-free static engine:
 
 `symbrowse` has two modes in one binary:
 
-- **Static fetch** — `fetch_url` / `fetch_batch` / `wayback_snapshots`
-  (and `read` for single pages) use the absorbed `symfetch` pipeline: fast
-  plain-HTTP reads with browser-impersonating TLS, no browser needed.
+- **Static fetch** — the MCP tools `fetch_url` / `fetch_batch` /
+  `wayback_snapshots` use the absorbed `symfetch` pipeline. On the CLI, use
+  `read` for a page and `batch` for multiple commands; no browser is needed.
 - **Interactive agent browser** — `open`, `snapshot`, `click`, `fill`,
   `type`, `press`, `wait`, `find`, `get`, `back`/`forward`/`reload` drive a
   real Chrome session with stable refs, cookies/storage state,
   out-of-band handoff, journal, flows, and network control.
 
-```sh
+```text
 $ ./symbrowse version
 symbrowse v0.3.0
 
 $ ./symbrowse --help
+symbrowse is the standalone command-line entrypoint for Symaira Browse.
+
 Usage:
   symbrowse [command]
 
 Core Commands:
+  batch          Run multiple commands in one process and report per-item status
+  check          Check a checkbox or radio element
+  click          Click an element matching a selector or @ref
+  dblclick       Double-click an element matching a selector or @ref
+  fill           Fill an input element, replacing its content
+  find           Find an element semantically and optionally act on it
+  focus          Focus an element matching a selector or @ref
+  get            Inspect page and element values
+  goto           Navigate to a URL (alias for open)
+  hover          Hover over an element matching a selector or @ref
+  is             Check page and element state
   open           Open a URL in the browser and wait for load
+  press          Press a keyboard key on an element
   read           Render the page as markdown (or JSON) in the symfetch output schema
-  fetch_url      Fetch a URL with the plain-HTTP pipeline (no browser)
-  fetch_batch    Fetch multiple URLs concurrently, results in input order
-  wayback_snapshots  List Wayback Machine snapshots for a URL
-  …
+  screenshot     Capture the page (viewport, --full page, or --selector element)
+  scroll         Scroll the page or an element by pixel amount
+  scrollintoview Scroll an element into the visible viewport
+  select         Select an option from a drop-down element
+  snapshot       Render the accessibility tree
+  type           Type text into an element, appending to its content
+  uncheck        Uncheck a checkbox element
+  wait           Wait for a browser condition
+
+Navigation Commands:
+  back           Navigate back in page history
+  dialog         Handle JavaScript dialogs (accept, dismiss, status, auto)
+  forward        Navigate forward in page history
+  frame          Address nested frames (tree, select, main)
+  reload         Reload the current page
+  tab            Manage session tabs (list, new, switch, close)
 
 State Commands:
+  auth           Credential management through symvault (no plaintext)
+  cookies        Inspect and manage cookies of the current page origin
   handoff        Hand the session over to the human without losing it (2FA, CAPTCHA, approval)
-  …
+  journal        Inspect the append-only action journal
+  oob            Inspect the out-of-band human channel
+  profiles       List discovered Chrome profiles available for reuse
+  session        Inspect browser sessions
+  set            Apply session-wide emulation settings (viewport, device, geo, offline, headers, media, user-agent)
+  state          Save, restore and manage named browser session states
+  storage        Inspect and manage per-origin web storage
+  watch          Watch an agent session: stream the action journal live (read-only)
+
+Network Commands:
+  downloads      Show download events (origin URL, size, checksum) or set the download directory
+  network        Inspect, mock and export page network activity (issue #59)
+  upload         Upload files into a file input (path-guarded, issue #63)
 
 Debug Commands:
+  a11y           Run an axe-core accessibility audit on the current page
+  cache          Inspect the truncate-and-store output cache
+  config         Inspect symbrowse configuration
+  console        Show or clear the page console buffer
+  daemon         Run or inspect the symbrowse daemon
+  diff           Compare snapshots, screenshots and URLs
+  doctor         Check browser discovery and local runtime prerequisites
+  errors         Show or clear uncaught page errors
+  eval           Execute JavaScript in the active page (issue #60)
+  mcp            Start the MCP stdio server (JSON-RPC 2.0 over stdin/stdout)
+  policy         Inspect the local risk policy
+  trace          Export and replay repeatable action traces
+  upgrade        Check for and apply symbrowse updates
   version        Print the symbrowse version
-  … (weitere Befehle gekürzt)
+
+Flows Commands:
+  flow           Validate, run and record declarative browser flows
+
+Additional Commands:
+  completion     Generate the autocompletion script for the specified shell
+  help           Help about any command
+
+Flags:
+  -h, --help            help for symbrowse
+      --json            print the unified machine-readable output envelope (shorthand for --output json)
+      --output string   output format: text, json or yaml (--json is shorthand for --output json) (default "text")
+  -v, --version         version for symbrowse
+
+Use "symbrowse [command] --help" for more information about a command.
 ```
 
 ## MCP / Agent integration
