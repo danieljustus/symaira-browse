@@ -3,7 +3,7 @@
 [![CI](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml/badge.svg)](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-![Symaira Browse social preview](docs/assets/social-preview.png)
+![Symaira Browse social preview](docs/assets/social-preview.svg)
 
 > The browser an agent can operate while a person can take over at any time — without losing the session.
 
@@ -121,8 +121,6 @@ the JS-free static engine), maintains durable sessions, exposes
 deterministic element references, and provides an explicit out-of-band
 handoff to a person for login, 2FA, CAPTCHA, and approval workflows.
 
-- [ARCHITEKTUR.md](ARCHITEKTUR.md) — binding architecture and decision record
-- [PLANUNG.md](PLANUNG.md) — milestones, issues, and dependency plan
 - [AGENTS.md](AGENTS.md) — repository rules for contributors and agents
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
 - [SECURITY.md](SECURITY.md) — security reporting policy
