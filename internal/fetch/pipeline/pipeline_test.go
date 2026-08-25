@@ -3,6 +3,7 @@ package pipeline_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +19,20 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/fetch/pipeline"
 	"github.com/danieljustus/symaira-browse/internal/fetch/robots"
 )
+
+func TestMain(m *testing.M) {
+	tmpDir, err := os.MkdirTemp("", "symfetch-test-pipeline-*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create temp dir for TestMain: %v\n", err)
+		os.Exit(1)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	os.Setenv("HOME", tmpDir)
+	os.Setenv("USERPROFILE", tmpDir)
+
+	os.Exit(m.Run())
+}
 
 func serveFile(t *testing.T, name string) *httptest.Server {
 	t.Helper()
@@ -40,6 +55,10 @@ func serveFile(t *testing.T, name string) *httptest.Server {
 
 func newTestClient(t *testing.T) fetch.Client {
 	t.Helper()
+	// Point HOME at a per-test temp dir so tests that use the default cache
+	// dir (derived from $HOME) cannot collide with real cache entries or
+	// entries from other tests when ephemeral ports are reused.
+	t.Setenv("HOME", t.TempDir())
 	c, err := fetch.New(fetch.ProfileHonest)
 	if err != nil {
 		t.Fatal(err)
