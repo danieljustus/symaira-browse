@@ -57,7 +57,7 @@ func newSessionInfoCommand(session *string) *cobra.Command {
 }
 
 func sessionRequest(ctx context.Context, session, command string) (daemon.Response, error) {
-	response, err := request(ctx, session, command, nil)
+	response, err := requestNoAutostart(ctx, session, command)
 	if err != nil {
 		return daemon.Response{}, err
 	}
