@@ -166,3 +166,73 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocol
 
 Der manuelle Handshake mit Claude Code, Cursor und OpenCode ist in PR #30
 dokumentiert.
+
+## SymFetch-Migration (fetch_url, fetch_batch, wayback_snapshots)
+
+Seit der Repo-Konsolidierung (2026-08-23) ist die `symfetch`-Laufzeit
+archiviert und ihre Static-Engine in `symbrowse` absorbiert. Damit Hermes
+(und andere MCP-Clients) vom deaktivierten `symfetch`-Formula auf
+`symbrowse` wechseln können, ohne die etablierten Fetch-Workflows zu
+verlieren, exponiert der `symbrowse`-MCP-Server die drei SymFetch-Contracts
+als First-Class-Tools (issue #258):
+
+| SymFetch-Tool | symbrowse-Tool | Daemon-Frame | Ausgabe |
+|---|---|---|---|
+| `fetch_url` | `fetch_url` | `fetch.url` | Markdown (Default), JSON (`{url, final_url, title, lang, content, interactive}`) oder Text |
+| `fetch_batch` | `fetch_batch` | `fetch.batch` | Array in Eingabereihenfolge, `{url, ok, content}` |
+| `wayback_snapshots` | `wayback_snapshots` | `wayback.snapshots` | Array `{timestamp, url, status, mime_type, digest}` |
+
+Alle drei laufen über die **Non-Browser-Fetch-Pipeline** (honest HTTP +
+StaticEngine): Sie brauchen keine Chrome-Sitzung und keinen Daemon-Browser.
+SSRF-Guard gilt wie für alle MCP-Tools (private/loopback sind deny, außer
+`--allow-private`). Die Request-/Result-Schemas bleiben stabil, damit
+Clients, die die SymFetch-Contracts nutzen, unverändert weiterarbeiten.
+
+### Hermes-Umstieg
+
+1. `symbrowse` installieren (Homebrew: `brew install danieljustus/tap/symbrowse`
+   oder aus dem Repo bauen) und `symbrowse version` prüfen.
+2. In `~/.hermes/config.yaml` den `mcp.servers.symfetch`-Block ersetzen:
+
+   ```yaml
+   mcp:
+     servers:
+       symfetch:                       # wird ersetzt durch:
+         command: /opt/homebrew/bin/symfetch
+         args: [mcp]
+         enabled: true
+   ```
+   → 
+
+   ```yaml
+   mcp:
+     servers:
+       symbrowse:
+         command: /opt/homebrew/bin/symbrowse
+         args: [mcp]
+         enabled: true
+   ```
+
+3. Hermes neu starten und verifizieren:
+
+   ```sh
+   # Tools-Liste muss fetch_url, fetch_batch und wayback_snapshots enthalten:
+   printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}' '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | /opt/homebrew/bin/symbrowse mcp
+   # Live-Smoke-Test:
+   printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0"}}}' '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"fetch_url","arguments":{"url":"https://example.com","format":"json"}}}' | /opt/homebrew/bin/symbrowse mcp
+   ```
+
+4. Erst nach erfolgreichem Smoke-Test `symfetch` deaktivieren:
+   `brew uninstall symfetch` (das Formula ist bereits als „absorbed into
+   symaira-browse" markiert und disabled).
+
+### Rollback
+
+Falls ein Workflow an `symbrowse`-Seite unerwartet bricht, den
+`mcp.servers`-Block zurück auf `symfetch` stellen, Hermes neu starten und
+`fetch_url` erneut gegen das alte Binary prüfen. Beide Server können im
+Konfigurationsblock auch **parallel** aktiv bleiben (unterschiedliche
+Server-Namen); Clients wählen pro Task den passenden. Das archivierte
+`symfetch`-Formula bleibt im Homebrew-Tap bis zur endgültigen Entfernung
+verfügbar.
+

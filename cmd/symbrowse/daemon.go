@@ -207,6 +207,19 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	if policyRuntime.Guard() != nil && policyRuntime.Guard().Active() {
 		slog.Info("symguard delegation active", "executable", policyRuntime.Guard().Executable)
 	}
+	// Fetch runtime (issue #258): serves the SymFetch compatibility frames
+	// (fetch.url, fetch.batch, wayback.snapshots) over plain HTTP without a
+	// browser session. SSRF policy mirrors the daemon flags.
+	fetchRuntime, err := daemon.NewFetchRuntime(daemon.FetchRuntimeOptions{
+		AllowPrivate: allowPrivate,
+		Robots:       true,
+		CacheDir:     filepath.Join(cfg.CacheDir, "fetch"),
+		CacheTTL:     time.Duration(cfg.CacheTTLHours) * time.Hour,
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = fetchRuntime.Close() }()
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:       path,
 		Session:          session,
@@ -217,6 +230,8 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		CacheTTL:         time.Duration(cfg.CacheTTLHours) * time.Hour,
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
+			case "fetch.url", "fetch.batch", "wayback.snapshots":
+				return fetchRuntime.Handle(ctx, frame)
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
 			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "read", "find", "a11y", "screenshot", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear", "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent", "eval", "console.list", "console.clear", "errors.list", "errors.clear", "network.requests", "network.request", "network.route", "network.unroute", "network.har", "upload", "downloads.list", "download.setdir":
