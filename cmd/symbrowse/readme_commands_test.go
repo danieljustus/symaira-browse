@@ -2,13 +2,19 @@ package main
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestREADMEHelpCommandsAreRegistered(t *testing.T) {
-	readme, err := os.ReadFile("../../README.md")
+	_, sourceFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("runtime.Caller failed")
+	}
+	readme, err := os.ReadFile(filepath.Join(filepath.Dir(sourceFile), "..", "..", "README.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
