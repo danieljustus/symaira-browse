@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.1] - 2026-08-25
+
+### Fixed
+
+- CLI argument and flag validation failures now use the stable `invalid_args` error kind, and standard structured daemon responses preserve warnings (#266, #267)
+- Browser doctor skips the implicit CDP probe for daemon sessions with ephemeral ports (#262)
+- State encryption authenticates metadata headers, rejects plaintext downgrade attempts, and validates keychain key material while preserving legacy reads (#263, #264)
+- Windows CI no longer fails the README command-surface regression test on package working-directory or CRLF differences (#276, #277)
+
+### Security
+
+- State metadata is authenticated with AES-256-GCM and prompt-injection scan input is bounded with explicit truncation warnings (#264, #269)
+
+### Performance
+
+- Snapshot prompt-injection scans are memoized for unchanged page documents (#269)
+
+### Changed
+
+- 404 ancestor and sitemap recovery is isolated from the fetch pipeline orchestration (#268)
+
+### Docs
+
+- README now distinguishes MCP-only SymFetch tool names from the actual CLI surface and captures real help output (#265)
+
 ## [v0.3.0] - 2026-08-25
 
 ### Added
@@ -168,7 +193,8 @@ Initial release of `symbrowse`, the agent-operable browser automation CLI.
   badges, go install quickstart, issue forms and PR template, Apache-2.0
   LICENSE (#106, #124, #140, #139, #120)
 
-[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.3.1...HEAD
+[v0.3.1]: https://github.com/danieljustus/symaira-browse/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/danieljustus/symaira-browse/compare/v0.2.3...v0.3.0
 [v0.2.3]: https://github.com/danieljustus/symaira-browse/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/danieljustus/symaira-browse/compare/v0.2.1...v0.2.2

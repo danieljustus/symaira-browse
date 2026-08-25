@@ -69,7 +69,7 @@ SymFetch output schema. Without Chrome, use the JS-free static engine:
 
 ```text
 $ ./symbrowse version
-symbrowse v0.3.0
+symbrowse v0.3.1
 
 $ ./symbrowse --help
 symbrowse is the standalone command-line entrypoint for Symaira Browse.
