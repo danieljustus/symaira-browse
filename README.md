@@ -7,6 +7,13 @@
 
 > The browser an agent can operate while a person can take over at any time — without losing the session.
 
+## Why symbrowse
+
+- **Agent-operable Chrome sessions** — a real Chrome instance driven over the DevTools Protocol, with durable sessions instead of one-shot page fetches.
+- **Stable element references** — deterministic refs across navigation and re-renders, so an agent's plan doesn't break when the DOM reflows.
+- **Out-of-band handoff** — hand control to a human for 2FA, CAPTCHA, or approval mid-session, then resume agent control without losing state.
+- **Standalone-first** — runs on its own with no compile-time dependency on other Symaira tools; integrations are optional, runtime-only fallbacks.
+
 Typischer Ablauf — `open` → `read` → Out-of-Band-Handoff (Auszug aus einer Session):
 
 ```sh
