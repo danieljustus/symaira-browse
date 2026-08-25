@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 )
 
@@ -50,6 +51,11 @@ func TestConsoleFramesWithoutSession(t *testing.T) {
 // TestEvalRequiresRunningBrowser verifies eval fails cleanly when no browser
 // is configured instead of fabricating a result (issue #60).
 func TestEvalRequiresRunningBrowser(t *testing.T) {
+	// Deterministic: stub discovery to find nothing, so the test does not
+	// depend on whether a Chrome install exists on the host.
+	orig := resolveBrowserExecutable
+	resolveBrowserExecutable = stubResolver("", errors.New("no browser"))
+	t.Cleanup(func() { resolveBrowserExecutable = orig })
 	registry := NewSessionRegistry(SessionRegistryOptions{})
 	if _, err := registry.Ensure("s"); err != nil {
 		t.Fatal(err)

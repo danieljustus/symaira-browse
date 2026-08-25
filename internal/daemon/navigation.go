@@ -7,16 +7,22 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/engine/chrome"
+	"github.com/danieljustus/symaira-browse/internal/engine/doctor"
 	"github.com/danieljustus/symaira-browse/internal/engine/static"
 	"github.com/danieljustus/symaira-browse/internal/profiles"
 	"github.com/danieljustus/symaira-browse/internal/state"
 )
+
+// resolveBrowserExecutable is the discovery fallback used when
+// SYMBROWSE_EXECUTABLE_PATH is unset; a variable so tests can stub it.
+var resolveBrowserExecutable = doctor.ResolveExecutable
 
 // NavigationRuntime lazily owns one protocol-neutral navigation service and
 // Chrome engine per session. CDP details remain confined to engine/chrome.
@@ -332,8 +338,14 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 		return nil, err
 	}
 	if r.executable == "" && r.engineKind != "static" {
-		r.mu.Unlock()
-		return nil, errors.New("browser executable is not configured; set SYMBROWSE_EXECUTABLE_PATH")
+		// Fall back to the same platform discovery doctor reports on, so a
+		// standard Chrome install works without SYMBROWSE_EXECUTABLE_PATH.
+		path, err := resolveBrowserExecutable(os.Getenv, exec.LookPath)
+		if err != nil {
+			r.mu.Unlock()
+			return nil, fmt.Errorf("browser executable is not configured: %w; set SYMBROWSE_EXECUTABLE_PATH to override discovery", err)
+		}
+		r.executable = path
 	}
 	userDataDir := info.UserDataDir
 	if r.profile != "" {

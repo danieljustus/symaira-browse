@@ -1,10 +1,13 @@
 package daemon
 
 import (
+	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/engine/doctor"
 )
 
 // stubPolicyReporter is a fixed engine.NetworkPolicyReporter for tests.
@@ -64,5 +67,92 @@ func TestNetworkPolicyWarningsReportsLimitations(t *testing.T) {
 func TestNetworkPolicyWarningsEmptyWithoutPolicy(t *testing.T) {
 	if warnings := networkPolicyWarnings(&stubPolicyReporter{}); len(warnings) != 0 {
 		t.Fatalf("warnings = %+v, want none", warnings)
+	}
+}
+
+// browserRuntimeForTest builds a NavigationRuntime with the Chrome engine and
+// a real session registry so service() reaches the executable-resolution step.
+func browserRuntimeForTest(t *testing.T) *NavigationRuntime {
+	t.Helper()
+	registry := NewSessionRegistry(SessionRegistryOptions{})
+	if _, err := registry.Ensure("s"); err != nil {
+		t.Fatalf("Ensure session: %v", err)
+	}
+	return &NavigationRuntime{
+		registry:        registry,
+		engineKind:      "chrome",
+		engines:         make(map[string]engine.Engine),
+		browserContexts: make(map[string]engine.Context),
+		tabs:            make(map[string][]*sessionTab),
+		activeTab:       make(map[string]int),
+		recorders:       make(map[string]*recorderState),
+	}
+}
+
+func stubResolver(path string, err error) func(func(string) string, func(string) (string, error)) (string, error) {
+	return func(func(string) string, func(string) (string, error)) (string, error) {
+		return path, err
+	}
+}
+
+// TestServiceDiscoveryFailureIsActionable verifies that when no browser can
+// be discovered the error names the missing configuration, the searched paths
+// and the override escape hatch.
+func TestServiceDiscoveryFailureIsActionable(t *testing.T) {
+	orig := resolveBrowserExecutable
+	resolveBrowserExecutable = stubResolver("", &doctor.DiscoveryError{SearchPaths: []string{"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"}})
+	t.Cleanup(func() { resolveBrowserExecutable = orig })
+
+	runtime := browserRuntimeForTest(t)
+	_, err := runtime.service(context.Background(), "s")
+	if err == nil {
+		t.Fatal("expected an error when discovery finds no browser")
+	}
+	msg := err.Error()
+	for _, want := range []string{"browser executable is not configured", "searched", "SYMBROWSE_EXECUTABLE_PATH"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error = %q, missing %q", msg, want)
+		}
+	}
+}
+
+// TestServiceFallbackDiscoveryUsed verifies that a discovered executable is
+// actually used: the runtime proceeds to launch (and fails with a launch
+// error, not the not-configured error).
+func TestServiceFallbackDiscoveryUsed(t *testing.T) {
+	orig := resolveBrowserExecutable
+	resolveBrowserExecutable = stubResolver("/nonexistent/stub-chrome", nil)
+	t.Cleanup(func() { resolveBrowserExecutable = orig })
+
+	runtime := browserRuntimeForTest(t)
+	_, err := runtime.service(context.Background(), "s")
+	if err == nil {
+		t.Fatal("expected a launch error for the stub executable")
+	}
+	if strings.Contains(err.Error(), "browser executable is not configured") {
+		t.Errorf("discovery fallback did not engage: %v", err)
+	}
+}
+
+// TestServiceExplicitExecutableSkipsDiscovery verifies SYMBROWSE_EXECUTABLE_PATH
+// (or the constructed executable) takes precedence and discovery is never
+// consulted.
+func TestServiceExplicitExecutableSkipsDiscovery(t *testing.T) {
+	called := false
+	orig := resolveBrowserExecutable
+	resolveBrowserExecutable = func(func(string) string, func(string) (string, error)) (string, error) {
+		called = true
+		return "", errors.New("must not be called")
+	}
+	t.Cleanup(func() { resolveBrowserExecutable = orig })
+
+	runtime := browserRuntimeForTest(t)
+	runtime.executable = "/nonexistent/stub-chrome"
+	_, err := runtime.service(context.Background(), "s")
+	if err == nil {
+		t.Fatal("expected a launch error for the stub executable")
+	}
+	if called {
+		t.Error("discovery was called although an executable was configured")
 	}
 }

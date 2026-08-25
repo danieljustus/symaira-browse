@@ -84,6 +84,19 @@ func SearchPaths(goos string) []string {
 	return searchPaths(goos, os.Getenv)
 }
 
+// ResolveExecutable returns the browser executable the navigation runtime
+// should use: the SYMBROWSE_EXECUTABLE_PATH override when set and usable,
+// otherwise the first usable platform path or PATH entry — the same
+// discovery doctor.Run reports on. environ and lookPath are injectable for
+// tests; callers pass os.Getenv and exec.LookPath.
+func ResolveExecutable(environ func(string) string, lookPath func(string) (string, error)) (string, error) {
+	browser, err := discover(runtime.GOOS, environ("SYMBROWSE_EXECUTABLE_PATH"), environ, lookPath)
+	if err != nil {
+		return "", err
+	}
+	return browser.Path, nil
+}
+
 // Write writes a report. JSON mode writes only the JSON payload to w.
 func Write(w io.Writer, report Report, jsonOutput bool) error {
 	if jsonOutput {
