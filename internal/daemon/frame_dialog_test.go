@@ -236,6 +236,13 @@ func TestNewEngineSelectsStaticOrChrome(t *testing.T) {
 }
 
 func TestServiceExecutableRequired(t *testing.T) {
+	// Deterministic: stub discovery to find nothing, so the test does not
+	// depend on whether a Chrome install exists on the host (with a Chrome
+	// present, discovery would find it and the runtime would attempt a real
+	// launch instead of erroring).
+	orig := resolveBrowserExecutable
+	resolveBrowserExecutable = stubResolver("", errors.New("no browser"))
+	t.Cleanup(func() { resolveBrowserExecutable = orig })
 	registry := NewSessionRegistry(SessionRegistryOptions{UserDataRoot: t.TempDir()})
 	if _, err := registry.Ensure("default"); err != nil {
 		t.Fatal(err)

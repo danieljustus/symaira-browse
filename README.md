@@ -78,7 +78,9 @@ Requirements:
 
 - Go 1.26.5
 - A POSIX shell and GNU Make
-- Chrome for the default engine (optional: `--engine static` reads without Chrome)
+- Chrome for the default engine. Optional — without it, use the JS-free
+  static engine: start `symbrowse daemon --session <name> --engine static`,
+  then run `open`/`read` against that `--session <name>`.
 
 Build and inspect the command:
 
