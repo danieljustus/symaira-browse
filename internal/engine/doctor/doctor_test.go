@@ -160,17 +160,29 @@ func writeExecutable(t *testing.T, path, content string) string {
 	return path
 }
 
-// tempExecutable creates a real, executable file on disk so usableExecutable
-// accepts it during discovery tests.
+// tempExecutable creates a real, executable file on disk so it can serve as
+// the discovered/override candidate in discovery tests.
 func tempExecutable(t *testing.T) string {
 	t.Helper()
 	return writeExecutable(t, filepath.Join(t.TempDir(), "chrome"), "#!/bin/sh\nexit 0\n")
+}
+
+// stubUsable replaces the filesystem usability check so discovery tests are
+// deterministic regardless of which browsers happen to be installed on the
+// host (GitHub Actions runners ship Chrome in /usr/bin, macOS often in
+// /Applications).
+func stubUsable(t *testing.T, allow func(goos, path string) bool) {
+	t.Helper()
+	orig := usableExecutable
+	usableExecutable = allow
+	t.Cleanup(func() { usableExecutable = orig })
 }
 
 // TestDiscoverOverrideWins verifies the explicit override beats platform and
 // PATH discovery (absolute path, so lookPath must not be consulted).
 func TestDiscoverOverrideWins(t *testing.T) {
 	exe := tempExecutable(t)
+	stubUsable(t, func(_, path string) bool { return path == exe })
 	lookPathCalls := 0
 	browser, err := discover("linux", exe,
 		func(string) string { return "" },
@@ -189,6 +201,7 @@ func TestDiscoverOverrideWins(t *testing.T) {
 // TestDiscoverOverrideUnusableError verifies an unusable override fails
 // before platform discovery and reports the override in the error.
 func TestDiscoverOverrideUnusableError(t *testing.T) {
+	stubUsable(t, func(_, _ string) bool { return false })
 	_, err := discover("linux", "/nonexistent/chrome-binary",
 		func(string) string { return "" },
 		func(string) (string, error) { return "", errors.New("not on PATH") })
@@ -204,6 +217,7 @@ func TestDiscoverOverrideUnusableError(t *testing.T) {
 // when no platform path exists.
 func TestDiscoverPATHFallback(t *testing.T) {
 	exe := tempExecutable(t)
+	stubUsable(t, func(_, path string) bool { return path == exe })
 	browser, err := discover("linux", "",
 		func(string) string { return "" },
 		func(name string) (string, error) {
@@ -223,6 +237,7 @@ func TestDiscoverPATHFallback(t *testing.T) {
 // TestDiscoverNothingFoundError verifies the actionable error with search
 // paths when nothing can be found.
 func TestDiscoverNothingFoundError(t *testing.T) {
+	stubUsable(t, func(_, _ string) bool { return false })
 	_, err := discover("linux", "",
 		func(string) string { return "" },
 		func(string) (string, error) { return "", errors.New("not found") })
@@ -241,6 +256,7 @@ func TestDiscoverNothingFoundError(t *testing.T) {
 // SYMBROWSE_EXECUTABLE_PATH override.
 func TestResolveExecutableUsesOverride(t *testing.T) {
 	exe := tempExecutable(t)
+	stubUsable(t, func(_, path string) bool { return path == exe })
 	environ := func(key string) string {
 		if key == "SYMBROWSE_EXECUTABLE_PATH" {
 			return exe

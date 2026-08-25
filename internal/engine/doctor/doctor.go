@@ -316,7 +316,10 @@ func socketDir(goos string, environ func(string) string) string {
 	return filepath.Join(base, "symbrowse")
 }
 
-func usableExecutable(goos, path string) bool {
+// usableExecutable reports whether path is a regular, executable file. It is
+// a variable so tests can stub filesystem checks (real installs vary per
+// platform, e.g. GitHub Actions runners ship Chrome in /usr/bin).
+var usableExecutable = func(goos, path string) bool {
 	info, err := os.Stat(path)
 	if err != nil || !info.Mode().IsRegular() {
 		return false
