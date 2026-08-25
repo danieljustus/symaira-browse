@@ -3,7 +3,7 @@ package version
 
 import "github.com/danieljustus/symaira-corekit/versionkit"
 
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // Info returns the stable version payload consumed by GUI clients.
 func Info(version string) versionkit.Info {

@@ -124,9 +124,13 @@ func (r *KeyResolver) resolve() ([]byte, KeySource, error) {
 		}
 	}
 	if r.KeychainGet != nil {
-		if key, ok, err := r.KeychainGet(KeychainService, KeychainAccount); err != nil {
+		if raw, ok, err := r.KeychainGet(KeychainService, KeychainAccount); err != nil {
 			return nil, "", err
 		} else if ok {
+			key, err := parseKeychainKey(raw)
+			if err != nil {
+				return nil, "", fmt.Errorf("%s/%s: %w", KeychainService, KeychainAccount, err)
+			}
 			return key, KeySourceKeychain, nil
 		}
 	}
@@ -189,6 +193,19 @@ func parseHexKey(raw string) ([]byte, error) {
 	key, err := hex.DecodeString(raw)
 	if err != nil {
 		return nil, errors.New("key must be a 64-character hex string (32 bytes)")
+	}
+	return key, nil
+}
+
+// parseKeychainKey accepts the documented 64-character hex form and the raw
+// 32-byte form returned by defensive test doubles or alternate keychain APIs.
+func parseKeychainKey(raw []byte) ([]byte, error) {
+	if len(raw) == 32 {
+		return append([]byte(nil), raw...), nil
+	}
+	key, err := parseHexKey(string(raw))
+	if err != nil {
+		return nil, errors.New("keychain value must be a 64-character hex string or 32 raw bytes")
 	}
 	return key, nil
 }

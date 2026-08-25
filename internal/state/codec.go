@@ -30,7 +30,7 @@ func (s *Store) encode(st *State) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("marshal state: %w", err)
 	}
-	body, err := s.codec().Encrypt(payload)
+	body, err := s.codec().Encrypt(payload, headerBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -62,11 +62,24 @@ func (s *Store) decode(raw []byte) (*State, error) {
 		if err := json.Unmarshal(data[:newlineIdx], &hdr); err == nil && hdr.SchemaVersion >= 2 {
 			body := data[newlineIdx+1:]
 			var payload []byte
-			if hdr.KeySource == string(KeySourceNone) || hdr.KeySource == "" {
+			if hdr.SchemaVersion >= 3 {
+				if s.keys == nil {
+					if hdr.KeySource != "" && hdr.KeySource != string(KeySourceNone) {
+						return nil, errors.New("encrypted state requires a key provider")
+					}
+					payload = body
+				} else {
+					var err error
+					payload, err = s.codec().Decrypt(body, data[:newlineIdx])
+					if err != nil {
+						return nil, err
+					}
+				}
+			} else if hdr.KeySource == string(KeySourceNone) || hdr.KeySource == "" {
 				payload = body
 			} else {
 				var err error
-				payload, err = s.codec().Decrypt(body)
+				payload, err = s.codec().Decrypt(body, nil)
 				if err != nil {
 					return nil, err
 				}
@@ -85,7 +98,7 @@ func (s *Store) decode(raw []byte) (*State, error) {
 
 	// Legacy v1 format:
 	if s.keys != nil {
-		payload, err := s.codec().Decrypt(data)
+		payload, err := s.codec().Decrypt(data, nil)
 		if err == nil {
 			var st State
 			if unmarshalErr := json.Unmarshal(payload, &st); unmarshalErr == nil {
@@ -108,7 +121,7 @@ func (s *Store) decode(raw []byte) (*State, error) {
 		}
 	}
 
-	payload, err := s.codec().Decrypt(data)
+	payload, err := s.codec().Decrypt(data, nil)
 	if err != nil {
 		return nil, err
 	}
