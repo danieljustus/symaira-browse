@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
-	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 // sendSimpleFrame sends one daemon frame and writes the envelope response.
@@ -24,10 +23,7 @@ func sendSimpleFrame(cmd *cobra.Command, session, command string, args any) erro
 	if err != nil {
 		return err
 	}
-	if !response.Success {
-		return responseError(response)
-	}
-	return writeEnvelope(cmd, output.OK(response.Data, nil))
+	return writeEnvelopeFromResponse(cmd, response)
 }
 
 // marshalArgs encodes args for a daemon frame; nil becomes an empty payload.

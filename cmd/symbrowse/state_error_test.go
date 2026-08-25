@@ -89,8 +89,8 @@ func fakeDaemon(t *testing.T, path string, respond func(frame []byte) []byte) {
 }
 
 func TestStateRequestInvalidSession(t *testing.T) {
-	if _, err := stateRequest(context.Background(), "bad session!", "cookies.list", nil); err == nil {
-		t.Fatal("expected an invalid session name to fail stateRequest")
+	if _, err := daemonRequest(context.Background(), "bad session!", "cookies.list", nil); err == nil {
+		t.Fatal("expected an invalid session name to fail the daemon request")
 	}
 }
 

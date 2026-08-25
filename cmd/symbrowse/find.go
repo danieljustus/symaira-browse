@@ -21,7 +21,7 @@ func newFindCommand() *cobra.Command {
 		Short:   "Find an element semantically and optionally act on it",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) < 3 || len(args) > 4 {
-				return errors.New("find requires kind, query, action, and an optional value")
+				return invalidArgs("find requires kind, query, action, and an optional value")
 			}
 			return nil
 		},
@@ -31,7 +31,7 @@ func newFindCommand() *cobra.Command {
 				if request.Action == engine.FindNth {
 					index, err := strconv.Atoi(args[3])
 					if err != nil {
-						return fmt.Errorf("find nth index: %w", err)
+						return invalidArgs("find nth index: %v", err)
 					}
 					request.Index = index
 				} else {
@@ -56,7 +56,7 @@ func findRequest(cmd *cobra.Command, session string, req engine.FindRequest) (da
 	if err != nil {
 		return daemon.Response{}, err
 	}
-	response, err := request(cmd.Context(), session, "find", args)
+	response, err := daemonRequest(cmd.Context(), session, "find", args)
 	if err != nil {
 		return daemon.Response{}, err
 	}

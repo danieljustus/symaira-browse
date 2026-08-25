@@ -36,15 +36,15 @@ func newStateSaveCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := map[string]any{"name": args[0]}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "state.save", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "state.save", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "saved state %q\n", args[0])
 			return err
@@ -61,15 +61,15 @@ func newStateLoadCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := map[string]any{"name": args[0]}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "state.load", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "state.load", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "loaded state %q\n", args[0])
 			return err
@@ -84,15 +84,15 @@ func newStateListCommand(session *string) *cobra.Command {
 		Short: "List named states",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := stateRequest(cmd.Context(), *session, "state.list", nil)
+			response, err := daemonRequest(cmd.Context(), *session, "state.list", nil)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payload := stateListFromResponse(response.Data)
 			for _, name := range payload.States {
@@ -112,15 +112,15 @@ func newStateShowCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := map[string]any{"name": args[0]}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "state.show", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "state.show", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			raw, _ := json.MarshalIndent(response.Data, "", "  ")
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
@@ -138,15 +138,15 @@ func newStateClearCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := map[string]any{"name": args[0]}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "state.clear", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "state.clear", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "cleared state %q\n", args[0])
 			return err
@@ -174,7 +174,7 @@ func newStateCleanCommand(session *string) *cobra.Command {
 			if len(request) > 0 {
 				payload, _ = json.Marshal(request)
 			}
-			response, err := stateRequest(cmd.Context(), *session, "state.clean", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "state.clean", payload)
 			if err != nil {
 				return err
 			}

@@ -22,11 +22,11 @@ func newWatchCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if takeOver {
 				if takeOverReason == "" {
-					return fmt.Errorf("watch --take-over requires --reason")
+					return invalidArgs("watch --take-over requires --reason")
 				}
 				request := map[string]any{"reason": takeOverReason, "timeout": "5m"}
 				payload, _ := json.Marshal(request)
-				response, err := stateRequest(cmd.Context(), session, "handoff", payload)
+				response, err := daemonRequest(cmd.Context(), session, "handoff", payload)
 				if err != nil {
 					return err
 				}
@@ -60,7 +60,7 @@ func watchSession(cmd *cobra.Command, session string) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		response, err := stateRequest(ctx, session, "journal.show", nil)
+		response, err := daemonRequest(ctx, session, "journal.show", nil)
 		if err != nil {
 			// Daemon not up yet: poll quietly.
 			select {

@@ -38,17 +38,17 @@ func newSetViewportCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			width, err := strconv.ParseInt(args[0], 10, 64)
 			if err != nil {
-				return fmt.Errorf("width: %w", err)
+				return invalidArgs("width: %v", err)
 			}
 			height, err := strconv.ParseInt(args[1], 10, 64)
 			if err != nil {
-				return fmt.Errorf("height: %w", err)
+				return invalidArgs("height: %v", err)
 			}
 			var scale float64
 			if len(args) == 3 {
 				scale, err = strconv.ParseFloat(args[2], 64)
 				if err != nil {
-					return fmt.Errorf("scale: %w", err)
+					return invalidArgs("scale: %v", err)
 				}
 			}
 			request := map[string]any{"width": width, "height": height, "scale": scale}
@@ -123,7 +123,7 @@ func newSetOfflineCommand(session *string) *cobra.Command {
 				case "off":
 					offline = false
 				default:
-					return fmt.Errorf("offline expects on or off, got %q", args[0])
+					return invalidArgs("offline expects on or off, got %q", args[0])
 				}
 			}
 			request := map[string]any{"offline": offline}
@@ -141,10 +141,10 @@ func newSetHeadersCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var headers map[string]string
 			if err := json.Unmarshal([]byte(args[0]), &headers); err != nil {
-				return fmt.Errorf("headers must be a JSON object: %w", err)
+				return invalidArgs("headers must be a JSON object: %v", err)
 			}
 			if len(headers) == 0 {
-				return fmt.Errorf("headers object must not be empty")
+				return invalidArgs("headers object must not be empty")
 			}
 			request := map[string]any{"headers": headers}
 			return sendSetFrame(cmd, *session, "set.headers", request)
@@ -166,7 +166,7 @@ func newSetMediaCommand(session *string) *cobra.Command {
 			case "light":
 				dark = false
 			default:
-				return fmt.Errorf("media expects dark or light, got %q", args[0])
+				return invalidArgs("media expects dark or light, got %q", args[0])
 			}
 			request := map[string]any{"dark": dark}
 			return sendSetFrame(cmd, *session, "set.media", request)
@@ -190,7 +190,7 @@ func newSetUserAgentCommand(session *string) *cobra.Command {
 
 func sendSetFrame(cmd *cobra.Command, session, command string, request map[string]any) error {
 	payload, _ := json.Marshal(request)
-	response, err := stateRequest(cmd.Context(), session, command, payload)
+	response, err := daemonRequest(cmd.Context(), session, command, payload)
 	if err != nil {
 		return err
 	}

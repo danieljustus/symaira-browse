@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newJournalCommand() *cobra.Command {
@@ -32,15 +30,15 @@ func newJournalTailCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			request := map[string]any{"session": *session, "lines": lines}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "journal.tail", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "journal.tail", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			entries := journalEntriesFromResponse(response.Data)
 			for _, entry := range entries {
@@ -61,15 +59,15 @@ func newJournalShowCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			request := map[string]any{"session": *session}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "journal.show", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "journal.show", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			entries := journalEntriesFromResponse(response.Data)
 			for _, entry := range entries {

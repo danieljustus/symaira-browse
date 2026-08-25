@@ -29,7 +29,7 @@ func newPolicyExplainCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := map[string]any{"command": args[0], "url": url, "mode": mode}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "policy.explain", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "policy.explain", payload)
 			if err != nil {
 				return err
 			}

@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newOOBCommand() *cobra.Command {
@@ -28,15 +26,15 @@ func newOOBStatusCommand(session *string) *cobra.Command {
 		Short: "Show whether an out-of-band prompt is pending",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := stateRequest(cmd.Context(), *session, "oob.status", nil)
+			response, err := daemonRequest(cmd.Context(), *session, "oob.status", nil)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payload := oobStatusFromResponse(response.Data)
 			if !payload.Active {

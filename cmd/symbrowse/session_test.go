@@ -11,8 +11,8 @@ import (
 )
 
 func TestSessionRequestInvalidSession(t *testing.T) {
-	if _, err := sessionRequest(context.Background(), "bad session!", "session.list"); err == nil {
-		t.Fatal("expected an invalid session name to fail sessionRequest")
+	if _, err := requestNoAutostart(context.Background(), "bad session!", "session.list"); err == nil {
+		t.Fatal("expected an invalid session name to fail the no-autostart request")
 	}
 }
 
@@ -20,7 +20,7 @@ func TestSessionRequestNoDaemon(t *testing.T) {
 	redirectSocketDir(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if _, err := sessionRequest(ctx, uniqueSession(), "session.list"); err == nil {
+	if _, err := requestNoAutostart(ctx, uniqueSession(), "session.list"); err == nil {
 		t.Fatal("expected a missing daemon socket to fail the request")
 	}
 }

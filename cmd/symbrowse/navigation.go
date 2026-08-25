@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -123,13 +122,13 @@ func waitConditionFromFlags(args []string, milliseconds int64, textValue, urlVal
 		selected++
 	}
 	if selected != 1 {
-		return engine.WaitCondition{}, errors.New("choose exactly one wait condition")
+		return engine.WaitCondition{}, invalidArgs("wait requires exactly one condition")
 	}
 	if len(args) == 1 {
 		return engine.WaitCondition{Kind: engine.WaitSelector, Value: args[0], SelectorState: engine.SelectorState(state)}, nil
 	}
 	if milliseconds < 0 {
-		return engine.WaitCondition{}, errors.New("--ms cannot be negative")
+		return engine.WaitCondition{}, invalidArgs("--ms cannot be negative")
 	}
 	if milliseconds != 0 {
 		return engine.WaitCondition{Kind: engine.WaitMilliseconds, Duration: time.Duration(milliseconds) * time.Millisecond}, nil
@@ -144,12 +143,12 @@ func waitConditionFromFlags(args []string, milliseconds int64, textValue, urlVal
 	case engine.LoadComplete, engine.LoadDOMContentLoad, engine.LoadNetworkIdle:
 		return engine.WaitCondition{Kind: engine.WaitLoad, LoadState: engine.LoadState(loadValue)}, nil
 	default:
-		return engine.WaitCondition{}, fmt.Errorf("invalid --load state %q", loadValue)
+		return engine.WaitCondition{}, invalidArgs("invalid --load state %q", loadValue)
 	}
 }
 
 func navigationRequest(ctx context.Context, session, command string, args json.RawMessage) (daemon.Response, error) {
-	response, err := request(ctx, session, command, args)
+	response, err := daemonRequest(ctx, session, command, args)
 	if err != nil {
 		return daemon.Response{}, err
 	}

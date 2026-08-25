@@ -427,7 +427,7 @@ func approvalTimeout() time.Duration {
 
 func daemonLifecycleRequest(ctx context.Context, session, command string, autostart bool) (daemon.Response, error) {
 	if autostart {
-		return request(ctx, session, command, nil)
+		return daemonRequest(ctx, session, command, nil)
 	}
 	return requestNoAutostart(ctx, session, command)
 }

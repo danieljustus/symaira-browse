@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/output"
 )
@@ -42,7 +40,7 @@ func newCookiesListCommand(session, reveal *string) *cobra.Command {
 		Short: "List cookies visible to the current page",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := stateRequest(cmd.Context(), *session, "cookies.list", nil)
+			response, err := daemonRequest(cmd.Context(), *session, "cookies.list", nil)
 			if err != nil {
 				return err
 			}
@@ -88,15 +86,15 @@ func newCookiesSetCommand(session *string) *cobra.Command {
 				"url":    url,
 			}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "cookies.set", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "cookies.set", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return err
@@ -120,15 +118,15 @@ func newCookiesClearCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := map[string]any{"name": args[0], "url": url}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "cookies.clear", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "cookies.clear", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return err
@@ -161,15 +159,15 @@ func newStorageGetCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := map[string]any{"kind": args[0]}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "storage.list", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "storage.list", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payloadData := storageListFromResponse(response.Data)
 			if len(args) == 2 {
@@ -197,15 +195,15 @@ func newStorageSetCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := map[string]any{"kind": args[0], "key": args[1], "value": args[2]}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "storage.set", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "storage.set", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return err
@@ -222,33 +220,21 @@ func newStorageClearCommand(session *string) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			request := map[string]any{"kind": args[0]}
 			payload, _ := json.Marshal(request)
-			response, err := stateRequest(cmd.Context(), *session, "storage.clear", payload)
+			response, err := daemonRequest(cmd.Context(), *session, "storage.clear", payload)
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
-			}
-			if structuredOutput(cmd) {
-				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 			return err
 		},
 	}
 	return command
-}
-
-// stateRequest sends one daemon frame with an optional JSON payload.
-// Deprecated: use request() directly. Kept as alias for minimal churn.
-func stateRequest(ctx context.Context, session, command string, args []byte) (daemon.Response, error) {
-	return request(ctx, session, command, args)
-}
-
-// stateRequestBudget is stateRequest with an optional token budget.
-// Deprecated: use requestBudget() directly. Kept as alias for minimal churn.
-func stateRequestBudget(ctx context.Context, session, command string, args []byte, maxTokens *int) (daemon.Response, error) {
-	return requestBudget(ctx, session, command, args, maxTokens)
 }
 
 // maxTokensFlag reads the --max-tokens flag value. A missing flag or a
@@ -284,7 +270,7 @@ func importCurlCookies(cmd *cobra.Command, session, path string) error {
 		}
 		request := map[string]any{"cookie": cookie, "url": ""}
 		payload, _ := json.Marshal(request)
-		response, err := stateRequest(cmd.Context(), session, "cookies.set", payload)
+		response, err := daemonRequest(cmd.Context(), session, "cookies.set", payload)
 		if err != nil {
 			return err
 		}

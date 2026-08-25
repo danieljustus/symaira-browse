@@ -91,7 +91,7 @@ func newInteractionCommand(action engine.InteractionAction) *cobra.Command {
 				max = 2
 			}
 			if len(args) < 1 || len(args) > max {
-				return fmt.Errorf("%s requires a selector and optional value", action)
+				return invalidArgs("%s requires a selector and optional value", action)
 			}
 			return nil
 		},
@@ -102,7 +102,7 @@ func newInteractionCommand(action engine.InteractionAction) *cobra.Command {
 				case engine.ActionScroll:
 					amount, err := strconv.ParseInt(args[1], 10, 64)
 					if err != nil {
-						return fmt.Errorf("scroll amount: %w", err)
+						return invalidArgs("scroll amount: %v", err)
 					}
 					req.Amount = amount
 				case engine.ActionPress:
@@ -115,7 +115,7 @@ func newInteractionCommand(action engine.InteractionAction) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			response, err := request(cmd.Context(), session, string(action), payload)
+			response, err := daemonRequest(cmd.Context(), session, string(action), payload)
 			if err != nil {
 				return err
 			}

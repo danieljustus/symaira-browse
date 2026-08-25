@@ -28,7 +28,7 @@ func newErrorsListCommand(session *string) *cobra.Command {
 		Short: "List uncaught exceptions with stack traces (issue #60)",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := stateRequestBudget(cmd.Context(), *session, "errors.list", nil, maxTokensFlag(cmd))
+			response, err := daemonRequestBudget(cmd.Context(), *session, "errors.list", nil, maxTokensFlag(cmd))
 			if err != nil {
 				return err
 			}
@@ -48,7 +48,7 @@ func newErrorsClearCommand(session *string) *cobra.Command {
 		Short: "Clear the error buffer",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			response, err := stateRequest(cmd.Context(), *session, "errors.clear", nil)
+			response, err := daemonRequest(cmd.Context(), *session, "errors.clear", nil)
 			if err != nil {
 				return err
 			}
