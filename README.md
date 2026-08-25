@@ -69,7 +69,7 @@ SymFetch output schema. Without Chrome, use the JS-free static engine:
 
 ```sh
 $ ./symbrowse version
-symbrowse v0.2.3
+symbrowse v0.3.0
 
 $ ./symbrowse --help
 Usage:

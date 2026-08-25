@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.3.0] - 2026-08-25
+
+### Added
+
+- MCP: expose the SymFetch compatibility contracts `fetch_url`, `fetch_batch` and `wayback_snapshots` on the symbrowse MCP server, so clients can switch from the retired `symfetch` runtime without losing fast fetch, batch fetch, or Wayback discovery (#258, #259)
+- CLI: global `--output` flag alongside `--json` for the unified output envelope (#255)
+
+### Docs
+
+- README brought onto the shared Symaira structure (brand H1, badge row, status line, Install, ecosystem links) (#256, #260)
+
 ## [v0.2.3] - 2026-08-25
 
 ### Added
@@ -157,7 +168,9 @@ Initial release of `symbrowse`, the agent-operable browser automation CLI.
   badges, go install quickstart, issue forms and PR template, Apache-2.0
   LICENSE (#106, #124, #140, #139, #120)
 
-[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.3.0...HEAD
+[v0.3.0]: https://github.com/danieljustus/symaira-browse/compare/v0.2.3...v0.3.0
+[v0.2.3]: https://github.com/danieljustus/symaira-browse/compare/v0.2.2...v0.2.3
 [v0.2.2]: https://github.com/danieljustus/symaira-browse/compare/v0.2.1...v0.2.2
 [v0.2.1]: https://github.com/danieljustus/symaira-browse/compare/v0.2.0...v0.2.1
 [v0.2.0]: https://github.com/danieljustus/symaira-browse/compare/v0.1.1...v0.2.0
