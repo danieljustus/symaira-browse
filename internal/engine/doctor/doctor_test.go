@@ -152,6 +152,40 @@ func TestFixInstructionsAreNonMutatingAndCopyable(t *testing.T) {
 	}
 }
 
+func TestDefaultCDPCheckIsSkipped(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
+	dir := t.TempDir()
+	executable := writeExecutable(t, filepath.Join(dir, "chrome"), "#!/bin/sh\necho 'Google Chrome 123.0'\n")
+	paths := Paths{
+		ConfigDir: filepath.Join(dir, "config"),
+		CacheDir:  filepath.Join(dir, "cache"),
+		StateDir:  filepath.Join(dir, "state"),
+	}
+	for _, path := range []string{paths.ConfigDir, paths.CacheDir, paths.StateDir} {
+		if err := os.Mkdir(path, 0o750); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	environ := func(key string) string {
+		if key == "HOME" {
+			return dir
+		}
+		return ""
+	}
+	report := run(Options{ExecutablePath: executable, Paths: paths}, "linux", environ, exec.LookPath)
+	cdp := report.Checks[2]
+	if cdp.Name != "cdp" || cdp.Status != StatusSkipped {
+		t.Fatalf("cdp check = %#v, want skipped", cdp)
+	}
+	if !strings.Contains(cdp.Message, "SYMBROWSE_CDP_ENDPOINT") {
+		t.Fatalf("cdp message = %q", cdp.Message)
+	}
+}
+
 func writeExecutable(t *testing.T, path, content string) string {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o700); err != nil {
