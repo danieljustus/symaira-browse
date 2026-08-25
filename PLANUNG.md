@@ -857,9 +857,21 @@ Headless-Kern für reine Lese-Vorgänge) hinter demselben `Engine`-Interface,
 wählbar per `--engine`. Ein Fähigkeiten-Feld meldet, was die Engine **nicht**
 kann; nicht unterstützte Kommandos liefern einen klaren Fehler statt falscher
 Ergebnisse.
+**Abgrenzung (bindend):** `docs/engines.md` bekommt neben der Fähigkeitsmatrix
+einen Abschnitt „Nicht unterstützte Engines". Er nennt den **technischen** Grund,
+nicht nur die Entscheidung — damit die Frage einmal beantwortet ist, statt
+wiederzukehren:
+
+| Engine | Grund |
+|---|---|
+| **Safari** (`safaridriver`) | WebDriver Classic hat keinen Accessibility-Tree-Endpunkt, `Engine.AXTree` ist aber Kernmethode — Snapshot, Stable Refs und `snapshot --diff` hängen daran. Dazu: nur **eine** Session pro Host (unvereinbar mit Session-per-Worktree), isoliertes Automationsprofil **ohne** die realen Logins des Menschen (das Handoff-Argument trägt also nicht), `--enable` braucht sudo plus einen manuellen Klick im Develop-Menü, macOS-only bei drei Zielplattformen |
+| **WebKit über Playwright** | Ist nicht Safari (eigener Build, eigene Eigenheiten) und zieht Node-Treiber plus Browser-Downloads nach sich — bricht „ein Binary, CGO-frei, Standalone-First" |
+| **Firefox** | Kein CDP mehr; nur über WebDriver BiDi denkbar, also ein zweiter Protokoll-Stack mit eigener Testmatrix. Frühestens **nach** v1.0 und dann als ARCHITEKTUR-Revision (§8/§10), nicht als Issue |
+
 **Akzeptanzkriterien:**
 - [ ] Kein Paket außerhalb `internal/engine` musste für die zweite Engine geändert werden
 - [ ] Fähigkeitsmatrix in `docs/engines.md`
+- [ ] `docs/engines.md` enthält den Abschnitt „Nicht unterstützte Engines" mit je einem technischen Grund pro Engine
 - [ ] `read` liefert auf beiden Engines strukturell gleiches Markdown
 
 ---
