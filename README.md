@@ -1,20 +1,71 @@
-# Symaira Browse (`symbrowse`)
+# Symaira Browse
 
 [![CI](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml/badge.svg)](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/danieljustus/symaira-browse)](https://github.com/danieljustus/symaira-browse/releases/latest)
+[![Coverage](https://img.shields.io/badge/coverage-gated-blue)](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/danieljustus/symaira-browse)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.26-blue)](https://go.dev/)
 
-![Symaira Browse social preview](docs/assets/social-preview.svg)
+![Symaira Browse](docs/assets/social-preview.svg)
 
 > The browser an agent can operate while a person can take over at any time — without losing the session.
 
+**Status:** pre-1.0 — the command surface is stabilizing under [SemVer](https://semver.org/); see [CHANGELOG.md](CHANGELOG.md) for the release history.
+
 ## Why symbrowse
 
-- **Agent-operable Chrome sessions** — a real Chrome instance driven over the DevTools Protocol, with durable sessions instead of one-shot page fetches.
-- **Stable element references** — deterministic refs across navigation and re-renders, so an agent's plan doesn't break when the DOM reflows.
+- **Agent-operable Chrome sessions** — a real Chrome instance driven over the DevTools Protocol, with durable sessions instead of one-shot page fetches. If JavaScript, redirects, cookies, or interaction are needed, this is the tool.
+- **Plain-HTTP fetch built in** — the absorbed `symfetch` static engine (`fetch_url`, `fetch_batch`, `wayback_snapshots`) serves fast static reads and Wayback discovery without a browser session.
+- **Stable element references** — deterministic `@ref`s across navigation and re-renders, so an agent's plan doesn't break when the DOM reflows.
 - **Out-of-band handoff** — hand control to a human for 2FA, CAPTCHA, or approval mid-session, then resume agent control without losing state.
 - **Standalone-first** — runs on its own with no compile-time dependency on other Symaira tools; integrations are optional, runtime-only fallbacks.
 
-Typischer Ablauf — `open` → `read` → Out-of-Band-Handoff (Auszug aus einer Session):
+## Install
+
+**Homebrew:**
+
+```sh
+brew tap danieljustus/tap
+brew install symbrowse
+```
+
+**Go:**
+
+```sh
+go install github.com/danieljustus/symaira-browse/cmd/symbrowse@latest
+```
+
+**From source** (requires Go 1.26.5, POSIX shell, GNU Make; CGO-free):
+
+```sh
+make build
+./symbrowse version
+```
+
+## Quick start
+
+```sh
+./symbrowse open "https://example.com" --session research
+./symbrowse snapshot --session research
+./symbrowse read --engine-hint --session research
+```
+
+`open` loads the page in a real Chrome, `snapshot` renders the interactive
+tree with stable `@ref`s, and `read` returns the page as markdown in the
+SymFetch output schema. Without Chrome, use the JS-free static engine:
+`./symbrowse daemon --session <name> --engine static`.
+
+## Usage
+
+`symbrowse` has two modes in one binary:
+
+- **Static fetch** — `fetch_url` / `fetch_batch` / `wayback_snapshots`
+  (and `read` for single pages) use the absorbed `symfetch` pipeline: fast
+  plain-HTTP reads with browser-impersonating TLS, no browser needed.
+- **Interactive agent browser** — `open`, `snapshot`, `click`, `fill`,
+  `type`, `press`, `wait`, `find`, `get`, `back`/`forward`/`reload` drive a
+  real Chrome session with stable refs, cookies/storage state,
+  out-of-band handoff, journal, flows, and network control.
 
 ```sh
 $ ./symbrowse version
@@ -27,6 +78,9 @@ Usage:
 Core Commands:
   open           Open a URL in the browser and wait for load
   read           Render the page as markdown (or JSON) in the symfetch output schema
+  fetch_url      Fetch a URL with the plain-HTTP pipeline (no browser)
+  fetch_batch    Fetch multiple URLs concurrently, results in input order
+  wayback_snapshots  List Wayback Machine snapshots for a URL
   …
 
 State Commands:
@@ -36,107 +90,58 @@ State Commands:
 Debug Commands:
   version        Print the symbrowse version
   … (weitere Befehle gekürzt)
-
-$ ./symbrowse open "https://example.com" --session research
-opened https://example.com (session "research", tab 1)
-
-$ ./symbrowse read --engine-hint --max-tokens 8000
----
-title: Example Domain
-url: https://example.com/
-fetched_at: 2026-08-11T16:42:09Z
-lang: en
-tokens_est: 213
-schema_type: document
-js_required: false
----
-# Example Domain
-This domain is for use in illustrative examples in documents. …
-# ⟦ HUMAN STEP ⟧ — the person takes over the live browser (2FA, CAPTCHA, approval); the agent session is preserved.
-$ ./symbrowse handoff --reason "login 2FA" --timeout 5m
-handoff complete: session "research" back under agent control
 ```
 
-**Zwei Modi, ein Werkzeug:** `symbrowse read` liest einzelne Seiten über die
-Static-Engine (`internal/fetch`) mit Browser-Impersonation und liefert ein
-fetch-kompatibles Dokument — das ist der Code des früheren `symfetch`, das am
-2026-08-23 hier aufgegangen ist (Repo archiviert, Formula deprecated).
-Darüber hinaus ist `symbrowse` der **interaktive Agenten-Browser**: eine echte
-Chrome-Session mit Navigation, Stable Refs, State (Cookies/Storage),
-Out-of-Band-Handoff für Login/2FA/Freigaben, Journal, Flows und
-Netzwerk-Kontrolle — für Abläufe, die mehrere Schritte über eine Session
-hinweg brauchen. Beide Pfade teilen sich die `corekit/domkit`-Render-Pipeline
-und erzeugen strukturell identisches Markdown.
+## MCP / Agent integration
 
-Status: **v0.x (Feature-Waves A–D)**: Engine-Abstraktion (Chrome + Static),
-Domain-Allowlist, SSRF-Guard, MCP-Server, Sessions/State/Journal/OOB,
-Flows, Netzwerk-Routing, Console/Eval, Upload/Download, CI-Härtung.
-
-## Quick start
-
-Requirements:
-
-- Go 1.26.5
-- A POSIX shell and GNU Make
-- Chrome for the default engine. Optional — without it, use the JS-free
-  static engine: start `symbrowse daemon --session <name> --engine static`,
-  then run `open`/`read` against that `--session <name>`.
-
-Build and inspect the command:
+`symbrowse mcp` runs a JSON-RPC-2.0 MCP server over stdio. Tools proxy to the
+local daemon; every session is isolated; the domain allowlist and the SSRF
+guard apply in MCP mode. The three SymFetch contracts are exposed as
+first-class tools, so clients can switch from the retired `symfetch` runtime
+without losing fast fetch, batch fetch, or Wayback discovery.
 
 ```sh
-make build
-./symbrowse --help
-./symbrowse version
+symbrowse mcp                 # default profile (core), SSRF guard on
+symbrowse mcp --tools all     # full tool surface
+symbrowse mcp --allow-private # allow private/loopback targets explicitly
 ```
 
-Or install the latest release directly with Go:
+See [docs/mcp.md](docs/mcp.md) for setup, tool profiles, the SymFetch
+migration, and the Hermes config switch.
 
-```sh
-go install github.com/danieljustus/symaira-browse/cmd/symbrowse@latest
-```
+## Configuration
 
-The build is CGO-free by default. The `VERSION` variable can be overridden for a local build:
+Configuration follows XDG conventions with a `SYMBROWSE_` environment prefix
+and a `config.toml` (via `configkit`). Key settings: domain allowlist,
+SSRF guard, cache TTL and directory, state retention, autosave policy, and
+Chrome executable override. See [docs/state.md](docs/state.md) for state
+encryption and [docs/allowlist.md](docs/allowlist.md) for the network policy.
 
-```sh
-make build VERSION=0.2.3
-```
-
-## Development
-
-```sh
-make fmt-check  # verify Go formatting
-make test       # run tests without CGO
-make test-race  # run the race detector
-make lint       # golangci-lint, or go vet when it is unavailable
-make clean      # remove local build and coverage artifacts
-```
-
-The repository is standalone-first. Future integrations with other Symaira tools are runtime integrations with fallbacks, not compile-time sibling-repository dependencies.
-
-## Architecture
-
-`symbrowse` controls a real Chrome through the Chrome DevTools Protocol (or
-the JS-free static engine), maintains durable sessions, exposes
-deterministic element references, and provides an explicit out-of-band
-handoff to a person for login, 2FA, CAPTCHA, and approval workflows.
-
-- [AGENTS.md](AGENTS.md) — repository rules for contributors and agents
-- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
-- [SECURITY.md](SECURITY.md) — security reporting policy
-
-### Docs
+## Documentation
 
 - [docs/tiers.md](docs/tiers.md) — escalation tiers and `read --engine-hint`
-- [docs/mcp.md](docs/mcp.md) — MCP server setup and tool profiles
+- [docs/mcp.md](docs/mcp.md) — MCP server setup, tool profiles, SymFetch migration
 - [docs/errors.md](docs/errors.md) — stable error schema
 - [docs/output-schema.md](docs/output-schema.md) — read/output schema
 - [docs/benchmarks.md](docs/benchmarks.md) — benchmark results
 - [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
-- [docs/injection.md](docs/injection.md) — prompt-injection scan (`snapshot`, `--no-injection-scan`, pattern list)
-- [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy (`--allowed-domains`)
-- [docs/state.md](docs/state.md) — state encryption (symvault, OS keychain, env var; plaintext fallback)
+- [docs/injection.md](docs/injection.md) — prompt-injection scan
+- [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy
+- [docs/state.md](docs/state.md) — state encryption and retention
 
-## License
+## Ecosystem
 
-Apache-2.0. See [LICENSE](LICENSE).
+Symaira Browse is part of the [Symaira](https://symaira.com) product family:
+it is the browser/agent-navigation core, complementing the Markdown-vault
+workspace (`symdesk`), the credential vault (`symvault`), and the FRITZ!Box
+controller (`symfritz`). It talks to the shared `corekit` render pipeline
+(`domkit`) and follows the same CGO-free, zero-stdio-pollution conventions
+as its siblings.
+
+## Contributing · Security · License
+
+- [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
+- [SECURITY.md](SECURITY.md) — security reporting policy
+- [AGENTS.md](AGENTS.md) — repository rules for contributors and agents
+
+Licensed under the Apache-2.0 license. See [LICENSE](LICENSE).
