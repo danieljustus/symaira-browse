@@ -22,8 +22,6 @@ const (
 	StatusWarn    = "warn"
 	StatusFail    = "fail"
 	StatusSkipped = "skipped"
-
-	defaultCDPEndpoint = "http://127.0.0.1:9222/json/version"
 )
 
 // Paths are the directories that symbrowse needs to be able to use.
@@ -151,16 +149,13 @@ func shellQuote(value string) string {
 
 func run(options Options, goos string, environ func(string) string, lookPath func(string) (string, error)) Report {
 	if options.VersionTimeout <= 0 {
-		options.VersionTimeout = 2 * time.Second
+		options.VersionTimeout = 5 * time.Second
 	}
 	if options.ProbeTimeout <= 0 {
 		options.ProbeTimeout = 750 * time.Millisecond
 	}
 	if options.CDPEndpoint == "" {
 		options.CDPEndpoint = environ("SYMBROWSE_CDP_ENDPOINT")
-		if options.CDPEndpoint == "" {
-			options.CDPEndpoint = defaultCDPEndpoint
-		}
 	}
 	if options.SocketDir == "" {
 		options.SocketDir = socketDir(goos, environ)
@@ -189,7 +184,15 @@ func run(options Options, goos string, environ func(string) string, lookPath fun
 		report.Checks = append(report.Checks, versionCheck)
 	}
 
-	report.Checks = append(report.Checks, checkCDP(options.CDPEndpoint, options.ProbeTimeout))
+	if options.CDPEndpoint == "" {
+		report.Checks = append(report.Checks, Check{
+			Name:    "cdp",
+			Status:  StatusSkipped,
+			Message: "not checked: no SYMBROWSE_CDP_ENDPOINT configured; daemon sessions use ephemeral CDP ports",
+		})
+	} else {
+		report.Checks = append(report.Checks, checkCDP(options.CDPEndpoint, options.ProbeTimeout))
+	}
 	report.Checks = append(report.Checks,
 		checkWritable("config_dir", options.Paths.ConfigDir),
 		checkWritable("cache_dir", options.Paths.CacheDir),
