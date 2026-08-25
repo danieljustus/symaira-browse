@@ -49,6 +49,8 @@ type NavigationRuntime struct {
 	requestTimeout  time.Duration     // per-command CDP budget (0 = engine default)
 	recorders       map[string]*recorderState
 	staticGuard     static.GuardOptions // fetch-hardening for the static engine (step 5)
+	injectionMu     sync.Mutex
+	injectionCache  map[string][]Warning
 }
 
 // sessionTab is one tab of a session. Every tab owns its own navigation
@@ -142,6 +144,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		lastAutosave:    make(map[string]time.Time),
 		restoreOnStart:  options.RestoreOnStart,
 		staticGuard:     guard,
+		injectionCache:  make(map[string][]Warning),
 	}
 }
 

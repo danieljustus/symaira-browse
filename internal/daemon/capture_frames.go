@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/injection"
@@ -40,22 +42,25 @@ func (r *NavigationRuntime) handleCaptureFrame(ctx context.Context, frame Frame)
 			return nil, nil, err
 		}
 		var result any
+		var documentVersion string
 		if request.Diff || request.Since != "" {
 			diffResult, err := service.SnapshotDiff(ctx, request.SnapshotOptions)
 			if err != nil {
 				return nil, nil, err
 			}
 			result = diffResult
+			documentVersion = snapshotDocumentVersion(diffResult)
 		} else {
 			snapResult, err := service.Snapshot(ctx, request.SnapshotOptions)
 			if err != nil {
 				return nil, nil, err
 			}
 			result = snapResult
+			documentVersion = snapshotDocumentVersion(snapResult)
 		}
 		var warnings []Warning
 		if !request.NoInjectionScan {
-			warnings = r.scanSnapshotInjection(ctx, service, request.InjectionPatterns)
+			warnings = r.scanSnapshotInjection(ctx, service, request.InjectionPatterns, documentVersion)
 		}
 		return result, warnings, nil
 	case "a11y":
@@ -80,8 +85,30 @@ func (r *NavigationRuntime) handleCaptureFrame(ctx context.Context, frame Frame)
 	}
 }
 
+const (
+	// maxInjectionScanHTMLBytes bounds hostile HTML handed to the parser. The
+	// remainder is deliberately not scanned and is reported to the caller.
+	maxInjectionScanHTMLBytes = 1 << 20
+	maxInjectionScanEntries   = 128
+)
+
 // scanSnapshotInjection runs the heuristic prompt-injection scan over the page HTML.
-func (r *NavigationRuntime) scanSnapshotInjection(ctx context.Context, service *engine.NavigationService, patternsFile string) []Warning {
+// Results are memoized by tab/page and the accessibility-tree document version;
+// navigation and DOM changes therefore produce a new key without explicit hooks.
+func (r *NavigationRuntime) scanSnapshotInjection(ctx context.Context, service *engine.NavigationService, patternsFile, documentVersion string) []Warning {
+	pageURL := ""
+	if urlResult, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectURL}); err == nil {
+		_ = json.Unmarshal(urlResult.Value, &pageURL)
+	}
+	key := service.Page().ID + "\x00" + pageURL + "\x00" + documentVersion + "\x00" + patternsFile
+	r.injectionMu.Lock()
+	if cached, ok := r.injectionCache[key]; ok {
+		warnings := cloneWarnings(cached)
+		r.injectionMu.Unlock()
+		return warnings
+	}
+	r.injectionMu.Unlock()
+
 	htmlResult, err := service.Inspect(ctx, engine.InspectionRequest{Kind: engine.InspectHTML})
 	if err != nil {
 		return []Warning{{Kind: "injection_scan", Severity: "warning", Message: "injection scan failed: " + err.Error()}}
@@ -89,6 +116,13 @@ func (r *NavigationRuntime) scanSnapshotInjection(ctx context.Context, service *
 	var pageHTML string
 	if err := json.Unmarshal(htmlResult.Value, &pageHTML); err != nil {
 		return []Warning{{Kind: "injection_scan", Severity: "warning", Message: "injection scan failed: " + err.Error()}}
+	}
+	limited := len(pageHTML) > maxInjectionScanHTMLBytes
+	if limited {
+		pageHTML = pageHTML[:maxInjectionScanHTMLBytes]
+		for len(pageHTML) > 0 && !utf8.ValidString(pageHTML) {
+			pageHTML = pageHTML[:len(pageHTML)-1]
+		}
 	}
 	scanWarnings, err := injection.Scan(pageHTML, injection.ScanOptions{PatternsFile: patternsFile})
 	if err != nil {
@@ -104,7 +138,38 @@ func (r *NavigationRuntime) scanSnapshotInjection(ctx context.Context, service *
 			Excerpt:  warning.Excerpt,
 		})
 	}
+	if limited {
+		warnings = append(warnings, Warning{
+			Kind:     "injection_scan",
+			Severity: "warning",
+			Message:  fmt.Sprintf("injection scan limited to %d bytes; content beyond the cap was not scanned", maxInjectionScanHTMLBytes),
+		})
+	}
+	r.injectionMu.Lock()
+	if r.injectionCache == nil {
+		r.injectionCache = make(map[string][]Warning)
+	}
+	if len(r.injectionCache) >= maxInjectionScanEntries {
+		r.injectionCache = make(map[string][]Warning)
+	}
+	r.injectionCache[key] = cloneWarnings(warnings)
+	r.injectionMu.Unlock()
 	return warnings
+}
+
+func snapshotDocumentVersion(result any) string {
+	if snapshot, ok := result.(engine.SnapshotResult); ok {
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(snapshot.Tree)))
+	}
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Sprintf("%T", result)
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(raw))
+}
+
+func cloneWarnings(warnings []Warning) []Warning {
+	return append([]Warning(nil), warnings...)
 }
 
 // injectionMessage renders a human-readable message for one detection.
