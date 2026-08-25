@@ -315,6 +315,7 @@ func TestFetchAndProcess_SSRFBlocked(t *testing.T) {
 }
 
 func TestFetchAndProcess_RobotsBlocked(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/robots.txt" {
 			w.Header().Set("Content-Type", "text/plain")
@@ -324,7 +325,7 @@ func TestFetchAndProcess_RobotsBlocked(t *testing.T) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Write([]byte("<html><body><p>Blocked content</p></body></html>"))
 	}))
-	defer srv.Close()
+	t.Cleanup(srv.Close)
 
 	checker := robots.NewChecker().WithPrivate(true)
 	c := &fakeClient{resp: &fetch.Response{
