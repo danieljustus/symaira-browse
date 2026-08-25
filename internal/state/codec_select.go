@@ -13,14 +13,14 @@ func (s *Store) codec() codec {
 
 type codec interface {
 	// Encrypt returns the on-disk body for a plaintext payload.
-	Encrypt(plaintext []byte) ([]byte, error)
+	Encrypt(plaintext, aad []byte) ([]byte, error)
 	// Decrypt returns the plaintext payload for an on-disk body.
-	Decrypt(body []byte) ([]byte, error)
+	Decrypt(body, aad []byte) ([]byte, error)
 }
 
 // plainCodec stores payloads without encryption. It is the default for
 // stores without a key source and keeps symbrowse fully usable standalone.
 type plainCodec struct{}
 
-func (plainCodec) Encrypt(plaintext []byte) ([]byte, error) { return plaintext, nil }
-func (plainCodec) Decrypt(body []byte) ([]byte, error)      { return body, nil }
+func (plainCodec) Encrypt(plaintext, _ []byte) ([]byte, error) { return plaintext, nil }
+func (plainCodec) Decrypt(body, _ []byte) ([]byte, error)      { return body, nil }

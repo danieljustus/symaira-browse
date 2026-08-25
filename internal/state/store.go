@@ -19,7 +19,7 @@ import (
 )
 
 // SchemaVersion is the stable version of the on-disk state schema.
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 // DefaultExpireDays is the retention window applied when
 // SYMBROWSE_STATE_EXPIRE_DAYS is unset or invalid.
@@ -27,7 +27,8 @@ const DefaultExpireDays = 30
 
 // stateHeader is the unencrypted metadata header stored at the start of every
 // state file (after fileMagic). It contains retention and format metadata so
-// clean and expired checks can run without resolving keys or decrypting the body.
+// clean and expired checks can inspect the file without exposing state values.
+// Version 3 binds the header to encrypted payloads with AES-GCM AAD.
 // The header must never contain sensitive state values (cookies, storage).
 type stateHeader struct {
 	SchemaVersion int    `json:"schema_version"`
@@ -147,7 +148,7 @@ func (s *Store) Save(st *State) error {
 	if err := ValidateName(st.Name); err != nil {
 		return err
 	}
-	if st.SchemaVersion == 0 {
+	if st.SchemaVersion < SchemaVersion {
 		st.SchemaVersion = SchemaVersion
 	}
 	now := s.now()
@@ -189,9 +190,9 @@ func (s *Store) Load(name string) (*State, error) {
 	return st, nil
 }
 
-// readHeader reads the state metadata header without decrypting the payload.
-// For v2+ files, it parses the unencrypted header line. For legacy v1 files,
-// it delegates to decode (which decrypts).
+// readHeader reads and, for encrypted v3 files, authenticates the state
+// metadata header. For legacy v1 files, it delegates to decode (which
+// decrypts).
 func (s *Store) readHeader(name string) (stateHeader, error) {
 	if err := ValidateName(name); err != nil {
 		return stateHeader{}, err
@@ -210,6 +211,16 @@ func (s *Store) readHeader(name string) (stateHeader, error) {
 	if newlineIdx := bytes.IndexByte(data, '\n'); newlineIdx != -1 {
 		var hdr stateHeader
 		if err := json.Unmarshal(data[:newlineIdx], &hdr); err == nil && hdr.SchemaVersion >= 2 {
+			if hdr.SchemaVersion >= 3 {
+				body := data[newlineIdx+1:]
+				if s.keys == nil {
+					if hdr.KeySource != "" && hdr.KeySource != string(KeySourceNone) {
+						return stateHeader{}, errors.New("encrypted state requires a key provider")
+					}
+				} else if _, err := s.codec().Decrypt(body, data[:newlineIdx]); err != nil {
+					return stateHeader{}, fmt.Errorf("authenticate state header: %w", err)
+				}
+			}
 			return hdr, nil
 		}
 	}

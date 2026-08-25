@@ -5,8 +5,10 @@ storage) under `<state-dir>/states/`. By default, files are written as
 **plaintext JSON** so the tool works out of the box without any key setup.
 
 When an encryption key is available, state files are transparently encrypted
-with AES-256-GCM. The encrypted format is identical on disk except that the
-body after the magic prefix is ciphertext; no migration step is needed.
+with AES-256-GCM. Version 3 stores a small plaintext metadata header followed
+by the encrypted body, and authenticates that header as additional authenticated
+data. Existing version 1 and 2 files remain readable; saving them upgrades the
+file to version 3.
 
 ## Key resolution order
 
@@ -16,7 +18,7 @@ uses the first one that yields a valid 32-byte key:
 | Priority | Source | How it works |
 |----------|--------|--------------|
 | 1 | **symvault** | If the `symvault` binary is on `$PATH` and the entry `symbrowse/encryption-key` exists, its value is used. |
-| 2 | **OS keychain** | On macOS, `security find-generic-password -s symbrowse -a encryption-key` is called. Other platforms skip this source. |
+| 2 | **OS keychain** | On macOS, `security find-generic-password -s symbrowse -a encryption-key` is called. The value must be a 64-character hex string (or a raw 32-byte key). Other platforms skip this source. |
 | 3 | **Environment variable** | `SYMBROWSE_ENCRYPTION_KEY` must hold a 64-character hex string (32 bytes). This is the documented fallback. |
 
 If none of the sources provides a key, state files are stored as plaintext.
@@ -28,7 +30,7 @@ verify whether encryption is active.
 The simplest path is the OS keychain, which requires no environment variable:
 
 ```bash
-# Store a 32-byte random key in the macOS keychain
+# Store a 32-byte random key as 64-character hex in the macOS keychain
 KEY=$(openssl rand -hex 32)
 security add-generic-password -s symbrowse -a encryption-key -w "$KEY"
 ```
@@ -53,8 +55,9 @@ encryption is visible, not silent.
 
 ## Migration
 
-There is no automatic migration. Existing plaintext files remain plaintext
-until they are re-saved with an active key. To re-save all states:
+There is no background migration. Existing version 1 and 2 files are readable
+and are upgraded to version 3 when saved. Existing plaintext files remain
+plaintext until they are re-saved with an active key. To re-save all states:
 
 ```bash
 for name in $(symbrowse state list --json | jq -r '.data.states[].name'); do
@@ -66,8 +69,13 @@ done
 
 ```
 SYMBROWSE-STATE\0   (16-byte magic prefix)
+<JSON metadata header>\n
 <encrypted or plaintext body>
 ```
 
-The magic prefix is always plaintext so the file can be identified regardless
-of encryption state.
+The header contains only `schema_version`, `saved_at`, `expires_at` and
+`key_source`. For encrypted version 3 files, the exact header bytes are bound
+to the ciphertext with AES-256-GCM authentication. Editing retention metadata
+or changing `key_source` therefore makes loading, expiry checks and cleanup
+fail instead of silently accepting forged state. Plaintext files remain
+available as the no-key fallback, but do not provide cryptographic integrity.

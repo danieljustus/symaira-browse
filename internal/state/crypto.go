@@ -34,12 +34,13 @@ type KeyProvider interface {
 }
 
 // gcmCodec encrypts state payloads with AES-256-GCM. The on-disk body is
-// nonce || ciphertext; the nonce is random per write.
+// nonce || ciphertext; the nonce is random per write. The caller may bind
+// unencrypted metadata to the ciphertext through additional authenticated data.
 type gcmCodec struct {
 	keys KeyProvider
 }
 
-func (c *gcmCodec) Encrypt(plaintext []byte) ([]byte, error) {
+func (c *gcmCodec) Encrypt(plaintext, aad []byte) ([]byte, error) {
 	key, source, err := c.keys.Key()
 	if err != nil {
 		return nil, err
@@ -64,12 +65,12 @@ func (c *gcmCodec) Encrypt(plaintext []byte) ([]byte, error) {
 	}
 	out := make([]byte, 0, len(nonce)+len(plaintext)+gcm.Overhead())
 	out = append(out, nonce...)
-	out = gcm.Seal(out, nonce, plaintext, nil)
+	out = gcm.Seal(out, nonce, plaintext, aad)
 	_ = source
 	return out, nil
 }
 
-func (c *gcmCodec) Decrypt(body []byte) ([]byte, error) {
+func (c *gcmCodec) Decrypt(body, aad []byte) ([]byte, error) {
 	key, _, err := c.keys.Key()
 	if err != nil {
 		return nil, err
@@ -89,7 +90,7 @@ func (c *gcmCodec) Decrypt(body []byte) ([]byte, error) {
 		return nil, errors.New("encrypted state file is truncated")
 	}
 	nonce, ciphertext := body[:gcm.NonceSize()], body[gcm.NonceSize():]
-	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, aad)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt state file: %w", err)
 	}

@@ -335,6 +335,36 @@ func TestKeyResolverVaultPresent(t *testing.T) {
 	}
 }
 
+func TestKeyResolverKeychainHexValue(t *testing.T) {
+	resolver := &KeyResolver{
+		KeychainGet: func(service, account string) ([]byte, bool, error) {
+			if service != KeychainService || account != KeychainAccount {
+				t.Fatalf("unexpected keychain lookup: %s/%s", service, account)
+			}
+			return []byte(strings.Repeat("ab", 32)), true, nil
+		},
+		Env: func(string) string { return "" },
+	}
+	key, source, err := resolver.Key()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source != KeySourceKeychain || len(key) != 32 {
+		t.Fatalf("source = %q, key len = %d", source, len(key))
+	}
+}
+
+func TestKeyResolverInvalidKeychainValue(t *testing.T) {
+	resolver := &KeyResolver{
+		KeychainGet: func(string, string) ([]byte, bool, error) {
+			return []byte("not-a-key"), true, nil
+		},
+	}
+	if _, _, err := resolver.Key(); err == nil || !strings.Contains(err.Error(), "keychain value") {
+		t.Fatalf("invalid keychain value error = %v", err)
+	}
+}
+
 func TestKeychainFallbackToEnv(t *testing.T) {
 	resolver := &KeyResolver{
 		LookPath:    func(string) (string, error) { return "", os.ErrNotExist },
@@ -549,9 +579,11 @@ func TestCleanAndExpiredWithoutKeyProviderOnV2(t *testing.T) {
 	if err := store.Save(sampleState("fresh")); err != nil {
 		t.Fatal(err)
 	}
+	rewriteStateSchema(t, store.Dir(), "fresh", 2)
 	if err := store.Save(sampleState("expired-1")); err != nil {
 		t.Fatal(err)
 	}
+	rewriteStateSchema(t, store.Dir(), "expired-1", 2)
 
 	// Age expired-1 in unencrypted header
 	p := filepath.Join(store.Dir(), "expired-1.json")
@@ -595,7 +627,7 @@ func TestCleanAndExpiredWithoutKeyProviderOnV2(t *testing.T) {
 	}
 }
 
-func TestCleanAndExpiredCountingKeyCallsZero(t *testing.T) {
+func TestCleanAndExpiredAuthenticatesEncryptedHeader(t *testing.T) {
 	now := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)
 	provider := &countingKeyProvider{key: testKey(), source: KeySourceEnv}
 	store := newTestStore(t, 30*24*time.Hour, provider)
@@ -606,7 +638,7 @@ func TestCleanAndExpiredCountingKeyCallsZero(t *testing.T) {
 	}
 	keyCallsAfterSave, _ := provider.calls()
 
-	// Call Expired and Clean - should not call Key()
+	// v3 authenticates the header before retention decisions.
 	if _, err := store.Expired(); err != nil {
 		t.Fatal(err)
 	}
@@ -615,8 +647,8 @@ func TestCleanAndExpiredCountingKeyCallsZero(t *testing.T) {
 	}
 
 	keyCallsAfterClean, _ := provider.calls()
-	if keyCallsAfterClean != keyCallsAfterSave {
-		t.Fatalf("Clean/Expired invoked Key() %d times, expected 0", keyCallsAfterClean-keyCallsAfterSave)
+	if keyCallsAfterClean != keyCallsAfterSave+2 {
+		t.Fatalf("Clean/Expired invoked Key() %d times, expected 2", keyCallsAfterClean-keyCallsAfterSave)
 	}
 }
 
@@ -629,22 +661,14 @@ func TestCleanOlderThanWithoutKeyProvider(t *testing.T) {
 	if err := store.Save(sampleState("recent")); err != nil {
 		t.Fatal(err)
 	}
+	rewriteStateSchema(t, store.Dir(), "recent", 2)
+	store.now = func() time.Time { return now.Add(-40 * 24 * time.Hour) }
 	if err := store.Save(sampleState("ancient")); err != nil {
 		t.Fatal(err)
 	}
+	rewriteStateSchema(t, store.Dir(), "ancient", 2)
 
-	// Age ancient's SavedAt by 40 days
-	ancientPath := filepath.Join(store.Dir(), "ancient.json")
-	raw, err := os.ReadFile(ancientPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	aged := strings.Replace(string(raw), now.UTC().Format(time.RFC3339Nano), now.Add(-40*24*time.Hour).UTC().Format(time.RFC3339Nano), 1)
-	if err := os.WriteFile(ancientPath, []byte(aged), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
-	// Clean older than 10 days without key provider
+	// Clean older than 10 days without a key provider.
 	plainStore, err := NewStore(StoreOptions{Dir: store.Dir(), Now: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
@@ -677,7 +701,7 @@ func TestV1FileCompatibilityAndCleanErrorOnDecryptFailure(t *testing.T) {
 	v1EncState := sampleState("v1enc")
 	v1EncState.SchemaVersion = 1
 	v1EncJSON, _ := json.Marshal(v1EncState)
-	v1EncCiphertext, err := codec.Encrypt(v1EncJSON)
+	v1EncCiphertext, err := codec.Encrypt(v1EncJSON, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
