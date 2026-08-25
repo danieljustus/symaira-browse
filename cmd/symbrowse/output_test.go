@@ -1,0 +1,96 @@
+package main
+
+import (
+	"bytes"
+	"io"
+	"strings"
+	"testing"
+)
+
+// runPrinted executes the root command with isolated writers and returns the
+// captured stdout plus the error (nil on success).
+func runPrinted(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	command := newRootCommand()
+	var out bytes.Buffer
+	command.SetOut(&out)
+	command.SetErr(io.Discard)
+	command.SetArgs(args)
+	err := command.Execute()
+	return out.String(), err
+}
+
+// TestOutputFlagAliasJSONBitForBit verifies --output json produces exactly the
+// same envelope bytes as the established --json flag (issue #254: purely
+// additive, bit-for-bit).
+func TestOutputFlagAliasJSONBitForBit(t *testing.T) {
+	jsonOut, err := runPrinted(t, "profiles", "--json")
+	if err != nil {
+		t.Fatalf("profiles --json: %v", err)
+	}
+	outputOut, err := runPrinted(t, "profiles", "--output", "json")
+	if err != nil {
+		t.Fatalf("profiles --output json: %v", err)
+	}
+	if jsonOut != outputOut {
+		t.Fatalf("--json and --output json differ:\n--json:      %q\n--output:    %q", jsonOut, outputOut)
+	}
+	if !strings.HasPrefix(jsonOut, `{"success":true`) {
+		t.Fatalf("--json output is not the unified envelope: %q", jsonOut)
+	}
+}
+
+// TestOutputFlagTextMatchesDefault verifies the default output format is text
+// and --output text selects it explicitly.
+func TestOutputFlagTextMatchesDefault(t *testing.T) {
+	defaultOut, err := runPrinted(t, "profiles")
+	if err != nil {
+		t.Fatalf("profiles: %v", err)
+	}
+	textOut, err := runPrinted(t, "profiles", "--output", "text")
+	if err != nil {
+		t.Fatalf("profiles --output text: %v", err)
+	}
+	if defaultOut != textOut {
+		t.Fatalf("default and --output text differ:\ndefault: %q\ntext:    %q", defaultOut, textOut)
+	}
+}
+
+// TestOutputFlagYAML verifies --output yaml emits the unified envelope as
+// YAML with the same fields as the JSON form.
+func TestOutputFlagYAML(t *testing.T) {
+	out, err := runPrinted(t, "profiles", "--output", "yaml")
+	if err != nil {
+		t.Fatalf("profiles --output yaml: %v", err)
+	}
+	if !strings.HasPrefix(out, "success: true") {
+		t.Fatalf("yaml output = %q, want success: true first", out)
+	}
+	if !strings.Contains(out, "profiles:") {
+		t.Fatalf("yaml output = %q, want profiles field", out)
+	}
+}
+
+// TestOutputFlagJSONWinsOverOutput verifies --json takes precedence when both
+// flags are given (documented shorthand behaviour).
+func TestOutputFlagJSONWinsOverOutput(t *testing.T) {
+	out, err := runPrinted(t, "profiles", "--json", "--output", "yaml")
+	if err != nil {
+		t.Fatalf("profiles --json --output yaml: %v", err)
+	}
+	if !strings.HasPrefix(out, `{"success":true`) {
+		t.Fatalf("output = %q, want JSON envelope (--json wins)", out)
+	}
+}
+
+// TestOutputFlagInvalidFormatRejected verifies an unknown --output value is a
+// validation error and not silently ignored.
+func TestOutputFlagInvalidFormatRejected(t *testing.T) {
+	_, err := runPrinted(t, "profiles", "--output", "xml")
+	if err == nil {
+		t.Fatal("expected an error for invalid --output format")
+	}
+	if !strings.Contains(err.Error(), "invalid --output format") {
+		t.Fatalf("error = %v, want invalid --output format message", err)
+	}
+}

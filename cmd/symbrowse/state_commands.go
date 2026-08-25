@@ -49,7 +49,7 @@ func newCookiesListCommand(session, reveal *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				data := maskCookiePayload(response.Data, *reveal)
 				return writeEnvelope(cmd, output.OK(data, nil))
 			}
@@ -95,7 +95,7 @@ func newCookiesSetCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
@@ -127,7 +127,7 @@ func newCookiesClearCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
@@ -168,7 +168,7 @@ func newStorageGetCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			payloadData := storageListFromResponse(response.Data)
@@ -204,7 +204,7 @@ func newStorageSetCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
@@ -229,7 +229,7 @@ func newStorageClearCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")

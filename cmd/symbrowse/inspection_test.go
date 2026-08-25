@@ -82,7 +82,7 @@ func TestWriteInspectionResponse(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			command, buffer := newOutputCommand(t)
 			if tc.jsonFlag {
-				if err := command.Flags().Set("json", "true"); err != nil {
+				if err := command.PersistentFlags().Set("json", "true"); err != nil {
 					t.Fatal(err)
 				}
 			}

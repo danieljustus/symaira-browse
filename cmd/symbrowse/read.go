@@ -76,7 +76,7 @@ func newReadCommand() *cobra.Command {
 				}
 				document.ContentBoundaries = (*domkit.Boundary)(&boundary)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				data := any(document)
 				if material.JSRequired != nil {
 					// The engine hint is a sibling of the document in the

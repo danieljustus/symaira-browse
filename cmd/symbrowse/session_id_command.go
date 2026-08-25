@@ -20,7 +20,7 @@ func newSessionIDCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(info, nil))
 			}
 			_, err = fmt.Fprintln(cmd.OutOrStdout(), info.ID)

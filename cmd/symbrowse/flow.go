@@ -61,7 +61,7 @@ func newFlowValidateCommand() *cobra.Command {
 				"schema":    "docs/flow-schema.json",
 				"schema_id": "https://symaira.dev/schemas/symbrowse-flow.json",
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(result, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "valid: %s (version %d, %d steps, domains %v)\n", flow.Name, flow.Version, len(flow.Steps), flow.Domains)

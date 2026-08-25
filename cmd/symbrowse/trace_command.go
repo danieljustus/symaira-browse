@@ -49,7 +49,7 @@ func newTraceExportCommand(session *string) *cobra.Command {
 			if err := trace.Write(out, file); err != nil {
 				return err
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(map[string]any{"steps": len(file.Steps), "file": out}, nil))
 			}
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "exported %d step(s) to %s\n", len(file.Steps), out)
@@ -78,7 +78,7 @@ func newTraceReplayCommand(session *string) *cobra.Command {
 			if !response.Success {
 				return responseError(response)
 			}
-			if jsonOutputFlag(cmd) {
+			if structuredOutput(cmd) {
 				return writeEnvelope(cmd, output.OK(response.Data, nil))
 			}
 			raw, _ = json.MarshalIndent(response.Data, "", "  ")
