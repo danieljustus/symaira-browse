@@ -78,7 +78,7 @@ func writeFlowDraft(cmd *cobra.Command, response daemon.Response) error {
 	if err != nil {
 		return err
 	}
-	if jsonOutputFlag(cmd) {
+	if structuredOutput(cmd) {
 		envelope := output.OK(map[string]any{
 			"recording":   false,
 			"name":        draft.Name,

@@ -123,7 +123,7 @@ func writeInspectionResponse(cmd *cobra.Command, response daemon.Response, state
 	if !response.Success {
 		return responseError(response)
 	}
-	if jsonOutputFlag(cmd) {
+	if structuredOutput(cmd) {
 		return writeDaemonResponse(cmd, response)
 	}
 	var result struct {

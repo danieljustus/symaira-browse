@@ -17,6 +17,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"gopkg.in/yaml.v3"
+)
+
+// Format selects the envelope serialisation for a command's output.
+type Format string
+
+const (
+	// FormatText writes only the human-readable payload (default).
+	FormatText Format = "text"
+	// FormatJSON writes the unified machine-readable envelope as compact JSON
+	// (identical to the historical --json output, bit for bit).
+	FormatJSON Format = "json"
+	// FormatYAML writes the unified envelope as YAML.
+	FormatYAML Format = "yaml"
 )
 
 // Warning is a non-fatal diagnostic attached to a successful envelope. Ref
@@ -73,20 +88,38 @@ func FailureWithHint(code, message, hint string) Envelope {
 	return Envelope{Success: false, Error: &Error{Code: code, Message: message, Hint: hint}}
 }
 
-// Write serialises the envelope. With jsonOutput the envelope is written as
-// compact JSON followed by a newline; otherwise only the human-readable
-// payload is written.
-func Write(w io.Writer, envelope Envelope, jsonOutput bool) error {
-	if jsonOutput {
+// Write serialises the envelope. With FormatJSON the envelope is written as
+// compact JSON followed by a newline; with FormatYAML as YAML; otherwise only
+// the human-readable payload is written.
+func Write(w io.Writer, envelope Envelope, format Format) error {
+	switch format {
+	case FormatJSON:
 		return writeJSON(w, envelope)
+	case FormatYAML:
+		return writeYAML(w, envelope)
+	default:
+		return writeHuman(w, envelope)
 	}
-	return writeHuman(w, envelope)
 }
 
 func writeJSON(w io.Writer, envelope Envelope) error {
 	encoder := json.NewEncoder(w)
 	encoder.SetEscapeHTML(false)
 	return encoder.Encode(envelope)
+}
+
+func writeYAML(w io.Writer, envelope Envelope) error {
+	raw, err := yaml.Marshal(envelope)
+	if err != nil {
+		return fmt.Errorf("serialise envelope as yaml: %w", err)
+	}
+	if _, err := w.Write(raw); err != nil {
+		return err
+	}
+	if len(raw) == 0 || raw[len(raw)-1] != '\n' {
+		_, err = fmt.Fprintln(w)
+	}
+	return err
 }
 
 func writeHuman(w io.Writer, envelope Envelope) error {
@@ -156,8 +189,8 @@ type marker struct {
 
 // WriteError serialises an error as a failed envelope. The error is classified
 // through codes.go; a plain error without a mapped kind becomes internal.
-func WriteError(w io.Writer, err error, jsonOutput bool) error {
-	return Write(w, ErrorEnvelope(err), jsonOutput)
+func WriteError(w io.Writer, err error, format Format) error {
+	return Write(w, ErrorEnvelope(err), format)
 }
 
 // ErrorEnvelope converts an error into the unified failure envelope.

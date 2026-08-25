@@ -6,7 +6,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/exitcodes"
@@ -33,7 +36,7 @@ func readGolden(t *testing.T, name string) []byte {
 func assertGolden(t *testing.T, name string, envelope Envelope) {
 	t.Helper()
 	var buffer bytes.Buffer
-	if err := Write(&buffer, envelope, true); err != nil {
+	if err := Write(&buffer, envelope, FormatJSON); err != nil {
 		t.Fatalf("write envelope: %v", err)
 	}
 	expected := readGolden(t, name)
@@ -100,7 +103,7 @@ func TestEveryCodeIsValidAndMapsToExitCode(t *testing.T) {
 
 func TestErrorEnvelopeShape(t *testing.T) {
 	var buffer bytes.Buffer
-	if err := WriteError(&buffer, exitcodes.Wrap(nil, exitcodes.ExitNotFound, exitcodes.KindNotFound, "session missing"), true); err != nil {
+	if err := WriteError(&buffer, exitcodes.Wrap(nil, exitcodes.ExitNotFound, exitcodes.KindNotFound, "session missing"), FormatJSON); err != nil {
 		t.Fatal(err)
 	}
 	var payload struct {
@@ -143,7 +146,7 @@ func TestWriteHumanEnvelopeVariants(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var buffer bytes.Buffer
-			if err := Write(&buffer, tc.envelope, false); err != nil {
+			if err := Write(&buffer, tc.envelope, FormatText); err != nil {
 				t.Fatal(err)
 			}
 			if got := buffer.String(); got != tc.want {
@@ -217,5 +220,47 @@ func TestFromErrorPreservesDaemonErrorHintAndDetails(t *testing.T) {
 	}
 	if payload.Details == nil || payload.Details["session"] != "default" {
 		t.Fatalf("details = %#v", payload.Details)
+	}
+}
+
+func TestWriteYAMLEnvelope(t *testing.T) {
+	var buffer bytes.Buffer
+	envelope := OK(map[string]any{"url": "https://example.com", "n": 42}, nil)
+	if err := Write(&buffer, envelope, FormatYAML); err != nil {
+		t.Fatalf("write yaml: %v", err)
+	}
+	out := buffer.String()
+	if !strings.HasPrefix(out, "success: true") {
+		t.Errorf("yaml = %q, want success: true first", out)
+	}
+	if !strings.Contains(out, "url: https://example.com") {
+		t.Errorf("yaml = %q, want url field", out)
+	}
+	if !strings.Contains(out, "42") {
+		t.Errorf("yaml = %q, want n value", out)
+	}
+}
+
+func TestWriteYAMLMatchesJSONFields(t *testing.T) {
+	envelope := OK(map[string]any{"action": "open", "http_status": 200}, nil)
+	var jsonBuffer, yamlBuffer bytes.Buffer
+	if err := Write(&jsonBuffer, envelope, FormatJSON); err != nil {
+		t.Fatal(err)
+	}
+	if err := Write(&yamlBuffer, envelope, FormatYAML); err != nil {
+		t.Fatal(err)
+	}
+	var jsonEnvelope map[string]any
+	if err := json.Unmarshal(jsonBuffer.Bytes(), &jsonEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	var yamlEnvelope map[string]any
+	if err := yaml.Unmarshal(yamlBuffer.Bytes(), &yamlEnvelope); err != nil {
+		t.Fatalf("yaml does not decode to the same shape: %v", err)
+	}
+	for _, key := range []string{"success", "data"} {
+		if _, ok := jsonEnvelope[key]; ok != func() bool { _, ok := yamlEnvelope[key]; return ok }() {
+			t.Errorf("field %q present in json=%v yaml=%v", key, jsonEnvelope[key], yamlEnvelope[key])
+		}
 	}
 }
