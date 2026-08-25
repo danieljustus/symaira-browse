@@ -18,7 +18,7 @@ func TestREADMEHelpCommandsAreRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(readme)
+	text := strings.ReplaceAll(string(readme), "\r\n", "\n")
 	startMarker := "$ ./symbrowse --help\n"
 	start := strings.Index(text, startMarker)
 	if start < 0 {
