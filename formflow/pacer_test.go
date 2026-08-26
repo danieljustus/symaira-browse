@@ -70,6 +70,24 @@ func TestPacerSerializesConcurrentHosts(t *testing.T) {
 	}
 }
 
+func TestPacerContextCancellation(t *testing.T) {
+	pacer := NewPacer(time.Hour)
+	now := time.Unix(1_700_000_000, 0)
+	pacer.now = func() time.Time { return now }
+	ctx, cancel := context.WithCancel(context.Background())
+	_ = pacer.Wait(ctx, "a.example") // first contact: no sleep
+
+	done := make(chan error, 1)
+	go func() {
+		done <- pacer.Wait(ctx, "a.example") // must block for an hour
+	}()
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+	if err := <-done; err == nil {
+		t.Fatal("cancelled context must abort the pacing wait")
+	}
+}
+
 func TestHostOf(t *testing.T) {
 	if got := hostOf("https://www.broker.example:8443/optout?x=1"); got != "www.broker.example:8443" {
 		t.Fatalf("hostOf = %q", got)
