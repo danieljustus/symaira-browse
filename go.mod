@@ -9,7 +9,7 @@ require (
 	github.com/Noooste/fhttp v1.0.15
 	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/chromedp/cdproto v0.0.0-20260719223732-95f6af754cfe
-	github.com/danieljustus/symaira-corekit v0.11.0
+	github.com/danieljustus/symaira-corekit v0.13.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.58.0
