@@ -27,6 +27,14 @@ const (
 	Slow                Fixture = "slow"
 	NotFound            Fixture = "not-found"
 	InternalServerError Fixture = "internal-server-error"
+
+	// Hostile-form corpus for the consumable web-form automation contract
+	// (issue #281): representative classes of hostile data-broker targets.
+	HostileForm      Fixture = "form-hostile"
+	CaptchaForm      Fixture = "form-captcha"
+	BotwallPage      Fixture = "botwall"
+	ConfirmationPage Fixture = "confirm"
+	ConfirmationDone Fixture = "confirm-done"
 )
 
 // SlowResponseDelay is the deterministic delay used by the slow fixture.
@@ -53,6 +61,11 @@ var routes = []Route{
 	{Fixture: Slow, Path: "/slow", Description: "A response delayed by SlowResponseDelay."},
 	{Fixture: NotFound, Path: "/not-found", Description: "An explicit HTTP 404 response."},
 	{Fixture: InternalServerError, Path: "/server-error", Description: "An explicit HTTP 500 response."},
+	{Fixture: HostileForm, Path: "/form-hostile", Description: "Hostile broker form: misleading labels, a honeypot field, and a renamed submit."},
+	{Fixture: CaptchaForm, Path: "/form-captcha", Description: "Form page gated by a CAPTCHA widget."},
+	{Fixture: BotwallPage, Path: "/botwall", Description: "Bot-protection wall instead of a form."},
+	{Fixture: ConfirmationPage, Path: "/confirm", Description: "Broker confirmation-link landing page."},
+	{Fixture: ConfirmationDone, Path: "/confirm/done", Description: "Terminal state after a confirmed erasure request."},
 }
 
 // Routes returns a copy of the fixture route registry.
@@ -129,6 +142,11 @@ func registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/not-found", handleNotFound)
 	mux.HandleFunc("/server-error", handleServerError)
 	mux.HandleFunc("/marker-spoof", handleMarkerSpoof)
+	mux.HandleFunc("/form-hostile", handleHostileForm)
+	mux.HandleFunc("/form-captcha", handleCaptchaForm)
+	mux.HandleFunc("/botwall", handleBotwall)
+	mux.HandleFunc("/confirm", handleConfirmationPage)
+	mux.HandleFunc("/confirm/done", handleConfirmationDone)
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -315,4 +333,57 @@ func writeHTML(w http.ResponseWriter, status int, body string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	_, _ = fmt.Fprint(w, strings.TrimSpace(body))
+}
+
+// handleHostileForm serves a hostile broker form: the visible label for the
+// email field says "Your name", a honeypot input is visually hidden, and the
+// submit control is renamed away from the usual "Submit" (issue #281).
+func handleHostileForm(w http.ResponseWriter, r *http.Request) {
+	writeHTML(w, http.StatusOK, `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Hostile form fixture</title></head>
+<body><main><h1>Opt-out request</h1><form id="hostile-form" method="post" action="/form-hostile">
+<label for="hp-website">Website</label><input id="hp-website" name="website" type="text" tabindex="-1" autocomplete="off" style="position:absolute;left:-9999px">
+<label for="mismatch-email">Your name</label><input id="mismatch-email" name="email" type="email" placeholder="you@example.com">
+<label for="street-input">Street</label><input id="street-input" name="street" type="text">
+<button id="send-button" type="submit">Send request</button></form></main></body></html>`)
+}
+
+// handleCaptchaForm serves a form page gated by a CAPTCHA widget.
+func handleCaptchaForm(w http.ResponseWriter, r *http.Request) {
+	writeHTML(w, http.StatusOK, `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>CAPTCHA fixture</title>
+<script src="https://www.google.com/recaptcha/api.js" async defer></script></head>
+<body><main><h1>Prove you are human</h1><form method="post" action="/form-captcha">
+<label for="cap-email">Email</label><input id="cap-email" name="email" type="email">
+<div class="g-recaptcha" data-sitekey="6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"></div>
+<button type="submit">Continue</button></form></main></body></html>`)
+}
+
+// handleBotwall serves a bot-protection wall instead of a form.
+func handleBotwall(w http.ResponseWriter, r *http.Request) {
+	writeHTML(w, http.StatusOK, `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Bot wall fixture</title></head>
+<body><main><h1>Checking your browser before accessing the site</h1>
+<p>Please enable JavaScript and cookies to continue. This process is automatic.</p>
+</main></body></html>`)
+}
+
+// handleConfirmationPage serves the landing page of a broker confirmation
+// link with the confirmation control to click through (issue #281).
+func handleConfirmationPage(w http.ResponseWriter, r *http.Request) {
+	writeHTML(w, http.StatusOK, `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Confirmation fixture</title></head>
+<body><main><h1>One last step</h1>
+<p>Confirm your erasure request to complete the process.</p>
+<a id="confirm-link" href="/confirm/done"><button id="confirm-button" type="button">Confirm erasure request</button></a>
+</main></body></html>`)
+}
+
+// handleConfirmationDone is the terminal state of a confirmed request.
+func handleConfirmationDone(w http.ResponseWriter, r *http.Request) {
+	writeHTML(w, http.StatusOK, `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Confirmed</title></head>
+<body><main><h1>Request confirmed</h1>
+<p>Your erasure request has been confirmed and is being processed.</p>
+</main></body></html>`)
 }
