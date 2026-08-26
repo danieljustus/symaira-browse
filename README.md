@@ -19,6 +19,7 @@
 - **Stable element references** — deterministic `@ref`s across navigation and re-renders, so an agent's plan doesn't break when the DOM reflows.
 - **Out-of-band handoff** — hand control to a human for 2FA, CAPTCHA, or approval mid-session, then resume agent control without losing state.
 - **Standalone-first** — runs on its own with no compile-time dependency on other Symaira tools; integrations are optional, runtime-only fallbacks.
+- **Consumable form automation** — the public `formflow` package exposes typed, evidence-capturing web-form automation (navigate → fill → submit, CAPTCHA/bot-wall detection, confirmation links, per-host pacing) as an in-process Go API; see [docs/form-automation-contract.md](docs/form-automation-contract.md).
 
 ## Install
 
