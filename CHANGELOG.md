@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `formflow` confirmation-link flows (German/English control candidates, contracted success URL) and respectful per-host pacing for campaigns across many brokers (#281)
 - Hostile-form test corpus in `internal/testserver` (misleading labels + honeypot, CAPTCHA gate, bot wall, confirmation pages) with pinned classification tests (#281)
 
+### Fixed
+
+- macOS release notarization now uses the App Store Connect API-key flow, decodes the base64 `.p8` key to a temporary file, and passes the key ID and issuer to the matching `notarytool` flags (#304)
+
 ## [v0.3.1] - 2026-08-25
 
 ### Fixed
