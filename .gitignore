@@ -22,7 +22,10 @@ vendor/
 .github/audit/
 
 # Documentation builds / local notes
-docs/
+# NOTE: docs/ itself is tracked documentation (see README). Only local
+# artifacts below are ignored -- never the whole directory.
+docs/adopt/
+docs/assets/social-preview.png
 
 # Local agent reports / session state
 .github/coverage/
