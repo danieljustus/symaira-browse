@@ -36,6 +36,12 @@ const (
 // Options controls Chrome discovery and process isolation.
 type Options struct {
 	ExecutablePath string
+	// CDPEndpoint attaches to an existing DevTools endpoint (for example
+	// http://127.0.0.1:9222) instead of launching a Chrome process (issue
+	// #296). The engine then does not own the browser lifetime: Close
+	// detaches without killing it, and network policy limitations are
+	// reported through NetworkPolicyReporter.Limitations.
+	CDPEndpoint    string
 	StartupTimeout time.Duration
 	RequestTimeout time.Duration
 	UserDataDir    string
@@ -67,6 +73,10 @@ type Engine struct {
 	closed        bool
 	policy        *networkPolicy
 	profileReused bool
+	// attached is true when the engine connected to an existing DevTools
+	// endpoint instead of launching Chrome (issue #296). Attached engines do
+	// not own the browser lifetime.
+	attached bool
 
 	// runtime event buffers (issue #60): console API calls and uncaught
 	// exceptions, bounded per page session.
@@ -124,7 +134,9 @@ func New(options Options) *Engine {
 	}
 }
 
-// Launch starts Chrome with a private profile and an ephemeral DevTools port.
+// Launch starts Chrome with a private profile and an ephemeral DevTools port,
+// or attaches to an existing DevTools endpoint when Options.CDPEndpoint is
+// set (issue #296). Attached engines never start or own a Chrome process.
 func (e *Engine) Launch(ctx context.Context) error {
 	e.mu.Lock()
 	if e.cmd != nil && e.conn != nil && !e.closed {
@@ -133,6 +145,9 @@ func (e *Engine) Launch(ctx context.Context) error {
 	}
 	e.closed = false
 	e.mu.Unlock()
+	if e.options.CDPEndpoint != "" {
+		return e.attach(ctx)
+	}
 	if e.options.ExecutablePath == "" {
 		return errors.New("chrome executable path is empty")
 	}
@@ -227,6 +242,32 @@ func (e *Engine) Launch(ctx context.Context) error {
 	conn.addHandler(e.handleDialogEvent)
 	e.mu.Lock()
 	e.cmd, e.conn, e.dataDir, e.removeDataDir, e.policy = cmd, conn, dataDir, removeDataDir, policy
+	e.mu.Unlock()
+	return nil
+}
+
+// attach connects to an existing DevTools endpoint instead of launching
+// Chrome (issue #296). The engine does not own the browser process: Close
+// detaches, and the network policy is marked as limited because the session
+// only observes requests that flow through its CDP session.
+func (e *Engine) attach(ctx context.Context) error {
+	policy, err := newNetworkPolicy(e.options.AllowedDomains, e.options.SSRFEnabled, e.options.AllowPrivate, e.call)
+	if err != nil {
+		return fmt.Errorf("parse network policy: %w", err)
+	}
+	startupCtx, cancel := context.WithTimeout(ctx, e.options.StartupTimeout)
+	defer cancel()
+	conn, err := dial(startupCtx, e.options.CDPEndpoint, e.options.RequestTimeout)
+	if err != nil {
+		return fmt.Errorf("connect Chrome DevTools endpoint %s: %w", e.options.CDPEndpoint, err)
+	}
+	conn.addHandler(policy.handleEvent)
+	conn.addHandler(e.handleEvent)
+	conn.addHandler(e.handleDialogEvent)
+	e.mu.Lock()
+	e.conn, e.policy = conn, policy
+	e.attached = true
+	e.profileReused = true
 	e.mu.Unlock()
 	return nil
 }
@@ -516,14 +557,21 @@ func (e *Engine) Close() error {
 		return nil
 	}
 	e.closed = true
-	conn, cmd, dataDir, remove := e.conn, e.cmd, e.dataDir, e.removeDataDir
+	conn, cmd, dataDir, remove, attached := e.conn, e.cmd, e.dataDir, e.removeDataDir, e.attached
 	e.conn, e.cmd = nil, nil
 	e.mu.Unlock()
 	if conn != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), e.options.RequestTimeout)
-		_ = conn.Execute(ctx, cdproto.CommandBrowserClose, struct{}{}, nil)
-		cancel()
-		_ = conn.Close()
+		if attached {
+			// Attached engines (issue #296) do not own the browser: close
+			// the CDP connection without sending Browser.close and without
+			// killing a process we did not start.
+			_ = conn.Close()
+		} else {
+			ctx, cancel := context.WithTimeout(context.Background(), e.options.RequestTimeout)
+			_ = conn.Execute(ctx, cdproto.CommandBrowserClose, struct{}{}, nil)
+			cancel()
+			_ = conn.Close()
+		}
 	}
 	var closeErr error
 	if cmd != nil && cmd.Process != nil {
@@ -551,12 +599,29 @@ func (e *Engine) BlockedRequests() []engine.BlockedRequest {
 	return policy.blockedRequests()
 }
 
+// Capabilities implements engine.CapabilityReporter (issue #295). The CDP
+// engine implements every optional extension; LaunchMode reflects whether the
+// engine launched Chrome itself or attached to an existing endpoint (issue
+// #296).
+func (e *Engine) Capabilities() engine.Capabilities {
+	caps := engine.CapabilitiesFor("chrome", engine.OptionalInterfaceNames...)
+	e.mu.Lock()
+	if e.attached {
+		caps.LaunchMode = "attach"
+	} else {
+		caps.LaunchMode = "launch"
+	}
+	e.mu.Unlock()
+	return caps
+}
+
 // Limitations implements engine.NetworkPolicyReporter. It reports startup
 // configurations in which the domain allowlist cannot be fully enforced.
 func (e *Engine) Limitations() []string {
 	e.mu.Lock()
 	policy := e.policy
 	reused := e.profileReused
+	attached := e.attached
 	e.mu.Unlock()
 	if policy == nil || !policy.active() {
 		return nil
@@ -564,6 +629,9 @@ func (e *Engine) Limitations() []string {
 	var limitations []string
 	if reused {
 		limitations = append(limitations, "domain allowlist is not fully enforceable: reusing an existing Chrome profile; use a private profile for guaranteed enforcement")
+	}
+	if attached {
+		limitations = append(limitations, "domain allowlist is not fully enforceable: attached to an existing browser session; requests outside this session are not observed")
 	}
 	return limitations
 }

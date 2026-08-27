@@ -30,6 +30,7 @@ func newDaemonCommand() *cobra.Command {
 	var session, restore, profile, allowedDomains string
 	var ssrf, allowPrivate, headless bool
 	var engineKind string
+	var cdpEndpoint string
 	command := &cobra.Command{
 		GroupID: groupIDDebug,
 		Use:     "daemon",
@@ -48,6 +49,7 @@ func newDaemonCommand() *cobra.Command {
 	command.PersistentFlags().StringVar(&restore, "restore", "", "restore the named state when the session browser starts")
 	command.PersistentFlags().StringVar(&profile, "profile", "", "reuse an existing Chrome profile (name or path) instead of a private session profile")
 	command.Flags().StringVar(&engineKind, "engine", "chrome", "engine implementation: chrome (default) or static (JS-free HTML reader)")
+	command.Flags().StringVar(&cdpEndpoint, "cdp-endpoint", "", "attach to an existing DevTools endpoint (e.g. http://127.0.0.1:9222) instead of launching Chrome; also via SYMBROWSE_CDP_ENDPOINT or config.toml")
 
 	command.AddCommand(newDaemonStatusCommand(&session))
 	command.AddCommand(newDaemonStopCommand(&session))
@@ -111,6 +113,22 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	engineKind := "chrome"
 	if raw := cmd.Flags().Lookup("engine"); raw != nil {
 		engineKind, _ = cmd.Flags().GetString("engine")
+	}
+	cfg, configErr := config.Load()
+	if configErr != nil {
+		return configErr
+	}
+	// Attach endpoint precedence (issue #296): flag → SYMBROWSE_CDP_ENDPOINT
+	// → config.toml. An attached engine does not launch or own Chrome.
+	cdpEndpoint := ""
+	if raw := cmd.Flags().Lookup("cdp-endpoint"); raw != nil {
+		cdpEndpoint, _ = cmd.Flags().GetString("cdp-endpoint")
+	}
+	if cdpEndpoint == "" {
+		cdpEndpoint = os.Getenv("SYMBROWSE_CDP_ENDPOINT")
+	}
+	if cdpEndpoint == "" {
+		cdpEndpoint = cfg.CDPEndpoint
 	}
 
 	path, err := daemon.SocketPath(session)
@@ -189,12 +207,13 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		UploadDirs:     uploadDirsFromEnv(),
 		ScreenshotDirs: screenshotDirs,
 		Engine:         engineKind,
+		CDPEndpoint:    cdpEndpoint,
 	})
 	defer func() { _ = navigation.Close() }()
 	stateRuntime := daemon.NewStateRuntime(stateStore, navigation)
 	stateRuntime.ReportExpired()
 	authRuntime := daemon.NewAuthRuntime(navigation, nil)
-	cfg, configErr := config.Load()
+	cfg, configErr = config.Load()
 	if configErr != nil {
 		return configErr
 	}

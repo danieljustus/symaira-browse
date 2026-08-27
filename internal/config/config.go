@@ -25,6 +25,10 @@ type Config struct {
 	CacheDir       string `json:"cache_dir"`
 	StateDir       string `json:"state_dir"`
 	ExecutablePath string `json:"executable_path"`
+	// CDPEndpoint attaches session engines to an existing DevTools endpoint
+	// instead of launching Chrome (issue #296; precedence flag →
+	// SYMBROWSE_CDP_ENDPOINT → this value).
+	CDPEndpoint string `json:"cdp_endpoint"`
 	// AllowedDomains activates the domain allowlist network policy. Patterns
 	// are bare hostnames, optionally prefixed with "*." (see internal/policy).
 	AllowedDomains []string `json:"allowed_domains"`
@@ -132,6 +136,7 @@ func LoadWithOverrides(overrides FlagOverrides) (Result, error) {
 		"cache_dir":       "default",
 		"state_dir":       "default",
 		"executable_path": "default",
+		"cdp_endpoint":    "default",
 		"allowed_domains": "default",
 		"cache_ttl_hours": "default",
 	}
@@ -180,7 +185,7 @@ func markFileSources(sources map[string]string, path, source string) error {
 	if _, err := toml.DecodeFile(path, &raw); err != nil {
 		return err
 	}
-	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "allowed_domains", "cache_ttl_hours"} {
+	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "cdp_endpoint", "allowed_domains", "cache_ttl_hours"} {
 		if _, ok := raw[field]; ok {
 			sources[field] = source
 		}
@@ -189,7 +194,7 @@ func markFileSources(sources map[string]string, path, source string) error {
 }
 
 func markEnvSources(sources map[string]string) {
-	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "allowed_domains", "cache_ttl_hours"} {
+	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "cdp_endpoint", "allowed_domains", "cache_ttl_hours"} {
 		if value, ok := os.LookupEnv(envPrefix + "_" + envKey(field)); ok && value != "" {
 			sources[field] = "env"
 		}

@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/engine/static"
 	"github.com/gorilla/websocket"
 )
 
@@ -187,4 +189,91 @@ func TestCloseReapsProcessRemovesProfileAndIsIdempotent(t *testing.T) {
 	if err := e.Close(); err != nil {
 		t.Fatalf("second Close() = %v", err)
 	}
+}
+
+func TestLaunchAttachesToExistingEndpoint(t *testing.T) {
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		// An attached engine must never send Browser.close: keep the
+		// connection open until the test closes it.
+		_ = ws.SetReadDeadline(time.Now().Add(5 * time.Second))
+		var request map[string]any
+		if err := ws.ReadJSON(&request); err != nil {
+			return
+		}
+		t.Errorf("attached engine sent a CDP command (%v); it must only detach", request)
+	}))
+	defer server.Close()
+	endpoint := "ws" + strings.TrimPrefix(server.URL, "http")
+
+	e := New(Options{CDPEndpoint: endpoint, StartupTimeout: 3 * time.Second, RequestTimeout: time.Second})
+	if err := e.Launch(context.Background()); err != nil {
+		t.Fatalf("Launch(attach) = %v", err)
+	}
+	if e.cmd != nil {
+		t.Fatalf("attach must not start a Chrome process (cmd = %v)", e.cmd)
+	}
+	e.mu.Lock()
+	attached, dataDir := e.attached, e.dataDir
+	e.mu.Unlock()
+	if !attached {
+		t.Fatal("engine must be marked attached")
+	}
+	if dataDir != "" {
+		t.Fatalf("attach must not create a private profile (dataDir = %q)", dataDir)
+	}
+	if err := e.Close(); err != nil {
+		t.Fatalf("Close() = %v", err)
+	}
+}
+
+func TestCapabilitiesChrome(t *testing.T) {
+	caps := New(Options{}).Capabilities()
+	if caps.Kind != "chrome" {
+		t.Fatalf("kind = %q, want chrome", caps.Kind)
+	}
+	if len(caps.Interfaces) != len(engine.OptionalInterfaceNames) {
+		t.Fatalf("chrome must implement every optional interface: %d of %d", len(caps.Interfaces), len(engine.OptionalInterfaceNames))
+	}
+	if len(caps.Unsupported) != 0 {
+		t.Fatalf("chrome unsupported = %v, want none", caps.Unsupported)
+	}
+	if caps.LaunchMode != "launch" {
+		t.Fatalf("launch_mode = %q, want launch", caps.LaunchMode)
+	}
+
+	attached := New(Options{CDPEndpoint: "ws://127.0.0.1:1"}).Capabilities()
+	if attached.LaunchMode != "launch" {
+		t.Fatalf("pre-launch launch_mode = %q, want launch (attach applies only after Launch)", attached.LaunchMode)
+	}
+}
+
+func TestCapabilitiesStatic(t *testing.T) {
+	caps := static.New().Capabilities()
+	if caps.Kind != "static" {
+		t.Fatalf("kind = %q, want static", caps.Kind)
+	}
+	for _, want := range []string{"InspectionEngine", "NavigationStateProvider"} {
+		if !stringListContains(caps.Interfaces, want) {
+			t.Fatalf("static interfaces = %v, missing %q", caps.Interfaces, want)
+		}
+	}
+	for _, forbidden := range []string{"NetworkEvents", "CookieEngine", "FileTransfer", "TabManager"} {
+		if stringListContains(caps.Interfaces, forbidden) {
+			t.Fatalf("static must not claim %q (interfaces = %v)", forbidden, caps.Interfaces)
+		}
+	}
+}
+
+func stringListContains(list []string, needle string) bool {
+	for _, item := range list {
+		if item == needle {
+			return true
+		}
+	}
+	return false
 }

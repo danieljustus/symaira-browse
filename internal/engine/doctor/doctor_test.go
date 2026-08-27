@@ -87,7 +87,7 @@ func TestMissingChromeMentionsPATHAndOverrideWithManipulatedPATH(t *testing.T) {
 	if !report.HasFailure("chrome") {
 		t.Fatalf("report = %#v, want chrome failure", report)
 	}
-	message := report.Checks[0].Message
+	message := findCheck(report, "chrome").Message
 	if !strings.Contains(message, "PATH:") || !strings.Contains(message, "SYMBROWSE_EXECUTABLE_PATH") {
 		t.Fatalf("message = %q", message)
 	}
@@ -111,7 +111,7 @@ func TestExecutableOverrideTakesPrecedenceOverPATH(t *testing.T) {
 			StateDir:  t.TempDir(),
 		},
 	}, "windows", os.Getenv, exec.LookPath)
-	chrome := report.Checks[0]
+	chrome := findCheck(report, "chrome")
 	if chrome.Status != StatusPass || chrome.Details["path"] != override || chrome.Details["source"] != "SYMBROWSE_EXECUTABLE_PATH" {
 		t.Fatalf("chrome check = %#v, PATH executable = %q", chrome, pathExecutable)
 	}
@@ -177,13 +177,22 @@ func TestDefaultCDPCheckIsSkipped(t *testing.T) {
 		return ""
 	}
 	report := run(Options{ExecutablePath: executable, Paths: paths}, "linux", environ, exec.LookPath)
-	cdp := report.Checks[2]
+	cdp := findCheck(report, "cdp")
 	if cdp.Name != "cdp" || cdp.Status != StatusSkipped {
 		t.Fatalf("cdp check = %#v, want skipped", cdp)
 	}
 	if !strings.Contains(cdp.Message, "SYMBROWSE_CDP_ENDPOINT") {
 		t.Fatalf("cdp message = %q", cdp.Message)
 	}
+}
+
+func findCheck(report Report, name string) Check {
+	for _, check := range report.Checks {
+		if check.Name == name {
+			return check
+		}
+	}
+	return Check{Name: name}
 }
 
 func writeExecutable(t *testing.T, path, content string) string {
@@ -303,5 +312,46 @@ func TestResolveExecutableUsesOverride(t *testing.T) {
 	}
 	if path != exe {
 		t.Errorf("path = %q, want %q", path, exe)
+	}
+}
+
+func TestEngineCheckReportsCapabilities(t *testing.T) {
+	report := run(Options{Paths: Paths{ConfigDir: t.TempDir(), CacheDir: t.TempDir(), StateDir: t.TempDir()}}, "linux", os.Getenv, exec.LookPath)
+	var engineCheck *Check
+	for i := range report.Checks {
+		if report.Checks[i].Name == "engine" {
+			engineCheck = &report.Checks[i]
+			break
+		}
+	}
+	if engineCheck == nil {
+		t.Fatal("report has no engine check")
+	}
+	if engineCheck.Status != StatusPass {
+		t.Fatalf("engine status = %q, want pass", engineCheck.Status)
+	}
+	if engineCheck.Details["kind"] != "chrome" {
+		t.Fatalf("engine kind = %q, want chrome", engineCheck.Details["kind"])
+	}
+	if engineCheck.Details["interfaces"] == "" {
+		t.Fatalf("engine details incomplete: %v", engineCheck.Details)
+	}
+
+	staticReport := run(Options{Engine: "static", Paths: Paths{ConfigDir: t.TempDir(), CacheDir: t.TempDir(), StateDir: t.TempDir()}}, "linux", os.Getenv, exec.LookPath)
+	var staticCheck *Check
+	for i := range staticReport.Checks {
+		if staticReport.Checks[i].Name == "engine" {
+			staticCheck = &staticReport.Checks[i]
+			break
+		}
+	}
+	if staticCheck == nil {
+		t.Fatal("static report has no engine check")
+	}
+	if staticCheck.Details["kind"] != "static" {
+		t.Fatalf("static engine kind = %q, want static", staticCheck.Details["kind"])
+	}
+	if !strings.Contains(staticCheck.Details["unsupported"], "NetworkEvents") {
+		t.Fatalf("static unsupported must include NetworkEvents: %q", staticCheck.Details["unsupported"])
 	}
 }

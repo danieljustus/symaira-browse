@@ -55,6 +55,13 @@ Navigation startet nicht einmal den Browser. Blockierte Anfragen werden pro
 URL gezählt und als `warnings[]` gemeldet (`network_policy.blocked` mit
 Begründung `denied by the SSRF guard`).
 
+**Attach-Modus (`--cdp-endpoint` / `SYMBROWSE_CDP_ENDPOINT`, Issue #296):**
+Der Guard greift nur für Requests, die durch die eigene CDP-Session laufen.
+Requests des angehängten Browsers außerhalb dieser Session (andere Tabs,
+Hintergrundaktivität des Menschen) sind nicht abgedeckt — der Daemon warnt
+beim Start mit `network_policy.limitation`. Für garantierte Durchsetzung
+einen eigenen Browser mit privatem Profil starten.
+
 ## Abweichungen zu `symfetch` (dokumentiert)
 
 Der Guard ist bewusst mit `symfetch` (`internal/fetch/guard.go`) deckungsgleich
