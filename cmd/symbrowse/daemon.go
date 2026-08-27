@@ -220,11 +220,16 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	journalRuntime := daemon.NewJournalRuntime(journalFor(cfg, session), navigation)
 	policyRuntime := daemon.NewPolicyRuntime(cfg.StateDir, policyMode())
 	oobRuntime := daemon.NewOOBRuntime(oob.NewManager(), oob.NewNotifier(), navigation, policyRuntime.Policy(), policyMode())
-	// symguard delegation (issue #52): the guard decides when it is present
+	// guard delegation (issue #52): the guard decides when it is present
 	// and configured; the decider lands in the journal for every action.
+	// A missing decider is never silent (issue #299): if no guard binary is
+	// found, decisions fall back to the built-in policy and that fallback is
+	// logged at startup.
 	oobRuntime.SetDecider(policyRuntime.Decide)
 	if policyRuntime.Guard() != nil && policyRuntime.Guard().Active() {
-		slog.Info("symguard delegation active", "executable", policyRuntime.Guard().Executable)
+		slog.Info("guard delegation active", "command", policyRuntime.Guard().Command())
+	} else {
+		slog.Warn("no external risk decider available (symbrain not found or disabled); risk decisions fall back to the built-in policy")
 	}
 	// Fetch runtime (issue #258): serves the SymFetch compatibility frames
 	// (fetch.url, fetch.batch, wayback.snapshots) over plain HTTP without a

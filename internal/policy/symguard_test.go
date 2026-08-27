@@ -11,12 +11,12 @@ import (
 	"time"
 )
 
-// fakeGuard writes an executable symguard script into a temp dir and returns
+// fakeGuard writes an executable decider script into a temp dir and returns
 // its path. The script prints verdict (or fails when failWith is set).
 func fakeGuard(t *testing.T, verdict string, failWith string) string {
 	t.Helper()
 	dir := t.TempDir()
-	path := filepath.Join(dir, "symguard")
+	path := filepath.Join(dir, "symbrain")
 	script := "#!/bin/sh\n"
 	if failWith != "" {
 		script += "echo '" + failWith + "' >&2\nexit 3\n"
@@ -43,6 +43,62 @@ func TestDetectGuardFromPath(t *testing.T) {
 	}
 	if guard.Executable != path {
 		t.Fatalf("executable = %s, want %s", guard.Executable, path)
+	}
+	if len(guard.Subcommand) != 1 || guard.Subcommand[0] != "guard" {
+		t.Fatalf("subcommand = %v, want [guard] (symbrain guard decide)", guard.Subcommand)
+	}
+	if want := path + " guard decide"; guard.Command() != want {
+		t.Fatalf("Command() = %q, want %q", guard.Command(), want)
+	}
+}
+
+func TestDetectGuardEnvOverrideIsBareDecide(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
+	path := fakeGuard(t, `{"decision":"allow"}`, "")
+	t.Setenv(GuardEnvName, path)
+	guard := DetectGuard()
+	if guard == nil || guard.Executable != path {
+		t.Fatalf("env override not honored: %+v", guard)
+	}
+	if len(guard.Subcommand) != 0 {
+		t.Fatalf("override must call the binary directly with decide, subcommand = %v", guard.Subcommand)
+	}
+	if want := path + " decide"; guard.Command() != want {
+		t.Fatalf("Command() = %q, want %q", guard.Command(), want)
+	}
+}
+
+func TestGuardDecideCallsSymbrainSubcommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fake unix executable under test; POSIX exec semantics are covered on linux/darwin CI")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "symbrain")
+	argsPath := filepath.Join(dir, "args.txt")
+	// The fake symbrain writes its argv to a file and answers allow.
+	script := "#!/bin/sh\necho \"$*\" > \"$ARGS_FILE\"\nprintf '%s\\n' '{\"decision\":\"allow\",\"reason\":\"ok\"}'\n"
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	guard := &Guard{Executable: path, Subcommand: []string{"guard"}, Timeout: 2 * time.Second}
+	t.Setenv("ARGS_FILE", argsPath)
+	outcome, err := guard.Decide(context.Background(), GuardInput{Command: "open", Class: ClassNavigate, Domain: "example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outcome.Decision != Allow {
+		t.Fatalf("decision = %s, want allow", outcome.Decision)
+	}
+	raw, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(raw)); got != "guard decide" {
+		t.Fatalf("argv = %q, want %q", got, "guard decide")
 	}
 }
 

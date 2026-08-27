@@ -99,7 +99,7 @@ func (r *OOBRuntime) RequestApproval(ctx context.Context, session, command, url 
 // DecideAndConfirm is the policy gate used before executing a frame: when the
 // effective decision is deny, the frame is refused; when it is confirm, the
 // human is asked via the OOB channel. Returns (allowed, decision, decider,
-// error); the decider is "guard" when symguard decided and "policy"
+// error); the decider is "guard" when the guard decided and "policy"
 // otherwise (issue #52).
 func (r *OOBRuntime) DecideAndConfirm(ctx context.Context, session, command, url string, timeout time.Duration) (bool, policy.Decision, string, error) {
 	var decision policy.Decision

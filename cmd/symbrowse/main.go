@@ -15,6 +15,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/exitcodes"
 	"github.com/danieljustus/symaira-browse/internal/logging"
 	"github.com/danieljustus/symaira-browse/internal/output"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 	symversion "github.com/danieljustus/symaira-browse/internal/version"
 )
 
@@ -208,6 +209,7 @@ func newDoctorCommand() *cobra.Command {
 				},
 			}
 			report := doctor.Run(options)
+			report.Checks = append(report.Checks, guardDoctorCheck())
 			if fix {
 				report.Fixes = doctor.FixInstructions(runtime.GOOS, options)
 			}
@@ -239,6 +241,32 @@ func doctorFailureMessage(report doctor.Report, name string) string {
 		}
 	}
 	return "doctor check failed"
+}
+
+// guardDoctorCheck reports the external risk decider (issue #299): which
+// binary was found, at which path, or that none was. A missing decider is a
+// warning, never a failure — the daemon falls back to the built-in policy
+// and logs that fallback at startup.
+func guardDoctorCheck() doctor.Check {
+	guard := policy.DetectGuard()
+	if guard != nil && guard.Active() {
+		return doctor.Check{
+			Name:    "guard",
+			Status:  doctor.StatusPass,
+			Message: fmt.Sprintf("risk decisions delegated to %s", guard.Command()),
+			Details: map[string]string{
+				"binary":  policy.GuardBinaryName,
+				"path":    guard.Executable,
+				"command": guard.Command(),
+			},
+		}
+	}
+	return doctor.Check{
+		Name:    "guard",
+		Status:  doctor.StatusWarn,
+		Message: fmt.Sprintf("no external risk decider found (%s not on PATH and SYMBROWSE_SYMGUARD unset); risk decisions fall back to the built-in policy", policy.GuardBinaryName),
+		Details: map[string]string{"override": policy.GuardEnvName},
+	}
 }
 
 func main() {
