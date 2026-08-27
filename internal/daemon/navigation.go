@@ -15,7 +15,9 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/engine/chrome"
 	"github.com/danieljustus/symaira-browse/internal/engine/doctor"
+	"github.com/danieljustus/symaira-browse/internal/engine/safari"
 	"github.com/danieljustus/symaira-browse/internal/engine/static"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 	"github.com/danieljustus/symaira-browse/internal/profiles"
 	"github.com/danieljustus/symaira-browse/internal/state"
 )
@@ -39,6 +41,7 @@ type NavigationRuntime struct {
 	browserContexts map[string]engine.Context
 	engineKind      string
 	cdpEndpoint     string
+	mode            policy.Mode
 	tabs            map[string][]*sessionTab
 	activeTab       map[string]int
 	autosave        *AutosaveConfig
@@ -94,9 +97,14 @@ type NavigationRuntimeOptions struct {
 	// ScreenshotDirs are the allowed roots for screenshot files (issue #16);
 	// without an explicit directory the first root (cache out dir) is used.
 	ScreenshotDirs []string
-	// Engine selects the engine implementation: "chrome" (default) or
-	// "static" (JS-free HTML reader, issue #64).
+	// Engine selects the engine implementation: "chrome" (default), "static"
+	// (JS-free HTML reader, issue #64), or "safari-attach" (live Safari session
+	// via Apple Events, issue #297).
 	Engine string
+	// Mode is the runtime mode (TTY or MCP). The safari-attach engine only
+	// enables its interaction path in TTY mode; in MCP mode it is read-only
+	// because no network layer means the SSRF guard cannot be enforced.
+	Mode policy.Mode
 	// CDPEndpoint attaches session engines to an existing DevTools endpoint
 	// instead of launching Chrome (issue #296; flag, SYMBROWSE_CDP_ENDPOINT,
 	// or config.toml). Attached engines do not own the browser lifetime.
@@ -135,6 +143,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		allowedDomains:  options.AllowedDomains,
 		engineKind:      options.Engine,
 		cdpEndpoint:     options.CDPEndpoint,
+		mode:            options.Mode,
 		ssrfEnabled:     options.SSRFEnabled,
 		allowPrivate:    options.AllowPrivate,
 		headless:        options.Headless,
@@ -337,6 +346,11 @@ func (r *NavigationRuntime) handleEngineInfoFrame(frame Frame) (any, error) {
 	if r.engineKind == "static" {
 		return static.NewWithGuard(r.staticGuard).Capabilities(), nil
 	}
+	if r.engineKind == "safari-attach" {
+		s := safari.New()
+		s.OptInInteractions = r.mode != policy.ModeMCP
+		return s.Capabilities(), nil
+	}
 	options := r.chromeOptions("")
 	if r.cdpEndpoint != "" {
 		options.CDPEndpoint = r.cdpEndpoint
@@ -345,10 +359,19 @@ func (r *NavigationRuntime) handleEngineInfoFrame(frame Frame) (any, error) {
 }
 
 // newEngine builds the engine implementation selected by the runtime options:
-// "static" (JS-free HTML reader, issue #64) or the default Chrome engine.
+// "static" (JS-free HTML reader, issue #64), "safari-attach" (live Safari via
+// Apple Events, issue #297), or the default Chrome engine.
 func (r *NavigationRuntime) newEngine(userDataDir string) engine.Engine {
-	if r.engineKind == "static" {
+	switch r.engineKind {
+	case "static":
 		return static.NewWithGuard(r.staticGuard)
+	case "safari-attach":
+		s := safari.New()
+		// The interaction path is enabled only in TTY mode. In MCP mode the
+		// engine stays read-only because Safari has no network layer for the
+		// SSRF guard to enforce (issue #297).
+		s.OptInInteractions = r.mode != policy.ModeMCP
+		return s
 	}
 	return chrome.New(r.chromeOptions(userDataDir))
 }
@@ -387,7 +410,7 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 		r.mu.Unlock()
 		return nil, err
 	}
-	if r.executable == "" && r.engineKind != "static" {
+	if r.executable == "" && r.engineKind != "static" && r.engineKind != "safari-attach" {
 		// Fall back to the same platform discovery doctor reports on, so a
 		// standard Chrome install works without SYMBROWSE_EXECUTABLE_PATH.
 		path, err := resolveBrowserExecutable(os.Getenv, exec.LookPath)

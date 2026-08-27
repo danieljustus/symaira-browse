@@ -8,6 +8,7 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/engine/doctor"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // stubPolicyReporter is a fixed engine.NetworkPolicyReporter for tests.
@@ -180,4 +181,42 @@ func TestEngineInfoReportsPlannedAndActiveCapabilities(t *testing.T) {
 	if staticCaps.Kind != "static" || len(staticCaps.Interfaces) != 2 {
 		t.Fatalf("static caps = %+v, want kind=static with 2 interfaces", staticCaps)
 	}
+}
+
+// TestSafariAttachHonorsModeGuard verifies the #297 safety boundary: the
+// safari-attach engine is read-only in MCP mode (no InteractionEngine) and only
+// enables interactions in TTY mode, because it has no network layer for the
+// SSRF guard to enforce.
+func TestSafariAttachHonorsModeGuard(t *testing.T) {
+	mcpRT := NewNavigationRuntime(nil, "", NavigationRuntimeOptions{Engine: "safari-attach", Mode: policy.ModeMCP})
+	mcpData, err := mcpRT.handleEngineInfoFrame(Frame{Session: "test"})
+	if err != nil {
+		t.Fatalf("mcp handleEngineInfoFrame = %v", err)
+	}
+	mcpCaps := mcpData.(engine.Capabilities)
+	if includes(mcpCaps.Interfaces, "InteractionEngine") {
+		t.Fatalf("MCP mode must keep safari-attach read-only: %+v", mcpCaps.Interfaces)
+	}
+
+	ttyRT := NewNavigationRuntime(nil, "", NavigationRuntimeOptions{Engine: "safari-attach", Mode: policy.ModeTTY})
+	ttyData, err := ttyRT.handleEngineInfoFrame(Frame{Session: "test"})
+	if err != nil {
+		t.Fatalf("tty handleEngineInfoFrame = %v", err)
+	}
+	ttyCaps := ttyData.(engine.Capabilities)
+	if !includes(ttyCaps.Interfaces, "InteractionEngine") {
+		t.Fatalf("TTY mode must enable safari-attach InteractionEngine: %+v", ttyCaps.Interfaces)
+	}
+	if ttyCaps.LaunchMode != "attach" {
+		t.Fatalf("safari-attach launch mode = %q, want attach", ttyCaps.LaunchMode)
+	}
+}
+
+func includes(s []string, v string) bool {
+	for _, x := range s {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }

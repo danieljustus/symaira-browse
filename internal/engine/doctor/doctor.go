@@ -18,6 +18,7 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/engine/chrome"
+	"github.com/danieljustus/symaira-browse/internal/engine/safari"
 	"github.com/danieljustus/symaira-browse/internal/engine/static"
 )
 
@@ -173,6 +174,9 @@ func run(options Options, goos string, environ func(string) string, lookPath fun
 	browser, discoveryErr := discover(goos, options.ExecutablePath, environ, lookPath)
 	report := Report{Checks: make([]Check, 0, 8)}
 	report.Checks = append(report.Checks, checkEngineCapabilities(options.Engine))
+	if options.Engine == "safari-attach" {
+		report.Checks = append(report.Checks, checkSafariPrerequisites())
+	}
 	if discoveryErr != nil {
 		report.Checks = append(report.Checks, Check{
 			Name:    "chrome",
@@ -385,6 +389,8 @@ func checkEngineCapabilities(kind string) Check {
 	switch kind {
 	case "static":
 		caps = static.New().Capabilities()
+	case "safari-attach":
+		caps = safari.New().Capabilities()
 	default:
 		caps = chrome.New(chrome.Options{}).Capabilities()
 	}
@@ -489,6 +495,60 @@ func SortedDetails(details map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// checkSafariPrerequisites verifies the two Safari-specific gates the
+// safari-attach engine needs (issue #297): the macOS platform, a running
+// Safari, the "Allow JavaScript from Apple Events" developer setting, and the
+// macOS automation grant that lets this process drive Safari. Each failure
+// carries the exact remediation so the human can unblock the engine.
+func checkSafariPrerequisites() Check {
+	if runtime.GOOS != "darwin" {
+		return Check{
+			Name:    "safari_prereq",
+			Status:  StatusFail,
+			Message: "safari-attach engine requires macOS; it drives the running Safari via Apple Events",
+			Details: map[string]string{"platform": runtime.GOOS},
+		}
+	}
+	// Safari must be running for the engine to attach to the live session.
+	if _, err := exec.Command("pgrep", "-x", "Safari").Output(); err != nil {
+		return Check{
+			Name:    "safari_prereq",
+			Status:  StatusFail,
+			Message: "Safari is not running; start Safari and open the session you want to drive",
+			Details: map[string]string{"remediation": "open Safari.app"},
+		}
+	}
+	// Probe "Allow JavaScript from Apple Events": a no-op do JavaScript that
+	// returns a string succeeds only when the setting is enabled.
+	const probe = `tell application "Safari" to do JavaScript "1+1" in current tab of window 1`
+	if out, err := exec.Command("osascript", "-e", probe).Output(); err != nil {
+		return Check{
+			Name:    "safari_prereq",
+			Status:  StatusFail,
+			Message: "Safari rejects JavaScript from Apple Events; enable the developer setting",
+			Details: map[string]string{
+				"remediation": "Safari → Settings → Advanced → ‘Allow JavaScript from Apple Events’",
+				"error":       err.Error(),
+			},
+		}
+	} else if strings.TrimSpace(string(out)) != "2" {
+		// The setting is on but window 1 has no current tab; still report the
+		// automation grant as the likely remaining gap rather than a hard fail.
+		return Check{
+			Name:    "safari_prereq",
+			Status:  StatusWarn,
+			Message: "Safari is reachable via Apple Events but returned no executable tab; open a page in the front window",
+			Details: map[string]string{"probe_result": strings.TrimSpace(string(out))},
+		}
+	}
+	return Check{
+		Name:    "safari_prereq",
+		Status:  StatusPass,
+		Message: "Safari is reachable via Apple Events and JavaScript from Apple Events is enabled",
+		Details: map[string]string{"engine": "safari-attach"},
+	}
 }
 
 var commandContext = exec.CommandContext
