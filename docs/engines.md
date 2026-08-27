@@ -28,6 +28,7 @@ als „von dieser Engine nicht unterstützt" scheitern.
 |---|---|---|
 | `chrome` | CDP über WebSocket | vollständig; Referenzimplementierung |
 | `static` | HTTP ohne Browser | bewusst reduziert (Tier 0) |
+| `safari-attach` | Apple Events (`do JavaScript`) | Lesen vollständig, Bedienen hinter Opt-in (issue #297) |
 
 Die CDP-Engine ist nicht auf Google Chrome festgelegt. Die Discovery in
 [`internal/engine/doctor`](../internal/engine/doctor) findet Chrome, Chromium
@@ -114,10 +115,13 @@ Zwei weitere Fallen, beide in der Messung aufgetreten:
 3. Jeder Klick prüft vor der Ausführung per `elementFromPoint`, ob das Ziel
    tatsächlich getroffen würde, und meldet bei Verdeckung denselben Fehler wie
    die CDP-Engine.
-4. `safari-attach` ist im MCP-Modus gesperrt, solange der SSRF-Guard dort
-   Default ist ([ssrf.md](ssrf.md)). Ohne Netzwerk-Layer sind Allowlist und
-   Guard nicht durchsetzbar, und eine nicht durchsetzbare Zusage ist eine
-   falsche Zusage ([allowlist.md](allowlist.md)).
+4. `safari-attach` ist im MCP-Modus **lesend** (read-only): die `InteractionEngine`
+   wird nur im TTY-Modus aktiviert, solange der SSRF-Guard dort Default ist
+   ([ssrf.md](ssrf.md)). Ohne Netzwerk-Layer sind Allowlist und Guard nicht
+   durchsetzbar, und eine nicht durchsetzbare Zusage ist eine falsche Zusage
+   ([allowlist.md](allowlist.md)). Die capability-Meldung (`doctor` und
+   `engine info`) spiegelt das pro Modus ehrlich: `InteractionEngine` erscheint
+   nur bei Opt-in.
 5. Jede Aktion in dieser Engine läuft in der echten, authentifizierten Sitzung
    des Menschen und erhält deshalb die höchste Risikoklasse.
 
