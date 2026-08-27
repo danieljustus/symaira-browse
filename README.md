@@ -242,6 +242,20 @@ controller (`symfritz`). It talks to the shared `corekit` render pipeline
 (`domkit`) and follows the same CGO-free, zero-stdio-pollution conventions
 as its siblings.
 
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution workflow.
+The short version: build and verify before opening a pull request.
+
+```sh
+make fmt-check
+make build
+make test
+make lint
+```
+
+Changes to the default branch are squash-merged only.
+
 ## Contributing · Security · License
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — contribution workflow
