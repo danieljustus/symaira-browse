@@ -56,6 +56,42 @@ tree with stable `@ref`s, and `read` returns the page as markdown in the
 SymFetch output schema. Without Chrome, use the JS-free static engine:
 `./symbrowse daemon --session <name> --engine static`.
 
+### Example session
+
+```text
+$ ./symbrowse open "https://example.com" --session research
+map[action:open http_status:200 url:https://example.com/]
+
+$ ./symbrowse snapshot --session research
+snap-1 tree:
+  - document "Example Domain" [ref=e5]
+    - heading "Example Domain" [ref=e2]
+    - paragraph [ref=e1]
+      - statictext "This domain is for use in documentation examples without needing permission. Avoid use in operations." [ref=e12]
+    - paragraph [ref=e10]
+      - link "Learn more" [ref=e6]
+        - statictext "Learn more" [ref=e5]
+
+$ ./symbrowse read "https://example.com" --session research --engine-hint
+---
+title: Example Domain
+url: https://example.com
+fetched_at: "2026-08-27T09:28:27Z"
+lang: en
+tokens_est: 139
+---
+
+# Example Domain
+
+This domain is for use in documentation examples without needing permission.
+
+[Learn more](https://iana.org/domains/example)
+```
+
+The `snapshot` output above is abbreviated; the real output carries stable
+`@ref` keys for every node so later commands can address elements across
+navigation and re-renders.
+
 ## Usage
 
 `symbrowse` has two modes in one binary:
