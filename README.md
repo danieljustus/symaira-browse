@@ -231,6 +231,7 @@ encryption and [docs/allowlist.md](docs/allowlist.md) for the network policy.
 - [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
 - [docs/injection.md](docs/injection.md) — prompt-injection scan
 - [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy
+- [docs/notarize.md](docs/notarize.md) — macOS notarization and API-key secret mapping
 - [docs/state.md](docs/state.md) — state encryption and retention
 
 ## Ecosystem

@@ -93,20 +93,27 @@ jobs:
           NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
           NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
         run: |
-          if [ -z "${NOTARY_API_KEY:-}" ]; then
-            echo "::warning::NOTARY_API_KEY secret is not set. Skipping notarization."
+          if [ -z "${NOTARY_API_KEY:-}" ] || [ -z "${NOTARY_API_KEY_ID:-}" ] || [ -z "${NOTARY_API_ISSUER:-}" ]; then
+            echo "::warning::Notary API key, key ID, or issuer secret is not set. Skipping notarization."
             exit 0
           fi
+          NOTARY_KEY_PATH="$RUNNER_TEMP/notary-api-key.p8"
+          if ! printf '%s' "$NOTARY_API_KEY" | base64 --decode > "$NOTARY_KEY_PATH"; then
+            echo "::error::NOTARY_API_KEY is not valid base64-encoded App Store Connect key material."
+            exit 1
+          fi
+          chmod 600 "$NOTARY_KEY_PATH"
+          trap 'rm -f "$NOTARY_KEY_PATH"' EXIT
           for ARCH in amd64 arm64; do
-            for f in dist/*_darwin_${ARCH}/*; do
+            for f in "dist/*_darwin_${ARCH}"/*; do
               if [ -f "$f" ] && file "$f" | grep -q "Mach-O"; then
                 echo "Notarizing $f..."
                 ZIP_PATH="$RUNNER_TEMP/notarize_${ARCH}.zip"
                 ditto -c -k --keepParent "$f" "$ZIP_PATH"
                 xcrun notarytool submit "$ZIP_PATH" \
-                  --apple-id "${NOTARY_API_KEY_ID}" \
-                  --team-id "${NOTARY_API_ISSUER}" \
-                  --password "${NOTARY_API_KEY}" \
+                  --key "$NOTARY_KEY_PATH" \
+                  --key-id "${NOTARY_API_KEY_ID}" \
+                  --issuer "${NOTARY_API_ISSUER}" \
                   --wait
                 rm -f "$ZIP_PATH"
               fi
