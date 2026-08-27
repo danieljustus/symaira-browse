@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// Guard delegates risk decisions to the external symguard binary (issue #52,
-// ARCHITEKTUR.md §5.5/E5: "Browse klassifiziert, Guard entscheidet"). The
+// Guard delegates risk decisions to the external symguard binary (issue #52;
+// "Browse klassifiziert, Guard entscheidet"). The
 // guard is detected at runtime and invoked as a subprocess — there is no
 // compile-time import of symaira-guard (standalone-first).
 //

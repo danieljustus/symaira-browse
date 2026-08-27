@@ -19,8 +19,8 @@ func newFlowCommand() *cobra.Command {
 		GroupID: groupIDFlows,
 		Use:     "flow",
 		Short:   "Validate, run and record declarative browser flows",
-		Long: "flow manages declarative, versioned browser automation scripts " +
-			"(ARCHITEKTUR.md §5.6). Flows are YAML documents with semantic finders, " +
+		Long: "flow manages declarative, versioned browser automation scripts. " +
+			"Flows are YAML documents with semantic finders, " +
 			"hard domain constraints and op://…-only secret references.",
 	}
 	command.AddCommand(newFlowValidateCommand())

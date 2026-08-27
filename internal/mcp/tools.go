@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// Profile is the tool-profile name from ARCHITEKTUR.md §6.2. The profile
+// Profile is the tool-profile name from docs/mcp.md. The profile
 // assignment is a data table: every tool belongs to exactly one profile and
 // the all profile is the union of all profiles.
 type Profile string
@@ -91,14 +91,14 @@ func guidance(useWhen, doNotUseWhen, returns, next string) string {
 }
 
 // fetchEscalationNote distinguishes ordinary Fetch reads from browser
-// escalation. It is embedded in the read/open/snapshot guidance (issue #4,
-// PLANUNG.md 479-489): agents should reach for this browser tool only when
+// escalation. It is embedded in the read/open/snapshot guidance (issue #4;
+// see docs/tiers.md): agents should reach for this browser tool only when
 // JavaScript, browser state or interaction is needed.
 const fetchEscalationNote = "For plain static content a normal HTTP fetch is cheaper; use this tool only when JavaScript, browser state or interaction is required"
 
 // mcpBudgetedCommands are the output-heavy daemon commands that get a
-// stricter default token budget in MCP mode (ARCHITEKTUR.md §5.3: snapshot,
-// read, get html, console, network requests).
+// stricter default token budget in MCP mode: snapshot, read, get html,
+// console, network requests.
 var mcpBudgetedCommands = map[string]bool{
 	"snapshot":         true,
 	"read":             true,
@@ -119,7 +119,7 @@ type ProxyTool struct {
 	// Name and Description are exposed through tools/list.
 	Name        string
 	Description string
-	// Profile is the tool-profile assignment (ARCHITEKTUR.md §6.2).
+	// Profile is the tool-profile assignment (see docs/mcp.md).
 	Profile Profile
 	// Schema is the JSON-Schema input description (without "session",
 	// which is appended automatically).

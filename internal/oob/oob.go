@@ -1,4 +1,4 @@
-// Package oob implements the out-of-band human channel (ARCHITEKTUR.md §5.4):
+// Package oob implements the out-of-band human channel:
 // a page overlay plus macOS notification with blocking wait semantics. One
 // mechanism serves handoff, approval and watch (issues B-44..B-47).
 package oob

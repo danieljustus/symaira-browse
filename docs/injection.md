@@ -1,7 +1,7 @@
 # Prompt-Injection-Scan
 
 `snapshot` prüft den Seiteninhalt standardmäßig heuristisch auf
-Prompt-Injection-Vektoren (ARCHITEKTUR.md §5.7, Issue #28). Das Ergebnis
+Prompt-Injection-Vektoren (Issue #28). Das Ergebnis
 sind `warnings[{kind, severity, ref, excerpt}]` auf der Ausgabe — **Inhalt
 wird nie stillschweigend entfernt oder verändert**, nur gemeldet.
 

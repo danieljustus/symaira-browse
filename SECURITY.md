@@ -19,7 +19,7 @@ The maintainers will acknowledge receipt, investigate, coordinate a fix, and com
 
 ## Security boundaries
 
-Symaira Browse treats web pages as untrusted input. Do not bypass authentication, CAPTCHA, domain policy, or other access controls while testing without explicit authorization. Follow the repository rules in [AGENTS.md](AGENTS.md) and the design constraints in [ARCHITEKTUR.md](ARCHITEKTUR.md).
+Symaira Browse treats web pages as untrusted input. Do not bypass authentication, CAPTCHA, domain policy, or other access controls while testing without explicit authorization. Follow the repository rules in [AGENTS.md](AGENTS.md) and the security boundaries documented in [docs/ssrf.md](docs/ssrf.md), [docs/allowlist.md](docs/allowlist.md), and [docs/injection.md](docs/injection.md).
 
 ## Code scanning
 

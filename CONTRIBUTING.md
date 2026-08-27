@@ -1,6 +1,6 @@
 # Contributing to Symaira Browse
 
-Thanks for helping improve Symaira Browse. Please read [AGENTS.md](AGENTS.md) and [ARCHITEKTUR.md](ARCHITEKTUR.md) before making a change. The architecture document is the binding design; the issue or milestone defines the permitted scope.
+Thanks for helping improve Symaira Browse. Please read [AGENTS.md](AGENTS.md) before making a change; it is the binding design contract, and the per-topic documents under [docs/](docs) are its detailed reference. The issue or milestone defines the permitted scope.
 
 ## Development workflow
 

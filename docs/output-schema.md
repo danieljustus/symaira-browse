@@ -1,7 +1,7 @@
 # Ausgabeschema (Output Schema)
 
 `symbrowse read` liefert dasselbe Ausgabeschema wie `symfetch`
-(ARCHITEKTUR.md §6.1 — ein Agent soll nur ein Schema lernen).
+(siehe [tiers.md](tiers.md) — ein Agent soll nur ein Schema lernen).
 
 ## Quelle des Schemas
 

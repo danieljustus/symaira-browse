@@ -136,8 +136,8 @@ type NavigationOptions struct {
 }
 
 // JSRequiredResult is the engine-hint payload: whether JavaScript was
-// actually needed to render the page, with the reason (issue #35,
-// ARCHITEKTUR.md §6.1).
+// actually needed to render the page, with the reason (issue #35;
+// see docs/tiers.md).
 type JSRequiredResult struct {
 	Required bool   `json:"js_required"`
 	Reason   string `json:"js_required_reason,omitempty"`
