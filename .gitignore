@@ -24,6 +24,8 @@ vendor/
 # Documentation builds / local notes (published docs/*.md stay tracked)
 docs/_build/
 docs/.vitepress/cache/
+docs/adopt/
+docs/assets/social-preview.png
 
 # Local agent reports / session state
 .github/coverage/
