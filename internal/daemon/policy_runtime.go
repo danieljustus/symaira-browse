@@ -9,7 +9,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
-// PolicyRuntime exposes the local policy engine and the optional symguard
+// PolicyRuntime exposes the local policy engine and the optional guard
 // delegation over the daemon protocol (issue #52).
 type PolicyRuntime struct {
 	policy *policy.Policy
@@ -18,7 +18,7 @@ type PolicyRuntime struct {
 }
 
 // NewPolicyRuntime loads the policy from <state-dir>/policy.toml (missing
-// file = built-in defaults) and detects the symguard binary. The mode
+// file = built-in defaults) and detects the guard binary. The mode
 // distinguishes MCP and TTY defaults.
 func NewPolicyRuntime(stateDir string, mode policy.Mode) *PolicyRuntime {
 	return NewPolicyRuntimeWithGuard(stateDir, mode, policy.DetectGuard())
@@ -77,16 +77,16 @@ func (r *PolicyRuntime) Handle(ctx context.Context, frame Frame) (any, []Warning
 func (r *PolicyRuntime) explainWithDecider(explanation, decider, reason string) string {
 	guard := "not configured"
 	if r.guard != nil && r.guard.Active() {
-		guard = r.guard.Executable
+		guard = r.guard.Command()
 	}
 	return explanation + fmt.Sprintf("\ndecider:   %s\nguard:     %s\nreason:    %s", decider, guard, reason)
 }
 
-// Decide resolves the effective decision for one command. When symguard is
+// Decide resolves the effective decision for one command. When the guard is
 // present and configured the verdict is delegated to it (command, class,
 // domain and warnings as input); the guard's decision wins. A guard failure
 // denies with a clear reason — never a silent allow. The returned decider is
-// "guard" when symguard decided and "policy" otherwise; the returned reason
+// "guard" when the guard decided and "policy" otherwise; the returned reason
 // explains the origin (rule:domain, default, guard:<reason>).
 func (r *PolicyRuntime) Decide(ctx context.Context, command, url string, mode policy.Mode, warnings []string) (policy.Decision, string, string, error) {
 	class, err := policy.Classify(command)
@@ -131,5 +131,5 @@ func (r *PolicyRuntime) Policy() *policy.Policy { return r.policy }
 // PolicyFilePath returns where the policy file is expected.
 func (r *PolicyRuntime) PolicyFilePath() string { return r.policy.Source }
 
-// Guard returns the configured symguard delegation (nil when absent).
+// Guard returns the configured guard delegation (nil when absent).
 func (r *PolicyRuntime) Guard() *policy.Guard { return r.guard }
