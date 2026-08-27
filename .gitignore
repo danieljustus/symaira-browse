@@ -21,8 +21,9 @@ vendor/
 # Local audit reports
 .github/audit/
 
-# Documentation builds / local notes
-docs/
+# Documentation builds / local notes (published docs/*.md stay tracked)
+docs/_build/
+docs/.vitepress/cache/
 
 # Local agent reports / session state
 .github/coverage/

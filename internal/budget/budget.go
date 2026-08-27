@@ -1,5 +1,5 @@
 // Package budget implements the token-budget and truncate-and-store layer
-// (issue #23, B-19; ARCHITEKTUR.md §5.3): a rough token estimator, head+foot
+// (issue #23, B-19): a rough token estimator, head+foot
 // truncation and a TTL'd cache that holds the full output under the cache
 // out directory so no command ever writes more than its budget into the
 // agent context.
@@ -59,8 +59,8 @@ func Truncate(content []byte, maxTokens int) (head, foot []byte, tokensReturned,
 	return head, foot, Estimate(string(head)) + Estimate(string(foot)), tokensTotal, true
 }
 
-// Marker is the stable truncation payload delivered alongside head and foot
-// (ARCHITEKTUR.md §5.3): the handle lets callers fetch the full content or
+// Marker is the stable truncation payload delivered alongside head and foot:
+// the handle lets callers fetch the full content or
 // exact line ranges from the cache.
 type Marker struct {
 	Truncated      bool   `json:"truncated"`

@@ -1,5 +1,5 @@
 // Package injection wraps page-derived output in unforgeable content
-// boundaries (ARCHITEKTUR.md §5.7). Every response that carries page content
+// boundaries (see docs/injection.md). Every response that carries page content
 // gets a fresh nonce; the markers are useless without the matching
 // content_boundaries field delivered out-of-band (JSON mode) or the marker
 // line itself in text mode, so page content that mimics the marker text

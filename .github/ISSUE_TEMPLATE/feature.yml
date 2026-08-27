@@ -36,4 +36,4 @@ body:
     id: reference
     attributes:
       label: Related issues or docs
-      description: Issue numbers, PLANUNG.md sections, or docs pages that this feature builds on.
+      description: Issue numbers, milestones, or docs pages that this feature builds on.

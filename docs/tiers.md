@@ -1,7 +1,7 @@
 # Der Eskalationsvertrag mit `symfetch` (Tiers)
 
 Ein Agent soll nicht raten müssen, welches Werkzeug er für eine URL
-braucht. Der Vertrag (ARCHITEKTUR.md §6.1, Issue #35) macht die Wahl
+braucht. Der Vertrag (Issue #35) macht die Wahl
 beobachtbar:
 
 - **`symfetch`** erkennt SPA-Skeletons und dünnen Inhalt und ergänzt dann

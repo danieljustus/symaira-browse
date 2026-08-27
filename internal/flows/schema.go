@@ -1,5 +1,5 @@
-// Package flows defines the declarative symbrowse flow schema
-// (ARCHITEKTUR.md §5.6) and its parser. A flow is a versioned, human-reviewable
+// Package flows defines the declarative symbrowse flow schema and its
+// parser. A flow is a versioned, human-reviewable
 // automation script: it opens one or more allowed domains, runs semantic
 // find-based steps, and extracts outputs from the final state. Secrets may
 // only appear as op://… references, never as plaintext values.

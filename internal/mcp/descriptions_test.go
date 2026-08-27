@@ -20,7 +20,7 @@ func TestEveryToolHasSelectionGuidance(t *testing.T) {
 }
 
 // TestReadOpenSnapshotEscalationBoundary is the Fetch-to-Browse escalation
-// contract (issue #4, PLANUNG.md 479-489): the read, open and snapshot
+// contract (issue #4; see docs/tiers.md): the read, open and snapshot
 // descriptions distinguish ordinary Fetch usage from JavaScript/browser-state
 // escalation.
 func TestReadOpenSnapshotEscalationBoundary(t *testing.T) {

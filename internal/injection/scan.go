@@ -15,8 +15,8 @@ import (
 //go:embed patterns.txt
 var embeddedPatterns string
 
-// ScanWarning is one heuristic detection, matching the architecture's
-// warnings[{kind, severity, ref, excerpt}] shape (ARCHITEKTUR.md §5.7).
+// ScanWarning is one heuristic detection, matching the documented
+// warnings[{kind, severity, ref, excerpt}] shape (see docs/injection.md).
 type ScanWarning struct {
 	Kind     string `json:"kind"`
 	Severity string `json:"severity"`

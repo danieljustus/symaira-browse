@@ -47,7 +47,7 @@ func newStableRefRegistry() *stableRefRegistry {
 
 // RefKey computes the content-addressed identity used by snapshot refs. NUL
 // separators make the concatenation unambiguous while retaining the ordered
-// role/name/path/ordinal contract from ARCHITEKTUR.md.
+// role/name/path/ordinal contract.
 func RefKey(role, accessibleName, normalizedDOMPath string, siblingOrdinal int) string {
 	payload := strings.Join([]string{
 		normalizeRefPart(role),

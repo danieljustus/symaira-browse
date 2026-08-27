@@ -1,6 +1,7 @@
 # Symaira Browse Agent Rules
 
-These repository rules are derived from [PLANUNG.md §0](PLANUNG.md#0-auftrag-an-den-ausführenden-agenten) and apply to every change.
+These repository rules are binding and apply to every change. Where a rule needs
+more detail, the per-topic documents under [docs/](docs) are the reference.
 
 ## Project invariants
 
@@ -13,9 +14,9 @@ These repository rules are derived from [PLANUNG.md §0](PLANUNG.md#0-auftrag-an
 
 ## Architecture and configuration
 
-- Treat [ARCHITEKTUR.md](ARCHITEKTUR.md) as the binding design and [PLANUNG.md](PLANUNG.md) as the implementation plan.
+- Treat this file as the binding design contract, and the per-topic documents under [docs/](docs) as its detailed reference. Scope for an individual change is defined by its GitHub issue or milestone.
 - Follow the repository's TOML and XDG conventions for configuration, cache, and state. Use the `SYMBROWSE_` environment-variable prefix.
-- Keep the client, daemon, engine, session, output, policy, and MCP boundaries described by the architecture. Do not introduce a second architecture in an individual issue.
+- Keep the client, daemon, engine, session, output, policy, and MCP boundaries that the codebase already establishes. Do not introduce a second architecture in an individual issue.
 - Keep Chrome/CDP access behind the engine boundary and preserve the CGO-free build requirement.
 
 ## Development checks

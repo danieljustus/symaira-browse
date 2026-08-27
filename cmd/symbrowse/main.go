@@ -120,7 +120,7 @@ func newVersionCommand() *cobra.Command {
 			// ({tool, version, schema_version}) consumed by GUI clients
 			// (symaira-appkit SymairaToolKit) and Hub/Brain. It
 			// deliberately bypasses the unified output envelope: the
-			// payload IS the contract (issue #32, ARCHITEKTUR.md §6.2).
+			// payload IS the contract (issue #32).
 			info := symversion.Info(version)
 			if structuredOutput(cmd) {
 				return info.Write(cmd.OutOrStdout())

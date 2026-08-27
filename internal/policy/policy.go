@@ -15,7 +15,8 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// RiskClass is the fixed set of risk classes from ARCHITEKTUR.md §5.5.
+// RiskClass is the fixed set of risk classes; the constants below are
+// the complete list.
 type RiskClass string
 
 const (
