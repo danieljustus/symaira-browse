@@ -20,3 +20,12 @@ The maintainers will acknowledge receipt, investigate, coordinate a fix, and com
 ## Security boundaries
 
 Symaira Browse treats web pages as untrusted input. Do not bypass authentication, CAPTCHA, domain policy, or other access controls while testing without explicit authorization. Follow the repository rules in [AGENTS.md](AGENTS.md) and the design constraints in [ARCHITEKTUR.md](ARCHITEKTUR.md).
+
+## Code scanning
+
+CodeQL analysis runs as a custom workflow (`.github/workflows/ci.yml`, job
+`CodeQL / analysis`) for the Go codebase on every pull request touching code
+and weekly on the default branch. This is the intentional setup — GitHub
+code-scanning default setup is deliberately not enabled so the analysis
+configuration stays versioned with the repository. Findings appear in the
+repository's Security tab and block pull requests.
