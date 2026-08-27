@@ -38,6 +38,7 @@ type NavigationRuntime struct {
 	engines         map[string]engine.Engine
 	browserContexts map[string]engine.Context
 	engineKind      string
+	cdpEndpoint     string
 	tabs            map[string][]*sessionTab
 	activeTab       map[string]int
 	autosave        *AutosaveConfig
@@ -96,6 +97,10 @@ type NavigationRuntimeOptions struct {
 	// Engine selects the engine implementation: "chrome" (default) or
 	// "static" (JS-free HTML reader, issue #64).
 	Engine string
+	// CDPEndpoint attaches session engines to an existing DevTools endpoint
+	// instead of launching Chrome (issue #296; flag, SYMBROWSE_CDP_ENDPOINT,
+	// or config.toml). Attached engines do not own the browser lifetime.
+	CDPEndpoint string
 	// RequestTimeout is the per-command CDP budget for session engines
 	// (chrome.Options.RequestTimeout; default 10s). E2E tests use a
 	// generous budget because Chrome round-trips can stall for seconds on
@@ -129,6 +134,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		profile:         options.Profile,
 		allowedDomains:  options.AllowedDomains,
 		engineKind:      options.Engine,
+		cdpEndpoint:     options.CDPEndpoint,
 		ssrfEnabled:     options.SSRFEnabled,
 		allowPrivate:    options.AllowPrivate,
 		headless:        options.Headless,
@@ -233,6 +239,9 @@ func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, []W
 	case "cookies.list", "cookies.set", "cookies.clear":
 		data, err := r.handleCookiesFrame(ctx, frame)
 		return data, nil, err
+	case "engine.info":
+		data, err := r.handleEngineInfoFrame(frame)
+		return data, nil, err
 	case "storage.list", "storage.set", "storage.clear":
 		data, err := r.handleStorageFrame(ctx, frame)
 		return data, nil, err
@@ -311,13 +320,51 @@ func networkPolicyWarnings(reporter engine.NetworkPolicyReporter) []Warning {
 	return warnings
 }
 
+// handleEngineInfoFrame reports the active session engine's capability
+// descriptor (issue #295). Before the session browser is launched it reports
+// the planned engine with its planned launch mode, so an agent can adapt
+// without guessing.
+func (r *NavigationRuntime) handleEngineInfoFrame(frame Frame) (any, error) {
+	r.mu.Lock()
+	browser := r.engines[frame.Session]
+	r.mu.Unlock()
+	if browser != nil {
+		if reporter, ok := browser.(engine.CapabilityReporter); ok {
+			return reporter.Capabilities(), nil
+		}
+	}
+	// Not launched yet: report the planned engine from the runtime options.
+	if r.engineKind == "static" {
+		return static.NewWithGuard(r.staticGuard).Capabilities(), nil
+	}
+	options := r.chromeOptions("")
+	if r.cdpEndpoint != "" {
+		options.CDPEndpoint = r.cdpEndpoint
+	}
+	return chrome.New(options).Capabilities(), nil
+}
+
 // newEngine builds the engine implementation selected by the runtime options:
 // "static" (JS-free HTML reader, issue #64) or the default Chrome engine.
 func (r *NavigationRuntime) newEngine(userDataDir string) engine.Engine {
 	if r.engineKind == "static" {
 		return static.NewWithGuard(r.staticGuard)
 	}
-	return chrome.New(chrome.Options{ExecutablePath: r.executable, UserDataDir: userDataDir, AllowedDomains: r.allowedDomains, SSRFEnabled: r.ssrfEnabled, AllowPrivate: r.allowPrivate, Headless: r.headless, RequestTimeout: r.requestTimeout})
+	return chrome.New(r.chromeOptions(userDataDir))
+}
+
+// chromeOptions assembles the Chrome engine options from the runtime options.
+func (r *NavigationRuntime) chromeOptions(userDataDir string) chrome.Options {
+	return chrome.Options{
+		ExecutablePath: r.executable,
+		CDPEndpoint:    r.cdpEndpoint,
+		UserDataDir:    userDataDir,
+		AllowedDomains: r.allowedDomains,
+		SSRFEnabled:    r.ssrfEnabled,
+		AllowPrivate:   r.allowPrivate,
+		Headless:       r.headless,
+		RequestTimeout: r.requestTimeout,
+	}
 }
 
 func (r *NavigationRuntime) service(ctx context.Context, session string) (*engine.NavigationService, error) {

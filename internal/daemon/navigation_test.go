@@ -156,3 +156,28 @@ func TestServiceExplicitExecutableSkipsDiscovery(t *testing.T) {
 		t.Error("discovery was called although an executable was configured")
 	}
 }
+
+func TestEngineInfoReportsPlannedAndActiveCapabilities(t *testing.T) {
+	rt := NewNavigationRuntime(nil, "/usr/bin/chrome", NavigationRuntimeOptions{})
+	data, err := rt.handleEngineInfoFrame(Frame{Session: "test"})
+	if err != nil {
+		t.Fatalf("handleEngineInfoFrame = %v", err)
+	}
+	caps, ok := data.(engine.Capabilities)
+	if !ok {
+		t.Fatalf("data = %#v, want engine.Capabilities", data)
+	}
+	if caps.Kind != "chrome" || caps.LaunchMode != "launch" || len(caps.Interfaces) != len(engine.OptionalInterfaceNames) {
+		t.Fatalf("planned chrome caps = %+v, want kind=chrome launch=launch all interfaces", caps)
+	}
+
+	staticRT := NewNavigationRuntime(nil, "", NavigationRuntimeOptions{Engine: "static"})
+	staticData, err := staticRT.handleEngineInfoFrame(Frame{Session: "test"})
+	if err != nil {
+		t.Fatalf("static handleEngineInfoFrame = %v", err)
+	}
+	staticCaps := staticData.(engine.Capabilities)
+	if staticCaps.Kind != "static" || len(staticCaps.Interfaces) != 2 {
+		t.Fatalf("static caps = %+v, want kind=static with 2 interfaces", staticCaps)
+	}
+}

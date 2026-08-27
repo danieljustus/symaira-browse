@@ -4,6 +4,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 )
 
 // Engine owns a browser process and exposes protocol-neutral browser operations.
@@ -66,4 +67,92 @@ type NetworkPolicyReporter interface {
 	// Limitations returns startup warnings for configurations in which the
 	// allowlist cannot be fully enforced (for example a reused profile).
 	Limitations() []string
+}
+
+// OptionalInterfaceNames lists the canonical names of every optional engine
+// extension. The set is the contract for capability reporting (issue #295):
+// an engine that implements an extension reports its canonical name here, and
+// callers can derive unsupported operations from the complement. Keep the
+// list sorted; names are stable machine-readable identifiers.
+var OptionalInterfaceNames = []string{
+	"A11yAuditor",
+	"AXSelectorResolver",
+	"ClickDiagnosticEngine",
+	"CookieEngine",
+	"DialogController",
+	"FileTransfer",
+	"FrameManager",
+	"InspectionEngine",
+	"InteractionEngine",
+	"NavigationStateProvider",
+	"NetworkEvents",
+	"NetworkPolicyReporter",
+	"OverlayHost",
+	"RuntimeEvents",
+	"ScreenshotEngine",
+	"ScreenshotOptionsEngine",
+	"ScriptDisabler",
+	"SettingsEngine",
+	"TabManager",
+}
+
+// Capabilities is the stable, machine-readable capability report an engine
+// gives for itself (issue #295). Kind names the engine implementation
+// ("chrome", "static", …); LaunchMode reports how the engine acquired its
+// browser ("launch" when it started one, "attach" when it connected to an
+// existing session, empty when not applicable); Interfaces lists the optional
+// extensions the engine genuinely implements; Unsupported lists the known
+// optional extensions it does not. Agents use this report to adapt instead of
+// guessing whether an operation will work.
+type Capabilities struct {
+	Kind        string   `json:"kind"`
+	LaunchMode  string   `json:"launch_mode,omitempty"`
+	Interfaces  []string `json:"interfaces"`
+	Unsupported []string `json:"unsupported,omitempty"`
+}
+
+// CapabilityReporter is an optional engine extension (issue #295). Engines
+// report which optional interfaces they genuinely implement so callers can
+// adapt to the active engine instead of type-asserting per call site.
+type CapabilityReporter interface {
+	Capabilities() Capabilities
+}
+
+// CapabilitiesFor builds a capability report for an engine of the given kind
+// that implements the named optional interfaces. The report is complete:
+// Interfaces and Unsupported are the two halves of OptionalInterfaceNames.
+func CapabilitiesFor(kind string, implemented ...string) Capabilities {
+	present := make(map[string]bool, len(implemented))
+	for _, name := range implemented {
+		present[name] = true
+	}
+	caps := Capabilities{Kind: kind}
+	for _, name := range OptionalInterfaceNames {
+		if present[name] {
+			caps.Interfaces = append(caps.Interfaces, name)
+		} else {
+			caps.Unsupported = append(caps.Unsupported, name)
+		}
+	}
+	return caps
+}
+
+// UnsupportedOperationError is the typed failure for an operation the active
+// engine does not support (issue #295). It is deliberately distinct from a
+// runtime failure of a supported operation: callers can detect it with
+// errors.As and adapt, while every other error is a real execution failure.
+type UnsupportedOperationError struct {
+	// Engine is the engine implementation that refused the operation.
+	Engine string
+	// Operation names the refused operation (for example "network.har").
+	Operation string
+}
+
+func (e *UnsupportedOperationError) Error() string {
+	return fmt.Sprintf("engine %q does not support %s", e.Engine, e.Operation)
+}
+
+// UnsupportedOperation builds the typed unsupported-operation error.
+func UnsupportedOperation(engineName, operation string) error {
+	return &UnsupportedOperationError{Engine: engineName, Operation: operation}
 }

@@ -54,8 +54,14 @@ Blockierte Anfragen werden pro URL gezählt und auf jeder Daemon-Antwort als
   fremden Prozesses liegen außerhalb unserer Interception. Beim Start wird
   dann `network_policy.limitation` gewarnt. Für garantierte Durchsetzung ein
   privates Profil verwenden.
-- **Auto-Connect-Modus:** Ein künftiger Modus, der sich mit einem laufenden
-  Chrome verbindet, hat dieselbe Einschränkung und wird beim Start gewarnt.
+- **Angehängter Browser (`--cdp-endpoint` / `SYMBROWSE_CDP_ENDPOINT`,
+  Issue #296):** Der Attach-Modus verbindet sich mit einem bestehenden
+  DevTools-Endpoint. Die Allowlist wird nur für Requests durchgesetzt, die
+  durch die eigene CDP-Session laufen; Requests anderer Tabs/Sessions des
+  angehängten Browsers werden nicht beobachtet. `doctor` meldet den
+  Attach-Modus, und der Daemon warnt beim Start mit
+  `network_policy.limitation`. Für garantierte Durchsetzung einen eigenen
+  Browser mit privatem Profil starten.
 - Die Policy ist eine Browser-seitige Sperre; sie ersetzt keinen
   Proxy/Filter auf Host-Ebene.
 

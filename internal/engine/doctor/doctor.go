@@ -15,6 +15,10 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/engine/chrome"
+	"github.com/danieljustus/symaira-browse/internal/engine/static"
 )
 
 const (
@@ -35,6 +39,10 @@ type Paths struct {
 type Options struct {
 	ExecutablePath string
 	CDPEndpoint    string
+	// Engine selects the engine implementation whose capability descriptor
+	// is reported by the "engine" check: "chrome" (default) or "static"
+	// (issue #295).
+	Engine         string
 	SocketDir      string
 	Paths          Paths
 	VersionTimeout time.Duration
@@ -163,7 +171,8 @@ func run(options Options, goos string, environ func(string) string, lookPath fun
 
 	search := searchPaths(goos, environ)
 	browser, discoveryErr := discover(goos, options.ExecutablePath, environ, lookPath)
-	report := Report{Checks: make([]Check, 0, 7)}
+	report := Report{Checks: make([]Check, 0, 8)}
+	report.Checks = append(report.Checks, checkEngineCapabilities(options.Engine))
 	if discoveryErr != nil {
 		report.Checks = append(report.Checks, Check{
 			Name:    "chrome",
@@ -188,7 +197,7 @@ func run(options Options, goos string, environ func(string) string, lookPath fun
 		report.Checks = append(report.Checks, Check{
 			Name:    "cdp",
 			Status:  StatusSkipped,
-			Message: "not checked: no SYMBROWSE_CDP_ENDPOINT configured; daemon sessions use ephemeral CDP ports",
+			Message: "not checked: no CDP endpoint configured; daemon sessions launch their own browser (set SYMBROWSE_CDP_ENDPOINT or --cdp-endpoint to attach instead)",
 		})
 	} else {
 		report.Checks = append(report.Checks, checkCDP(options.CDPEndpoint, options.ProbeTimeout))
@@ -362,7 +371,34 @@ func checkCDP(endpoint string, timeout time.Duration) Check {
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return Check{Name: "cdp", Status: StatusWarn, Message: fmt.Sprintf("CDP endpoint returned HTTP %s", response.Status), Details: map[string]string{"endpoint": endpoint}}
 	}
-	return Check{Name: "cdp", Status: StatusPass, Message: "CDP endpoint is reachable", Details: map[string]string{"endpoint": endpoint}}
+	return Check{Name: "cdp", Status: StatusPass, Message: "CDP endpoint is reachable; the daemon would attach to this browser (issue #296)", Details: map[string]string{"endpoint": endpoint, "mode": "attach"}}
+}
+
+// checkEngineCapabilities reports the capability descriptor of the selected
+// engine implementation (issue #295). The descriptor comes from the engine
+// itself, so doctor and the runtime can never disagree about the boundary.
+func checkEngineCapabilities(kind string) Check {
+	if kind == "" {
+		kind = "chrome"
+	}
+	var caps engine.Capabilities
+	switch kind {
+	case "static":
+		caps = static.New().Capabilities()
+	default:
+		caps = chrome.New(chrome.Options{}).Capabilities()
+	}
+	return Check{
+		Name:    "engine",
+		Status:  StatusPass,
+		Message: fmt.Sprintf("engine %q (%s): %d optional interface(s) implemented, %d unsupported", caps.Kind, caps.LaunchMode, len(caps.Interfaces), len(caps.Unsupported)),
+		Details: map[string]string{
+			"kind":        caps.Kind,
+			"launch_mode": caps.LaunchMode,
+			"interfaces":  strings.Join(caps.Interfaces, ","),
+			"unsupported": strings.Join(caps.Unsupported, ","),
+		},
+	}
 }
 
 func checkWritable(name, path string) Check {
@@ -441,7 +477,7 @@ func (r Report) HasFailures() bool {
 
 // StableCheckNames is useful to callers that validate the doctor schema.
 func StableCheckNames() []string {
-	names := []string{"chrome", "version", "cdp", "config_dir", "cache_dir", "state_dir", "socket_dir"}
+	names := []string{"engine", "chrome", "version", "cdp", "config_dir", "cache_dir", "state_dir", "socket_dir"}
 	return append([]string(nil), names...)
 }
 

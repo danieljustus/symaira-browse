@@ -370,6 +370,16 @@ type CapabilityError struct{ Message string }
 
 func (e *CapabilityError) Error() string { return e.Message }
 
+// Capabilities implements engine.CapabilityReporter (issue #295). The static
+// engine reads HTML without a browser: it implements navigation state and
+// inspection, and honestly reports every other optional extension as
+// unsupported instead of degrading.
+func (e *Engine) Capabilities() engine.Capabilities {
+	caps := engine.CapabilitiesFor("static", "InspectionEngine", "NavigationStateProvider")
+	caps.LaunchMode = "launch"
+	return caps
+}
+
 // ---- HTML helpers ---------------------------------------------------------
 
 func extractTitle(document *html.Node) string {
