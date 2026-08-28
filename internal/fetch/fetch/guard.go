@@ -102,8 +102,10 @@ var ipv4MappedNet = func() *net.IPNet {
 
 var privateRanges = func() []*net.IPNet {
 	cidrs := []string{
+		"0.0.0.0/8",
 		"127.0.0.0/8",
 		"::1/128",
+		"::/128",
 		"169.254.0.0/16",
 		"fe80::/10",
 		"10.0.0.0/8",

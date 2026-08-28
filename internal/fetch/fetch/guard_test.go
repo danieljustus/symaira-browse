@@ -129,3 +129,31 @@ func TestCheckSSRF_NonHTTPScheme(t *testing.T) {
 		t.Error("expected error for non-HTTP scheme")
 	}
 }
+
+func TestUnspecifiedAddressesBlockedByBothGuards(t *testing.T) {
+	tests := []struct {
+		name    string
+		rawURL  string
+		address string
+	}{
+		{name: "IPv4 unspecified", rawURL: "http://0.0.0.0:8080/", address: "0.0.0.0:8080"},
+		{name: "IPv4 unspecified range", rawURL: "http://0.0.0.1:8080/", address: "0.0.0.1:8080"},
+		{name: "IPv6 unspecified", rawURL: "http://[::]:8080/", address: "[::]:8080"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := CheckSSRF(tt.rawURL); err == nil {
+				t.Errorf("CheckSSRF(%q) = nil, want blocked_private", tt.rawURL)
+			} else if !strings.Contains(err.Error(), "blocked_private") {
+				t.Errorf("CheckSSRF(%q) = %q, want blocked_private", tt.rawURL, err)
+			}
+
+			if err := ControlSSRF("tcp", tt.address, nil); err == nil {
+				t.Errorf("ControlSSRF(%q) = nil, want blocked_private", tt.address)
+			} else if !strings.Contains(err.Error(), "blocked_private") {
+				t.Errorf("ControlSSRF(%q) = %q, want blocked_private", tt.address, err)
+			}
+		})
+	}
+}
