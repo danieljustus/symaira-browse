@@ -220,3 +220,63 @@ func includes(s []string, v string) bool {
 	}
 	return false
 }
+
+type boundaryEngine struct {
+	fakeCookieEngine
+	navigateURLs []string
+}
+
+func (e *boundaryEngine) Navigate(_ context.Context, _ engine.Page, target string) (engine.NavigationResult, error) {
+	e.navigateURLs = append(e.navigateURLs, target)
+	return engine.NavigationResult{}, nil
+}
+
+func newBoundaryRuntime(t *testing.T, kind string, options NavigationRuntimeOptions) (*NavigationRuntime, *boundaryEngine) {
+	t.Helper()
+	registry := NewSessionRegistry(SessionRegistryOptions{UserDataRoot: t.TempDir()})
+	if _, err := registry.Ensure("boundary"); err != nil {
+		t.Fatal(err)
+	}
+	fake := &boundaryEngine{}
+	runtime := NewNavigationRuntime(registry, "", options)
+	runtime.engineKind = kind
+	service := engine.NewNavigationService(fake, engine.Page{ID: "page"}, engine.NavigationOptions{})
+	runtime.engines["boundary"] = fake
+	runtime.tabs["boundary"] = []*sessionTab{{Label: "t1", Service: service, Page: engine.Page{ID: "page"}}}
+	runtime.activeTab["boundary"] = 0
+	return runtime, fake
+}
+
+func TestURLBoundaryRejectsLoopbackForEveryEngineKind(t *testing.T) {
+	for _, kind := range []string{"chrome", "static", "safari-attach"} {
+		t.Run(kind, func(t *testing.T) {
+			runtime, fake := newBoundaryRuntime(t, kind, NavigationRuntimeOptions{SSRFEnabled: true})
+			defer func() { _ = runtime.Close() }()
+			if _, _, err := runtime.Handle(context.Background(), Frame{
+				Cmd:     "open",
+				Session: "boundary",
+				Args:    mustArgs(t, map[string]any{"url": "http://127.0.0.1:8080/"}),
+			}); err == nil {
+				t.Fatal("loopback navigation succeeded")
+			}
+			if len(fake.navigateURLs) != 0 {
+				t.Fatalf("engine received blocked target: %v", fake.navigateURLs)
+			}
+		})
+	}
+}
+
+func TestURLBoundaryRejectsNonAllowlistedHostBeforeEngine(t *testing.T) {
+	runtime, fake := newBoundaryRuntime(t, "chrome", NavigationRuntimeOptions{AllowedDomains: []string{"example.com"}})
+	defer func() { _ = runtime.Close() }()
+	if _, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd:     "goto",
+		Session: "boundary",
+		Args:    mustArgs(t, map[string]any{"url": "https://not-example.com/"}),
+	}); err == nil {
+		t.Fatal("non-allowlisted navigation succeeded")
+	}
+	if len(fake.navigateURLs) != 0 {
+		t.Fatalf("engine received blocked target: %v", fake.navigateURLs)
+	}
+}

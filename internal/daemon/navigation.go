@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
@@ -25,6 +26,62 @@ import (
 // resolveBrowserExecutable is the discovery fallback used when
 // SYMBROWSE_EXECUTABLE_PATH is unset; a variable so tests can stub it.
 var resolveBrowserExecutable = doctor.ResolveExecutable
+
+// navigationGuard is the daemon-owned URL admission policy. Engines may keep
+// their own checks for defense in depth, but no engine is touched before this
+// guard accepts a user-supplied navigation target.
+type navigationGuard struct {
+	allowlist *policy.Allowlist
+	ssrf      *policy.SSRFGuard
+	err       error
+}
+
+func (g navigationGuard) check(target string) error {
+	parsed, err := url.Parse(strings.TrimSpace(target))
+	if err != nil {
+		return fmt.Errorf("navigation URL policy: invalid URL %q: %w", target, err)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if (scheme != "http" && scheme != "https") || parsed.Hostname() == "" {
+		return fmt.Errorf("navigation URL policy: unsupported target %q (http/https URL required)", target)
+	}
+	if g.err != nil {
+		return fmt.Errorf("navigation URL policy is invalid: %w", g.err)
+	}
+	if g.allowlist != nil && !g.allowlist.AllowsURL(parsed) {
+		return fmt.Errorf("navigation URL policy: target %q is blocked by the domain allowlist", target)
+	}
+	if g.ssrf != nil {
+		if err := g.ssrf.AllowsURL(parsed); err != nil {
+			return fmt.Errorf("navigation URL policy: target %q is blocked by the SSRF guard: %w", target, err)
+		}
+	}
+	return nil
+}
+
+func (r *NavigationRuntime) guardTarget(target string) error {
+	return r.urlGuard.check(target)
+}
+
+func (r *NavigationRuntime) guardFrameTarget(frame Frame) error {
+	var request struct {
+		URL string `json:"url"`
+	}
+	switch frame.Cmd {
+	case "open", "goto", "tab.new":
+		if err := decodeArgs(frame, &request); err != nil {
+			return err
+		}
+		if frame.Cmd == "tab.new" && strings.TrimSpace(request.URL) == "" {
+			return nil // tab.new defaults to the browser's internal about:blank.
+		}
+		return r.guardTarget(request.URL)
+	case "window.new":
+		return nil // the internal about:blank target is not user supplied.
+	default:
+		return nil
+	}
+}
 
 // NavigationRuntime lazily owns one protocol-neutral navigation service and
 // Chrome engine per session. CDP details remain confined to engine/chrome.
@@ -53,9 +110,7 @@ type NavigationRuntime struct {
 	requestTimeout  time.Duration     // per-command CDP budget (0 = engine default)
 	recorders       map[string]*recorderState
 	staticGuard     static.GuardOptions // fetch-hardening for the static engine (step 5)
-	urlAllowlist    *policy.Allowlist
-	urlSSRFGuard    *policy.SSRFGuard
-	urlPolicyErr    error
+	urlGuard        navigationGuard
 	injectionMu     sync.Mutex
 	injectionCache  map[string][]Warning
 }
@@ -167,9 +222,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		lastAutosave:    make(map[string]time.Time),
 		restoreOnStart:  options.RestoreOnStart,
 		staticGuard:     guard,
-		urlAllowlist:    allowlist,
-		urlSSRFGuard:    ssrfGuard,
-		urlPolicyErr:    allowlistErr,
+		urlGuard:        navigationGuard{allowlist: allowlist, ssrf: ssrfGuard, err: allowlistErr},
 		injectionCache:  make(map[string][]Warning),
 	}
 }
@@ -200,6 +253,9 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 		return data, nil, err
 	}
 	if strings.HasPrefix(frame.Cmd, "tab.") || frame.Cmd == "window.new" {
+		if err := r.guardFrameTarget(frame); err != nil {
+			return nil, nil, err
+		}
 		data, err := r.handleTabFrame(ctx, frame)
 		return data, nil, err
 	}
@@ -223,6 +279,9 @@ func (r *NavigationRuntime) Handle(ctx context.Context, frame Frame) (any, []War
 // dispatch runs one frame against the session service. It is a thin router:
 // every command family is delegated to a per-domain handler (see *_frames.go).
 func (r *NavigationRuntime) dispatch(ctx context.Context, frame Frame) (any, []Warning, error) {
+	if err := r.guardFrameTarget(frame); err != nil {
+		return nil, nil, err
+	}
 	switch frame.Cmd {
 	case "console.list", "console.clear", "errors.list", "errors.clear":
 		data, err := r.handleRuntimeEventsFrame(ctx, frame)
@@ -359,9 +418,9 @@ func (r *NavigationRuntime) handleEngineInfoFrame(frame Frame) (any, error) {
 	}
 	if r.engineKind == "safari-attach" {
 		s := safari.New()
-		s.Allowlist = r.urlAllowlist
-		s.SSRFGuard = r.urlSSRFGuard
-		s.PolicyError = r.urlPolicyErr
+		s.Allowlist = r.urlGuard.allowlist
+		s.SSRFGuard = r.urlGuard.ssrf
+		s.PolicyError = r.urlGuard.err
 		s.OptInInteractions = r.mode != policy.ModeMCP
 		return s.Capabilities(), nil
 	}
@@ -374,16 +433,19 @@ func (r *NavigationRuntime) handleEngineInfoFrame(frame Frame) (any, error) {
 
 // newEngine builds the engine implementation selected by the runtime options:
 // "static" (JS-free HTML reader, issue #64), "safari-attach" (live Safari via
-// Apple Events, issue #297), or the default Chrome engine.
-func (r *NavigationRuntime) newEngine(userDataDir string) engine.Engine {
+// Apple Events, issue #297), or the default Chrome engine. The URL guard is
+// required explicitly so every engine construction receives the daemon policy.
+func (r *NavigationRuntime) newEngine(userDataDir string, guard navigationGuard) engine.Engine {
 	switch r.engineKind {
 	case "static":
 		return static.NewWithGuard(r.staticGuard)
 	case "safari-attach":
 		s := safari.New()
+		s.Allowlist = guard.allowlist
+		s.SSRFGuard = guard.ssrf
+		s.PolicyError = guard.err
 		// The interaction path is enabled only in TTY mode. In MCP mode the
-		// engine stays read-only because Safari has no network layer for the
-		// SSRF guard to enforce (issue #297).
+		// engine stays read-only (issue #297).
 		s.OptInInteractions = r.mode != policy.ModeMCP
 		return s
 	}
@@ -443,7 +505,7 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 	stateStore := r.stateStore
 	r.mu.Unlock()
 
-	browser := r.newEngine(userDataDir)
+	browser := r.newEngine(userDataDir, r.urlGuard)
 	if err := browser.Launch(ctx); err != nil {
 		return nil, err
 	}
