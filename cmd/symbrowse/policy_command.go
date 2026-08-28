@@ -33,11 +33,22 @@ func newPolicyExplainCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
 			}
-			raw, _ := json.MarshalIndent(response.Data, "", "  ")
-			_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
+			data, _ := response.Data.(map[string]any)
+			explanation, _ := data["explanation"].(string)
+			if explanation == "" {
+				raw, marshalErr := json.MarshalIndent(response.Data, "", "  ")
+				if marshalErr != nil {
+					return marshalErr
+				}
+				explanation = string(raw)
+			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), explanation)
 			return err
 		},
 	}
