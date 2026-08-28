@@ -129,8 +129,8 @@ func TestSSRFGuardIPClassification(t *testing.T) {
 		if ip == nil {
 			t.Fatalf("parse %q", raw)
 		}
-		if isPrivateIP(ip) {
-			t.Errorf("isPrivateIP(%s) = true, want false", raw)
+		if IsPrivateIP(ip) {
+			t.Errorf("IsPrivateIP(%s) = true, want false", raw)
 		}
 	}
 	for _, raw := range private {
@@ -138,8 +138,8 @@ func TestSSRFGuardIPClassification(t *testing.T) {
 		if ip == nil {
 			t.Fatalf("parse %q", raw)
 		}
-		if !isPrivateIP(ip) {
-			t.Errorf("isPrivateIP(%s) = false, want true", raw)
+		if !IsPrivateIP(ip) {
+			t.Errorf("IsPrivateIP(%s) = false, want true", raw)
 		}
 	}
 }
