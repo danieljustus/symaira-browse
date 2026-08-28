@@ -53,6 +53,9 @@ type NavigationRuntime struct {
 	requestTimeout  time.Duration     // per-command CDP budget (0 = engine default)
 	recorders       map[string]*recorderState
 	staticGuard     static.GuardOptions // fetch-hardening for the static engine (step 5)
+	urlAllowlist    *policy.Allowlist
+	urlSSRFGuard    *policy.SSRFGuard
+	urlPolicyErr    error
 	injectionMu     sync.Mutex
 	injectionCache  map[string][]Warning
 }
@@ -136,6 +139,11 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 			RobotsEnabled: true,
 		}
 	}
+	allowlist, allowlistErr := policy.ParseAllowlist(options.AllowedDomains)
+	var ssrfGuard *policy.SSRFGuard
+	if options.SSRFEnabled {
+		ssrfGuard = policy.NewSSRFGuard(options.AllowPrivate)
+	}
 	return &NavigationRuntime{
 		registry:        registry,
 		executable:      executable,
@@ -159,6 +167,9 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		lastAutosave:    make(map[string]time.Time),
 		restoreOnStart:  options.RestoreOnStart,
 		staticGuard:     guard,
+		urlAllowlist:    allowlist,
+		urlSSRFGuard:    ssrfGuard,
+		urlPolicyErr:    allowlistErr,
 		injectionCache:  make(map[string][]Warning),
 	}
 }
@@ -348,6 +359,9 @@ func (r *NavigationRuntime) handleEngineInfoFrame(frame Frame) (any, error) {
 	}
 	if r.engineKind == "safari-attach" {
 		s := safari.New()
+		s.Allowlist = r.urlAllowlist
+		s.SSRFGuard = r.urlSSRFGuard
+		s.PolicyError = r.urlPolicyErr
 		s.OptInInteractions = r.mode != policy.ModeMCP
 		return s.Capabilities(), nil
 	}

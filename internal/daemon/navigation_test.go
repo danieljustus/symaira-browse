@@ -198,7 +198,7 @@ func TestSafariAttachHonorsModeGuard(t *testing.T) {
 		t.Fatalf("MCP mode must keep safari-attach read-only: %+v", mcpCaps.Interfaces)
 	}
 
-	ttyRT := NewNavigationRuntime(nil, "", NavigationRuntimeOptions{Engine: "safari-attach", Mode: policy.ModeTTY})
+	ttyRT := NewNavigationRuntime(nil, "", NavigationRuntimeOptions{Engine: "safari-attach", Mode: policy.ModeTTY, SSRFEnabled: true})
 	ttyData, err := ttyRT.handleEngineInfoFrame(Frame{Session: "test"})
 	if err != nil {
 		t.Fatalf("tty handleEngineInfoFrame = %v", err)

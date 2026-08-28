@@ -2,10 +2,12 @@ package safari
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // fakeRunner records the scripts it was asked to run and returns scripted
@@ -48,6 +50,11 @@ func TestCapabilitiesReflectsOptIn(t *testing.T) {
 
 	opt := NewWithRunner(newFake(nil))
 	opt.OptInInteractions = true
+	allowlist, err := policy.ParseAllowlist([]string{"example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	opt.Allowlist = allowlist
 	caps2 := opt.Capabilities()
 	if !includes(caps2.Interfaces, "InteractionEngine") {
 		t.Fatalf("opt-in engine must report InteractionEngine: %+v", caps2.Interfaces)
@@ -148,6 +155,7 @@ func TestReadPathReturnsURLAndTitle(t *testing.T) {
 		"document.title":       `"Example"`,
 	})
 	e := NewWithRunner(fake)
+	e.OptInInteractions = true
 	url, err := e.Evaluate(context.Background(), engine.Page{}, "window.location.href")
 	if err != nil {
 		t.Fatalf("Evaluate href: %v", err)
@@ -185,5 +193,89 @@ func TestCloseIsIdempotentAndDetaches(t *testing.T) {
 	}
 	if _, err := e.Evaluate(context.Background(), engine.Page{}, "1+1"); err == nil {
 		t.Fatal("expected closed engine to refuse Evaluate")
+	}
+}
+
+func TestEvaluateRefusesArbitraryExpressionWithoutOptIn(t *testing.T) {
+	fake := newFake(nil)
+	e := NewWithRunner(fake)
+	_, err := e.Evaluate(context.Background(), engine.Page{}, "document.cookie")
+	if err == nil {
+		t.Fatal("arbitrary Evaluate expression succeeded without opt-in")
+	}
+	var unsupported *engine.UnsupportedOperationError
+	if !errors.As(err, &unsupported) {
+		t.Fatalf("Evaluate error = %T: %v, want UnsupportedOperationError", err, err)
+	}
+	if len(fake.calls) != 0 {
+		t.Fatalf("Evaluate called Safari runner %d times, want none", len(fake.calls))
+	}
+}
+
+func TestEvaluateAllowsOnlyInspectionExpressionsWithOptIn(t *testing.T) {
+	fake := newFake(map[string]string{"document.title": `"Example"`, "window.location.href": `"https://example.com/"`})
+	e := NewWithRunner(fake)
+	e.OptInInteractions = true
+	for _, expression := range []string{"document.title", "location.href", "window.location.href"} {
+		if _, err := e.Evaluate(context.Background(), engine.Page{}, expression); err != nil {
+			t.Fatalf("Evaluate(%q) = %v, want allowed", expression, err)
+		}
+	}
+	if _, err := e.Evaluate(context.Background(), engine.Page{}, "document.cookie"); err == nil {
+		t.Fatal("arbitrary Evaluate expression succeeded with opt-in")
+	} else {
+		var unsupported *engine.UnsupportedOperationError
+		if !errors.As(err, &unsupported) {
+			t.Fatalf("Evaluate error = %T: %v, want UnsupportedOperationError", err, err)
+		}
+	}
+}
+
+func TestNavigateRefusesNonWebSchemesBeforeRunner(t *testing.T) {
+	for _, target := range []string{"file:///Users/daniel/.ssh/id_rsa", "about:blank"} {
+		fake := newFake(nil)
+		e := NewWithRunner(fake)
+		if _, err := e.Navigate(context.Background(), engine.Page{}, target); err == nil {
+			t.Fatalf("Navigate(%q) succeeded, want refusal", target)
+		}
+		if len(fake.calls) != 0 {
+			t.Fatalf("Navigate(%q) called Safari runner before refusal", target)
+		}
+	}
+}
+
+func TestNavigateEnforcesAllowlistAndSSRFGuardBeforeRunner(t *testing.T) {
+	allowlist, err := policy.ParseAllowlist([]string{"example.com"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		target string
+		setup  func(*Engine)
+	}{
+		{name: "non allowlisted host", target: "https://other.example.net/", setup: func(e *Engine) { e.Allowlist = allowlist }},
+		{name: "loopback", target: "http://127.0.0.1:8080/", setup: func(e *Engine) { e.SSRFGuard = policy.NewSSRFGuard(false) }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fake := newFake(nil)
+			e := NewWithRunner(fake)
+			tt.setup(e)
+			if _, err := e.Navigate(context.Background(), engine.Page{}, tt.target); err == nil {
+				t.Fatalf("Navigate(%q) succeeded, want refusal", tt.target)
+			}
+			if len(fake.calls) != 0 {
+				t.Fatalf("Navigate(%q) called Safari runner before refusal", tt.target)
+			}
+		})
+	}
+}
+
+func TestCapabilitiesHideInteractionsWithoutGuard(t *testing.T) {
+	e := NewWithRunner(newFake(nil))
+	e.OptInInteractions = true
+	if includes(e.Capabilities().Interfaces, "InteractionEngine") {
+		t.Fatal("engine without URL guard advertises InteractionEngine")
 	}
 }
