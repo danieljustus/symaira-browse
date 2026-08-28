@@ -5,7 +5,12 @@ updates:
     schedule:
       interval: "weekly"
     groups:
-      go-dependencies:
+      go-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      go-version-updates:
+        applies-to: version-updates
         patterns:
           - "*"
   - package-ecosystem: "github-actions"

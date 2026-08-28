@@ -25,7 +25,7 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: '1.26.5'
+  GO_VERSION: '1.26.6'
   CGO_ENABLED: '0'
 
 jobs:
@@ -61,6 +61,25 @@ jobs:
       - name: Test
         run: make test
 
+  vulnerability-scan:
+    name: PR / Go vulnerability scan
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Go vulnerability scan
+        # At the introducing HEAD with Go 1.26.6, govulncheck finds no called
+        # vulnerabilities.
+        # GO-2026-5932 (x/crypto/openpgp) and GO-2026-5841
+        # (klauspost/compress/s2) are required but not reachable. Keep this
+        # assessment here so a future reachability change fails the gate.
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
   coverage:
     name: PR / coverage gate
     if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
@@ -91,10 +110,12 @@ jobs:
           policy=$(pkg_cov '/internal/policy/')
           injection=$(pkg_cov '/internal/injection/')
           echo "total=${total}% refs=${refs}% policy=${policy}% injection=${injection}%"
-          echo "total=${total}" >> "$GITHUB_OUTPUT"
-          echo "refs=${refs}" >> "$GITHUB_OUTPUT"
-          echo "policy=${policy}" >> "$GITHUB_OUTPUT"
-          echo "injection=${injection}" >> "$GITHUB_OUTPUT"
+          {
+            echo "total=${total}"
+            echo "refs=${refs}"
+            echo "policy=${policy}"
+            echo "injection=${injection}"
+          } >> "$GITHUB_OUTPUT"
           fail=0
           [ "$(echo "$total >= 60" | bc)" = "1" ] || { echo "::error::total coverage ${total}% < 60% (R3: 65%-Ziel nach Merge aller Waves)"; fail=1; }
           [ "$(echo "$refs >= 85" | bc)" = "1" ] || { echo "::error::stable-ref coverage ${refs}% < 85%"; fail=1; }
