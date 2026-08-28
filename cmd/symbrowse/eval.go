@@ -9,12 +9,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Issue #60: JavaScript evaluation command.
 func newEvalCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
 		GroupID: groupIDDebug,
 		Use:     "eval <expression>",
-		Short:   "Execute JavaScript in the active page (issue #60)",
+		Short:   "Execute JavaScript in the active page",
 		Args:    cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			expression, err := evalExpression(cmd, args)

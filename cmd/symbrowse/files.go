@@ -9,12 +9,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Issue #63: path-guarded file upload command.
 func newUploadCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
 		GroupID: groupIDNetwork,
 		Use:     "upload <selector> <files...>",
-		Short:   "Upload files into a file input (path-guarded, issue #63)",
+		Short:   "Upload files into a file input (path-guarded)",
 		Long: "upload sets the value of a file input element matching <selector>.\n\n" +
 			selectorDocumentation + "\n\n" +
 			"Positional arguments:\n" +
