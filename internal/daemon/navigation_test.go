@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/engine/doctor"
@@ -278,5 +280,112 @@ func TestURLBoundaryRejectsNonAllowlistedHostBeforeEngine(t *testing.T) {
 	}
 	if len(fake.navigateURLs) != 0 {
 		t.Fatalf("engine received blocked target: %v", fake.navigateURLs)
+	}
+}
+
+type launchRaceEngine struct {
+	fakeCookieEngine
+	launches atomic.Int32
+	closes   atomic.Int32
+	started  chan struct{}
+	release  <-chan struct{}
+	fail     bool
+}
+
+func (e *launchRaceEngine) Launch(context.Context) error {
+	e.launches.Add(1)
+	if e.started != nil {
+		select {
+		case <-e.started:
+		default:
+			close(e.started)
+		}
+	}
+	if e.release != nil {
+		<-e.release
+	}
+	if e.fail {
+		return errors.New("launch failed")
+	}
+	return nil
+}
+
+func (e *launchRaceEngine) Close() error {
+	e.closes.Add(1)
+	return nil
+}
+
+func TestServiceSerializesColdSessionLaunches(t *testing.T) {
+	registry := NewSessionRegistry(SessionRegistryOptions{UserDataRoot: t.TempDir()})
+	if _, err := registry.Ensure("cold"); err != nil {
+		t.Fatal(err)
+	}
+	runtime := NewNavigationRuntime(registry, "", NavigationRuntimeOptions{})
+	started := make(chan struct{})
+	release := make(chan struct{})
+	fake := &launchRaceEngine{started: started, release: release}
+	runtime.engineFactory = func(string, navigationGuard) engine.Engine { return fake }
+
+	const callers = 12
+	errs := make(chan error, callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			_, err := runtime.service(context.Background(), "cold")
+			errs <- err
+		}()
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the first launch")
+	}
+	time.Sleep(20 * time.Millisecond)
+	close(release)
+	for i := 0; i < callers; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("service call failed: %v", err)
+		}
+	}
+	if got := fake.launches.Load(); got != 1 {
+		t.Fatalf("Launch calls = %d, want 1", got)
+	}
+	if err := runtime.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.closes.Load(); got != 1 {
+		t.Fatalf("Close calls = %d, want 1", got)
+	}
+}
+
+func TestServiceRetriesAfterFailedLaunch(t *testing.T) {
+	registry := NewSessionRegistry(SessionRegistryOptions{UserDataRoot: t.TempDir()})
+	if _, err := registry.Ensure("retry"); err != nil {
+		t.Fatal(err)
+	}
+	runtime := NewNavigationRuntime(registry, "", NavigationRuntimeOptions{})
+	var created atomic.Int32
+	var engines []*launchRaceEngine
+	runtime.engineFactory = func(string, navigationGuard) engine.Engine {
+		current := &launchRaceEngine{fail: created.Add(1) == 1}
+		engines = append(engines, current)
+		return current
+	}
+	if _, err := runtime.service(context.Background(), "retry"); err == nil {
+		t.Fatal("first launch succeeded, want failure")
+	}
+	if _, err := runtime.service(context.Background(), "retry"); err != nil {
+		t.Fatalf("retry failed: %v", err)
+	}
+	if got := created.Load(); got != 2 {
+		t.Fatalf("engine creations = %d, want 2", got)
+	}
+	if got := engines[0].closes.Load(); got != 1 {
+		t.Fatalf("failed engine Close calls = %d, want 1", got)
+	}
+	if err := runtime.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := engines[1].closes.Load(); got != 1 {
+		t.Fatalf("successful engine Close calls = %d, want 1", got)
 	}
 }

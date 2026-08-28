@@ -96,6 +96,7 @@ type NavigationRuntime struct {
 	headless        bool
 	engines         map[string]engine.Engine
 	browserContexts map[string]engine.Context
+	launches        map[string]*sessionLaunch
 	engineKind      string
 	cdpEndpoint     string
 	mode            policy.Mode
@@ -111,6 +112,7 @@ type NavigationRuntime struct {
 	recorders       map[string]*recorderState
 	staticGuard     static.GuardOptions // fetch-hardening for the static engine (step 5)
 	urlGuard        navigationGuard
+	engineFactory   func(string, navigationGuard) engine.Engine
 	injectionMu     sync.Mutex
 	injectionCache  map[string][]Warning
 }
@@ -122,6 +124,10 @@ type sessionTab struct {
 	Label   string
 	Service *engine.NavigationService
 	Page    engine.Page
+}
+
+type sessionLaunch struct {
+	done chan struct{}
 }
 
 // NavigationRuntimeOptions configures the browser engines created per session.
@@ -212,6 +218,7 @@ func NewNavigationRuntime(registry *SessionRegistry, executable string, options 
 		headless:        options.Headless,
 		engines:         make(map[string]engine.Engine),
 		browserContexts: make(map[string]engine.Context),
+		launches:        make(map[string]*sessionLaunch),
 		tabs:            make(map[string][]*sessionTab),
 		activeTab:       make(map[string]int),
 		uploadDirs:      options.UploadDirs,
@@ -436,6 +443,9 @@ func (r *NavigationRuntime) handleEngineInfoFrame(frame Frame) (any, error) {
 // Apple Events, issue #297), or the default Chrome engine. The URL guard is
 // required explicitly so every engine construction receives the daemon policy.
 func (r *NavigationRuntime) newEngine(userDataDir string, guard navigationGuard) engine.Engine {
+	if r.engineFactory != nil {
+		return r.engineFactory(userDataDir, guard)
+	}
 	switch r.engineKind {
 	case "static":
 		return static.NewWithGuard(r.staticGuard)
@@ -467,87 +477,135 @@ func (r *NavigationRuntime) chromeOptions(userDataDir string) chrome.Options {
 }
 
 func (r *NavigationRuntime) service(ctx context.Context, session string) (*engine.NavigationService, error) {
-	r.mu.Lock()
-	if tabs := r.tabs[session]; len(tabs) > 0 {
-		index := r.activeTab[session]
-		if index < 0 || index >= len(tabs) {
-			index = 0
+	for {
+		r.mu.Lock()
+		if tabs := r.tabs[session]; len(tabs) > 0 {
+			index := r.activeTab[session]
+			if index < 0 || index >= len(tabs) {
+				index = 0
+			}
+			service := tabs[index].Service
+			r.mu.Unlock()
+			return service, nil
 		}
-		service := tabs[index].Service
-		r.mu.Unlock()
-		return service, nil
-	}
-	if r.registry == nil {
-		r.mu.Unlock()
-		return nil, errors.New("session registry is required")
-	}
-	info, err := r.registry.Get(session)
-	if err != nil {
-		r.mu.Unlock()
-		return nil, err
-	}
-	if r.executable == "" && r.engineKind != "static" && r.engineKind != "safari-attach" {
-		// Fall back to the same platform discovery doctor reports on, so a
-		// standard Chrome install works without SYMBROWSE_EXECUTABLE_PATH.
-		path, err := resolveBrowserExecutable(os.Getenv, exec.LookPath)
+		if launch := r.launches[session]; launch != nil {
+			done := launch.done
+			r.mu.Unlock()
+			select {
+			case <-done:
+				continue
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}
+		if r.registry == nil {
+			r.mu.Unlock()
+			return nil, errors.New("session registry is required")
+		}
+		info, err := r.registry.Get(session)
 		if err != nil {
 			r.mu.Unlock()
-			return nil, fmt.Errorf("browser executable is not configured: %w; set SYMBROWSE_EXECUTABLE_PATH to override discovery", err)
+			return nil, err
 		}
-		r.executable = path
-	}
-	userDataDir := info.UserDataDir
-	if r.profile != "" {
-		userDataDir = r.profile
-		slog.Warn("chrome profile reuse", "session", session, "profile", r.profile, "warning", profiles.Warning)
-	}
-	restoreOnStart := r.restoreOnStart[session]
-	stateStore := r.stateStore
-	r.mu.Unlock()
-
-	browser := r.newEngine(userDataDir, r.urlGuard)
-	if err := browser.Launch(ctx); err != nil {
-		return nil, err
-	}
-	if reporter, ok := any(browser).(engine.NetworkPolicyReporter); ok {
-		for _, limitation := range reporter.Limitations() {
-			slog.Warn("network policy limitation", "session", session, "message", limitation)
-		}
-	}
-	browserContext, err := browser.NewContext(ctx)
-	if err != nil {
-		_ = browser.Close()
-		return nil, err
-	}
-	page, err := browser.NewPage(ctx, browserContext, "about:blank")
-	if err != nil {
-		_ = browser.Close()
-		return nil, err
-	}
-	service := engine.NewNavigationService(browser, page, engine.NavigationOptions{ProbeContext: browserContext})
-	r.mu.Lock()
-	r.engines[session] = browser
-	r.browserContexts[session] = browserContext
-	r.tabs[session] = []*sessionTab{{Label: "t1", Service: service, Page: page}}
-	r.activeTab[session] = 0
-	r.mu.Unlock()
-	_ = r.registry.SetActiveTabs(session, 1)
-	// Restore a named state into the fresh browser when the daemon was
-	// started with --restore for this session. The restore runs with its own
-	// context so a slow browser start can never time out the first request.
-	if restoreOnStart != "" && stateStore != nil {
-		go func() {
-			restoreCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-			defer cancel()
-			stateRuntime := NewStateRuntime(stateStore, r)
-			if _, _, err := stateRuntime.Load(restoreCtx, session, restoreOnStart); err != nil {
-				slog.Warn("restore state on start failed", "session", session, "state", restoreOnStart, "error", err)
-			} else {
-				slog.Info("restored state on start", "session", session, "state", restoreOnStart)
+		if r.executable == "" && r.engineKind != "static" && r.engineKind != "safari-attach" {
+			// Fall back to the same platform discovery doctor reports on, so a
+			// standard Chrome install works without SYMBROWSE_EXECUTABLE_PATH.
+			path, err := resolveBrowserExecutable(os.Getenv, exec.LookPath)
+			if err != nil {
+				r.mu.Unlock()
+				return nil, fmt.Errorf("browser executable is not configured: %w; set SYMBROWSE_EXECUTABLE_PATH to override discovery", err)
 			}
-		}()
+			r.executable = path
+		}
+		userDataDir := info.UserDataDir
+		if r.profile != "" {
+			userDataDir = r.profile
+			slog.Warn("chrome profile reuse", "session", session, "profile", r.profile, "warning", profiles.Warning)
+		}
+		restoreOnStart := r.restoreOnStart[session]
+		stateStore := r.stateStore
+		if r.launches == nil {
+			r.launches = make(map[string]*sessionLaunch)
+		}
+		launch := &sessionLaunch{done: make(chan struct{})}
+		r.launches[session] = launch
+		guard := r.urlGuard
+		r.mu.Unlock()
+
+		browser := r.newEngine(userDataDir, guard)
+		if err := browser.Launch(ctx); err != nil {
+			_ = browser.Close()
+			r.mu.Lock()
+			r.finishLaunchLocked(session, launch)
+			r.mu.Unlock()
+			return nil, err
+		}
+		if reporter, ok := any(browser).(engine.NetworkPolicyReporter); ok {
+			for _, limitation := range reporter.Limitations() {
+				slog.Warn("network policy limitation", "session", session, "message", limitation)
+			}
+		}
+		browserContext, err := browser.NewContext(ctx)
+		if err != nil {
+			_ = browser.Close()
+			r.mu.Lock()
+			r.finishLaunchLocked(session, launch)
+			r.mu.Unlock()
+			return nil, err
+		}
+		page, err := browser.NewPage(ctx, browserContext, "about:blank")
+		if err != nil {
+			_ = browser.Close()
+			r.mu.Lock()
+			r.finishLaunchLocked(session, launch)
+			r.mu.Unlock()
+			return nil, err
+		}
+		service := engine.NewNavigationService(browser, page, engine.NavigationOptions{ProbeContext: browserContext})
+		r.mu.Lock()
+		if tabs := r.tabs[session]; len(tabs) > 0 {
+			index := r.activeTab[session]
+			if index < 0 || index >= len(tabs) {
+				index = 0
+			}
+			existing := tabs[index].Service
+			r.finishLaunchLocked(session, launch)
+			r.mu.Unlock()
+			_ = browser.Close()
+			return existing, nil
+		}
+		r.engines[session] = browser
+		r.browserContexts[session] = browserContext
+		r.tabs[session] = []*sessionTab{{Label: "t1", Service: service, Page: page}}
+		r.activeTab[session] = 0
+		r.finishLaunchLocked(session, launch)
+		r.mu.Unlock()
+		_ = r.registry.SetActiveTabs(session, 1)
+		// Restore a named state into the fresh browser when the daemon was
+		// started with --restore for this session. The restore runs with its own
+		// context so a slow browser start can never time out the first request.
+		if restoreOnStart != "" && stateStore != nil {
+			go func() {
+				restoreCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				defer cancel()
+				stateRuntime := NewStateRuntime(stateStore, r)
+				if _, _, err := stateRuntime.Load(restoreCtx, session, restoreOnStart); err != nil {
+					slog.Warn("restore state on start failed", "session", session, "state", restoreOnStart, "error", err)
+				} else {
+					slog.Info("restored state on start", "session", session, "state", restoreOnStart)
+				}
+			}()
+		}
+		return service, nil
 	}
-	return service, nil
+}
+
+func (r *NavigationRuntime) finishLaunchLocked(session string, launch *sessionLaunch) {
+	if r.launches[session] != launch {
+		return
+	}
+	delete(r.launches, session)
+	close(launch.done)
 }
 
 // maybeAutosave persists session state after state-changing frames when an
