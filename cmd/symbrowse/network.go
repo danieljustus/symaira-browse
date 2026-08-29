@@ -9,12 +9,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Issue #59: network inspection and mocking command.
 func newNetworkCommand() *cobra.Command {
 	var session string
 	command := &cobra.Command{
 		GroupID: groupIDNetwork,
 		Use:     "network",
-		Short:   "Inspect, mock and export page network activity (issue #59)",
+		Short:   "Inspect, mock and export page network activity",
 		Args:    cobra.NoArgs,
 	}
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
