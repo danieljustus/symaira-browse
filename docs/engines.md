@@ -28,7 +28,7 @@ als „von dieser Engine nicht unterstützt" scheitern.
 |---|---|---|
 | `chrome` | CDP über WebSocket | vollständig; Referenzimplementierung |
 | `static` | HTTP ohne Browser | bewusst reduziert (Tier 0) |
-| `safari-attach` | Apple Events (`do JavaScript`) | Lesen vollständig, Bedienen hinter Opt-in (issue #297) |
+| `safari-attach` | Apple Events (`do JavaScript`) | Lesen vollständig; Navigation policy-guarded; Bedienen hinter Opt-in (issue #297) |
 
 Die CDP-Engine ist nicht auf Google Chrome festgelegt. Die Discovery in
 [`internal/engine/doctor`](../internal/engine/doctor) findet Chrome, Chromium
@@ -74,7 +74,7 @@ Gemessen am 2026-08-27 gegen die Fixtures aus
 | Cross-Origin-iframe | injiziert | ❌ `contentDocument === null` |
 | CSS-`:hover` | injiziert | ❌ `matches(":hover") === false` |
 | Console-Hook über eine Navigation hinweg | `/spa` → `/static` | ❌ verworfen |
-| Netzwerk-Policy (Allowlist, SSRF) | — | ❌ nicht vorhanden |
+| Netzwerk-Policy (Allowlist, SSRF) | — | ❌ keine Subresource-Schicht; Navigationsziele werden vor dem Apple Event geprüft |
 
 Anders als zunächst angenommen trägt Apple-Events-JavaScript **User
 Activation**. Aktivierungsgebundene APIs (Popups, Zwischenablage, Fullscreen,
@@ -115,13 +115,13 @@ Zwei weitere Fallen, beide in der Messung aufgetreten:
 3. Jeder Klick prüft vor der Ausführung per `elementFromPoint`, ob das Ziel
    tatsächlich getroffen würde, und meldet bei Verdeckung denselben Fehler wie
    die CDP-Engine.
-4. `safari-attach` ist im MCP-Modus **lesend** (read-only): die `InteractionEngine`
-   wird nur im TTY-Modus aktiviert, solange der SSRF-Guard dort Default ist
-   ([ssrf.md](ssrf.md)). Ohne Netzwerk-Layer sind Allowlist und Guard nicht
-   durchsetzbar, und eine nicht durchsetzbare Zusage ist eine falsche Zusage
-   ([allowlist.md](allowlist.md)). Die capability-Meldung (`doctor` und
-   `engine info`) spiegelt das pro Modus ehrlich: `InteractionEngine` erscheint
-   nur bei Opt-in.
+4. `safari-attach` ist im MCP-Modus **lesend** (read-only): `Evaluate` wird
+   ohne Opt-in verweigert und beantwortet bei Opt-in nur die festen
+   Inspektionsausdrücke `document.title` und `location.href`. Navigationen
+   akzeptieren ausschließlich HTTP(S) und passieren Allowlist und SSRF-Guard
+   vor dem Apple Event. Die `InteractionEngine` erscheint nur bei Opt-in und
+   aktivem URL-Guard; die Capability-Meldung (`doctor` und `engine info`)
+   spiegelt das pro Modus ehrlich.
 5. Jede Aktion in dieser Engine läuft in der echten, authentifizierten Sitzung
    des Menschen und erhält deshalb die höchste Risikoklasse.
 

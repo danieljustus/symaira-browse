@@ -19,12 +19,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // EngineKind is the capability kind reported for this engine.
@@ -70,9 +72,17 @@ type Engine struct {
 	// runner executes AppleScript. Swapped for tests.
 	runner Runner
 
-	// OptInInteractions enables the interaction path. Safe only when the human
-	// has explicitly enabled it; defaults to false (read-only).
+	// OptInInteractions enables the interaction and arbitrary evaluation paths.
+	// Safe only when the human has explicitly enabled it; defaults to false
+	// (read-only).
 	OptInInteractions bool
+
+	// Allowlist and SSRFGuard are the URL admission policies for navigation.
+	// They are supplied by the daemon so Safari cannot navigate the human's
+	// session around the daemon's configured policy.
+	Allowlist   *policy.Allowlist
+	SSRFGuard   *policy.SSRFGuard
+	PolicyError error
 
 	// PinnedTabName pins the engine to one named tab. Safari resolves
 	// "current tab of window 1" to whatever window the human last touched, so
@@ -160,6 +170,9 @@ func (e *Engine) Navigate(ctx context.Context, _ engine.Page, target string) (en
 	if closed {
 		return engine.NavigationResult{}, errors.New("safari engine: engine is closed")
 	}
+	if err := e.guardTarget(target); err != nil {
+		return engine.NavigationResult{}, err
+	}
 	if poll <= 0 {
 		poll = defaultPollInterval
 	}
@@ -187,6 +200,38 @@ func (e *Engine) Navigate(ctx context.Context, _ engine.Page, target string) (en
 	}
 }
 
+// guardTarget validates a Safari navigation before any AppleScript is run.
+// Safari attaches to a human's authenticated session, so every target must be
+// an ordinary web URL and pass the daemon-provided URL policies.
+func (e *Engine) guardTarget(target string) error {
+	parsed, err := url.Parse(strings.TrimSpace(target))
+	if err != nil {
+		return fmt.Errorf("safari engine: invalid URL %q: %w", target, err)
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if (scheme != "http" && scheme != "https") || parsed.Hostname() == "" {
+		return fmt.Errorf("safari engine: unsupported navigation target %q (http/https URL required)", target)
+	}
+
+	e.mu.Lock()
+	allowlist := e.Allowlist
+	ssrfGuard := e.SSRFGuard
+	policyErr := e.PolicyError
+	e.mu.Unlock()
+	if policyErr != nil {
+		return fmt.Errorf("safari engine: URL policy is invalid: %w", policyErr)
+	}
+	if allowlist != nil && !allowlist.AllowsURL(parsed) {
+		return fmt.Errorf("safari engine: navigation to %q is blocked by the domain allowlist", target)
+	}
+	if ssrfGuard != nil {
+		if err := ssrfGuard.AllowsURL(parsed); err != nil {
+			return fmt.Errorf("safari engine: navigation to %q is blocked by the SSRF guard: %w", target, err)
+		}
+	}
+	return nil
+}
+
 func (e *Engine) currentURL(ctx context.Context) (string, error) {
 	out, err := e.evaluateTab(ctx, "window.location.href")
 	if err != nil {
@@ -195,14 +240,32 @@ func (e *Engine) currentURL(ctx context.Context) (string, error) {
 	return strings.Trim(out, `"`), nil
 }
 
-// Evaluate answers the supported inspection expressions in the live tab.
+// Evaluate answers the fixed inspection expressions in the live tab. Arbitrary
+// JavaScript is a write-capable escape hatch in an authenticated Safari session,
+// so it requires explicit opt-in and is never accepted outside the allowlist.
 func (e *Engine) Evaluate(ctx context.Context, _ engine.Page, expression string) (engine.EvaluationResult, error) {
+	e.mu.Lock()
+	optIn := e.OptInInteractions
+	e.mu.Unlock()
+	if !optIn {
+		return engine.EvaluationResult{}, engine.UnsupportedOperation(EngineKind, "evaluation (opt-in required)")
+	}
+	expression = strings.TrimSpace(expression)
+	if !allowedInspectionExpressions[expression] {
+		return engine.EvaluationResult{}, engine.UnsupportedOperation(EngineKind, "arbitrary evaluation")
+	}
 	out, err := e.evaluateTab(ctx, expression)
 	if err != nil {
 		return engine.EvaluationResult{}, err
 	}
 	raw, _ := json.Marshal(out)
 	return engine.EvaluationResult{Value: raw, Type: "string"}, nil
+}
+
+var allowedInspectionExpressions = map[string]bool{
+	"document.title":       true,
+	"location.href":        true,
+	"window.location.href": true,
 }
 
 // AXTree is not supported: Safari exposes no accessibility tree over the Apple
@@ -229,8 +292,12 @@ func (e *Engine) Close() error {
 // #295 / #297): it implements only inspection, navigation state, interaction
 // (behind opt-in) and tab management. Everything else is unsupported.
 func (e *Engine) Capabilities() engine.Capabilities {
+	e.mu.Lock()
+	interactionEnabled := e.OptInInteractions &&
+		((e.Allowlist != nil && e.Allowlist.Active()) || (e.SSRFGuard != nil && e.SSRFGuard.Enabled()))
+	e.mu.Unlock()
 	impl := []string{"InspectionEngine", "NavigationStateProvider", "TabManager"}
-	if e.OptInInteractions {
+	if interactionEnabled {
 		impl = append(impl, "InteractionEngine")
 	}
 	caps := engine.CapabilitiesFor(EngineKind, impl...)

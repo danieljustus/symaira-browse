@@ -224,12 +224,12 @@ func TestTabHandlersWithoutTabs(t *testing.T) {
 func TestNewEngineSelectsStaticOrChrome(t *testing.T) {
 	runtime, _ := newCookieRuntime(t)
 	runtime.engineKind = "static"
-	engineInstance := runtime.newEngine("/tmp/unused")
+	engineInstance := runtime.newEngine("/tmp/unused", runtime.urlGuard)
 	if _, ok := engineInstance.(interface{ Close() error }); !ok {
 		t.Fatalf("static engine = %T", engineInstance)
 	}
 	runtime.engineKind = "chrome"
-	engineInstance = runtime.newEngine("/tmp/unused")
+	engineInstance = runtime.newEngine("/tmp/unused", runtime.urlGuard)
 	if engineInstance == nil {
 		t.Fatal("chrome engine must not be nil")
 	}
