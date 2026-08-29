@@ -22,10 +22,11 @@ func newConsoleCommand() *cobra.Command {
 	return command
 }
 
+// Issue #60: console capture command.
 func newConsoleListCommand(session *string) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "list",
-		Short: "List captured console messages (issue #60)",
+		Short: "List captured console messages",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			response, err := daemonRequestBudget(cmd.Context(), *session, "console.list", nil, maxTokensFlag(cmd))

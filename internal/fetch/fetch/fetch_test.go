@@ -10,6 +10,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 func TestHonestClientFetch(t *testing.T) {
@@ -219,9 +221,9 @@ func TestSSRFGuardIPv4MappedIPv6(t *testing.T) {
 		if ip == nil {
 			t.Fatalf("failed to parse IP: %s", tt.ip)
 		}
-		got := isPrivate(ip)
+		got := policy.IsPrivateIP(ip)
 		if got != tt.blocked {
-			t.Errorf("isPrivate(%s): %v, want %v", tt.ip, got, tt.blocked)
+			t.Errorf("policy.IsPrivateIP(%s): %v, want %v", tt.ip, got, tt.blocked)
 		}
 	}
 }
