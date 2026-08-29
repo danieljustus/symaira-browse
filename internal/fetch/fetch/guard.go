@@ -8,6 +8,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // ErrBlockedPrivate is returned when a request targets a private/loopback
@@ -69,7 +71,7 @@ func CheckSSRF(rawURL string) error {
 		if ip == nil {
 			continue
 		}
-		if isPrivate(ip) {
+		if policy.IsPrivateIP(ip) {
 			return &ErrBlockedPrivate{URL: rawURL}
 		}
 	}
@@ -86,53 +88,8 @@ func ControlSSRF(network, address string, c syscall.RawConn) error {
 		host = address
 	}
 	ip := net.ParseIP(host)
-	if ip != nil && isPrivate(ip) {
+	if ip != nil && policy.IsPrivateIP(ip) {
 		return &ErrBlockedPrivate{URL: address}
 	}
 	return nil
-}
-
-// ipv4MappedNet covers the ::ffff:0:0/96 range used to detect
-// IPv4-mapped IPv6 addresses. It is checked separately because the
-// /96 prefix matches all IPv4 addresses when applied to 4-byte IPs.
-var ipv4MappedNet = func() *net.IPNet {
-	_, n, _ := net.ParseCIDR("::ffff:0:0/96")
-	return n
-}()
-
-var privateRanges = func() []*net.IPNet {
-	cidrs := []string{
-		"127.0.0.0/8",
-		"::1/128",
-		"169.254.0.0/16",
-		"fe80::/10",
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"fc00::/7",
-		"100.64.0.0/10",
-	}
-	var nets []*net.IPNet
-	for _, cidr := range cidrs {
-		_, n, _ := net.ParseCIDR(cidr)
-		if n != nil {
-			nets = append(nets, n)
-		}
-	}
-	return nets
-}()
-
-func isPrivate(ip net.IP) bool {
-	if v4 := ip.To4(); v4 != nil {
-		ip = v4
-	}
-	for _, n := range privateRanges {
-		if n.Contains(ip) {
-			return true
-		}
-	}
-	if len(ip) == net.IPv6len && ipv4MappedNet.Contains(ip) {
-		return isPrivate(ip[12:16])
-	}
-	return false
 }

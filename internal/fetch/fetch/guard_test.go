@@ -4,6 +4,8 @@ import (
 	"net"
 	"strings"
 	"testing"
+
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 func TestIsPrivate(t *testing.T) {
@@ -47,9 +49,9 @@ func TestIsPrivate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isPrivate(tt.ip)
+			got := policy.IsPrivateIP(tt.ip)
 			if got != tt.expected {
-				t.Errorf("isPrivate(%v) = %v, want %v", tt.ip, got, tt.expected)
+				t.Errorf("policy.IsPrivateIP(%v) = %v, want %v", tt.ip, got, tt.expected)
 			}
 		})
 	}
@@ -68,8 +70,8 @@ func TestIsPrivate_IPv4MappedIPv6Bypass(t *testing.T) {
 		if ip == nil {
 			t.Fatalf("failed to parse %q", ipStr)
 		}
-		if !isPrivate(ip) {
-			t.Errorf("isPrivate(%s) = false, want true (IPv4-mapped IPv6 bypass detected)", ipStr)
+		if !policy.IsPrivateIP(ip) {
+			t.Errorf("policy.IsPrivateIP(%s) = false, want true (IPv4-mapped IPv6 bypass detected)", ipStr)
 		}
 	}
 }
@@ -127,5 +129,72 @@ func TestCheckSSRF_NonHTTPScheme(t *testing.T) {
 	err := CheckSSRF("ftp://example.com/file")
 	if err == nil {
 		t.Error("expected error for non-HTTP scheme")
+	}
+}
+
+func TestUnspecifiedAddressesBlockedByBothGuards(t *testing.T) {
+	tests := []struct {
+		name    string
+		rawURL  string
+		address string
+	}{
+		{name: "IPv4 unspecified", rawURL: "http://0.0.0.0:8080/", address: "0.0.0.0:8080"},
+		{name: "IPv4 unspecified range", rawURL: "http://0.0.0.1:8080/", address: "0.0.0.1:8080"},
+		{name: "IPv6 unspecified", rawURL: "http://[::]:8080/", address: "[::]:8080"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := CheckSSRF(tt.rawURL); err == nil {
+				t.Errorf("CheckSSRF(%q) = nil, want blocked_private", tt.rawURL)
+			} else if !strings.Contains(err.Error(), "blocked_private") {
+				t.Errorf("CheckSSRF(%q) = %q, want blocked_private", tt.rawURL, err)
+			}
+
+			if err := ControlSSRF("tcp", tt.address, nil); err == nil {
+				t.Errorf("ControlSSRF(%q) = nil, want blocked_private", tt.address)
+			} else if !strings.Contains(err.Error(), "blocked_private") {
+				t.Errorf("ControlSSRF(%q) = %q, want blocked_private", tt.address, err)
+			}
+		})
+	}
+}
+
+func TestSSRFGuardsAgreeOnAddressCorpus(t *testing.T) {
+	tests := []struct {
+		name    string
+		ip      string
+		blocked bool
+	}{
+		{name: "IPv4 unspecified", ip: "0.0.0.0", blocked: true},
+		{name: "IPv4 unspecified range", ip: "0.0.0.1", blocked: true},
+		{name: "IPv4 loopback", ip: "127.0.0.1", blocked: true},
+		{name: "IPv4 private", ip: "10.0.0.1", blocked: true},
+		{name: "IPv4 link-local", ip: "169.254.1.1", blocked: true},
+		{name: "IPv4 CGNAT", ip: "100.64.0.1", blocked: true},
+		{name: "IPv6 unspecified", ip: "::", blocked: true},
+		{name: "IPv6 loopback", ip: "::1", blocked: true},
+		{name: "IPv6 link-local", ip: "fe80::1", blocked: true},
+		{name: "IPv6 unique-local", ip: "fd00::1", blocked: true},
+		{name: "IPv4-mapped loopback", ip: "::ffff:127.0.0.1", blocked: true},
+		{name: "public IPv4", ip: "8.8.8.8", blocked: false},
+		{name: "public IPv6", ip: "2001:4860:4860::8888", blocked: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			address := net.JoinHostPort(tt.ip, "8080")
+			rawURL := "http://" + address + "/"
+			checkErr := CheckSSRF(rawURL)
+			controlErr := ControlSSRF("tcp", address, nil)
+			checkBlocked := checkErr != nil
+			controlBlocked := controlErr != nil
+			if checkBlocked != controlBlocked {
+				t.Fatalf("address %q: CheckSSRF blocked=%v (err=%v), ControlSSRF blocked=%v (err=%v), want identical verdicts", tt.ip, checkBlocked, checkErr, controlBlocked, controlErr)
+			}
+			if checkBlocked != tt.blocked {
+				t.Errorf("address %q: both guards blocked=%v, want %v (CheckSSRF err=%v, ControlSSRF err=%v)", tt.ip, checkBlocked, tt.blocked, checkErr, controlErr)
+			}
+		})
 	}
 }
