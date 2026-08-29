@@ -1,8 +1,12 @@
 package main
 
 import (
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/danieljustus/symaira-browse/internal/mcp"
 )
@@ -96,4 +100,32 @@ func TestGroupsMirrorMCPProfiles(t *testing.T) {
 			t.Errorf("expected cobra group for MCP profile %q, but none registered", profile)
 		}
 	}
+}
+
+// TestUserFacingDescriptionsHideIssueReferences keeps repository bookkeeping
+// out of CLI help while allowing issue references in Go comments.
+func TestUserFacingDescriptionsHideIssueReferences(t *testing.T) {
+	pattern := regexp.MustCompile(`(?i)issue #[0-9]+`)
+	var walk func(*cobra.Command, []string)
+	walk = func(command *cobra.Command, path []string) {
+		name := strings.Join(append(path, command.Name()), " ")
+		for field, value := range map[string]string{"Short": command.Short, "Long": command.Long} {
+			if pattern.MatchString(value) {
+				t.Errorf("%s contains internal issue reference in %s: %q", name, field, value)
+			}
+		}
+		checkFlags := func(flags *pflag.FlagSet) {
+			flags.VisitAll(func(flag *pflag.Flag) {
+				if pattern.MatchString(flag.Usage) {
+					t.Errorf("%s flag --%s contains internal issue reference: %q", name, flag.Name, flag.Usage)
+				}
+			})
+		}
+		checkFlags(command.PersistentFlags())
+		checkFlags(command.LocalNonPersistentFlags())
+		for _, child := range command.Commands() {
+			walk(child, append(path, command.Name()))
+		}
+	}
+	walk(newRootCommand(), nil)
 }

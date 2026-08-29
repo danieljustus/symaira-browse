@@ -22,10 +22,11 @@ func newErrorsCommand() *cobra.Command {
 	return command
 }
 
+// Issue #60: uncaught page errors command.
 func newErrorsListCommand(session *string) *cobra.Command {
 	command := &cobra.Command{
 		Use:   "list",
-		Short: "List uncaught exceptions with stack traces (issue #60)",
+		Short: "List uncaught exceptions with stack traces",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			response, err := daemonRequestBudget(cmd.Context(), *session, "errors.list", nil, maxTokensFlag(cmd))

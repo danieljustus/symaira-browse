@@ -114,7 +114,7 @@ func (g *SSRFGuard) AllowsHost(hostname, raw string) error {
 		if ip == nil {
 			continue
 		}
-		if isPrivateIP(ip) {
+		if IsPrivateIP(ip) {
 			return &BlockedPrivateError{URL: raw}
 		}
 	}
@@ -132,7 +132,7 @@ var ipv4MappedNet = func() *net.IPNet {
 // privateRanges are the networks blocked by the guard: RFC1918 private
 // space, loopback, link-local, carrier-grade NAT, IPv6 unique-local,
 // and the unspecified address ranges (0.0.0.0/8 and ::/128).
-// The set is identical to symfetch's guard so both tools behave alike.
+// All SSRF entry points use this single classification set via IsPrivateIP.
 var privateRanges = func() []*net.IPNet {
 	cidrs := []string{
 		"0.0.0.0/8",
@@ -157,8 +157,8 @@ var privateRanges = func() []*net.IPNet {
 	return nets
 }()
 
-// isPrivateIP reports whether ip falls into any blocked network.
-func isPrivateIP(ip net.IP) bool {
+// IsPrivateIP reports whether ip falls into any blocked network.
+func IsPrivateIP(ip net.IP) bool {
 	if v4 := ip.To4(); v4 != nil {
 		ip = v4
 	}
@@ -168,7 +168,7 @@ func isPrivateIP(ip net.IP) bool {
 		}
 	}
 	if len(ip) == net.IPv6len && ipv4MappedNet.Contains(ip) {
-		return isPrivateIP(ip[12:16])
+		return IsPrivateIP(ip[12:16])
 	}
 	return false
 }

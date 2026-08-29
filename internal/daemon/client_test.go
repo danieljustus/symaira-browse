@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -307,5 +308,57 @@ func TestClientClosedConnectionWithoutResponse(t *testing.T) {
 	}
 	if terr.Code != ErrorDaemonUnavailable {
 		t.Fatalf("code = %q, want %q", terr.Code, ErrorDaemonUnavailable)
+	}
+}
+
+func TestStartDaemonProcessDetachesStreams(t *testing.T) {
+	dir := t.TempDir()
+	script := filepath.Join(dir, "daemon-helper")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nprintf daemon-started >&2\nsleep 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	logPath := filepath.Join(dir, "daemon.log")
+	t.Setenv("SYMBROWSE_DAEMON_LOG", logPath)
+
+	readPipe, writePipe, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = readPipe.Close()
+		_ = writePipe.Close()
+	})
+	originalStderr := os.Stderr
+	os.Stderr = writePipe
+	t.Cleanup(func() { os.Stderr = originalStderr })
+
+	if err := StartDaemonProcessArgs(context.Background(), script, "daemon"); err != nil {
+		t.Fatalf("start daemon process: %v", err)
+	}
+	if err := writePipe.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		_, _ = io.Copy(io.Discard, readPipe)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(500 * time.Millisecond):
+		t.Fatal("autostarted daemon kept the caller's stderr pipe open")
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		data, readErr := os.ReadFile(logPath)
+		if readErr == nil && strings.Contains(string(data), "daemon-started") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("daemon log did not contain startup output: read error=%v, contents=%q", readErr, data)
+		}
+		time.Sleep(25 * time.Millisecond)
 	}
 }

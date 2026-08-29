@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/engine/doctor"
@@ -198,7 +200,7 @@ func TestSafariAttachHonorsModeGuard(t *testing.T) {
 		t.Fatalf("MCP mode must keep safari-attach read-only: %+v", mcpCaps.Interfaces)
 	}
 
-	ttyRT := NewNavigationRuntime(nil, "", NavigationRuntimeOptions{Engine: "safari-attach", Mode: policy.ModeTTY})
+	ttyRT := NewNavigationRuntime(nil, "", NavigationRuntimeOptions{Engine: "safari-attach", Mode: policy.ModeTTY, SSRFEnabled: true})
 	ttyData, err := ttyRT.handleEngineInfoFrame(Frame{Session: "test"})
 	if err != nil {
 		t.Fatalf("tty handleEngineInfoFrame = %v", err)
@@ -219,4 +221,171 @@ func includes(s []string, v string) bool {
 		}
 	}
 	return false
+}
+
+type boundaryEngine struct {
+	fakeCookieEngine
+	navigateURLs []string
+}
+
+func (e *boundaryEngine) Navigate(_ context.Context, _ engine.Page, target string) (engine.NavigationResult, error) {
+	e.navigateURLs = append(e.navigateURLs, target)
+	return engine.NavigationResult{}, nil
+}
+
+func newBoundaryRuntime(t *testing.T, kind string, options NavigationRuntimeOptions) (*NavigationRuntime, *boundaryEngine) {
+	t.Helper()
+	registry := NewSessionRegistry(SessionRegistryOptions{UserDataRoot: t.TempDir()})
+	if _, err := registry.Ensure("boundary"); err != nil {
+		t.Fatal(err)
+	}
+	fake := &boundaryEngine{}
+	runtime := NewNavigationRuntime(registry, "", options)
+	runtime.engineKind = kind
+	service := engine.NewNavigationService(fake, engine.Page{ID: "page"}, engine.NavigationOptions{})
+	runtime.engines["boundary"] = fake
+	runtime.tabs["boundary"] = []*sessionTab{{Label: "t1", Service: service, Page: engine.Page{ID: "page"}}}
+	runtime.activeTab["boundary"] = 0
+	return runtime, fake
+}
+
+func TestURLBoundaryRejectsLoopbackForEveryEngineKind(t *testing.T) {
+	for _, kind := range []string{"chrome", "static", "safari-attach"} {
+		t.Run(kind, func(t *testing.T) {
+			runtime, fake := newBoundaryRuntime(t, kind, NavigationRuntimeOptions{SSRFEnabled: true})
+			defer func() { _ = runtime.Close() }()
+			if _, _, err := runtime.Handle(context.Background(), Frame{
+				Cmd:     "open",
+				Session: "boundary",
+				Args:    mustArgs(t, map[string]any{"url": "http://127.0.0.1:8080/"}),
+			}); err == nil {
+				t.Fatal("loopback navigation succeeded")
+			}
+			if len(fake.navigateURLs) != 0 {
+				t.Fatalf("engine received blocked target: %v", fake.navigateURLs)
+			}
+		})
+	}
+}
+
+func TestURLBoundaryRejectsNonAllowlistedHostBeforeEngine(t *testing.T) {
+	runtime, fake := newBoundaryRuntime(t, "chrome", NavigationRuntimeOptions{AllowedDomains: []string{"example.com"}})
+	defer func() { _ = runtime.Close() }()
+	if _, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd:     "goto",
+		Session: "boundary",
+		Args:    mustArgs(t, map[string]any{"url": "https://not-example.com/"}),
+	}); err == nil {
+		t.Fatal("non-allowlisted navigation succeeded")
+	}
+	if len(fake.navigateURLs) != 0 {
+		t.Fatalf("engine received blocked target: %v", fake.navigateURLs)
+	}
+}
+
+type launchRaceEngine struct {
+	fakeCookieEngine
+	launches atomic.Int32
+	closes   atomic.Int32
+	started  chan struct{}
+	release  <-chan struct{}
+	fail     bool
+}
+
+func (e *launchRaceEngine) Launch(context.Context) error {
+	e.launches.Add(1)
+	if e.started != nil {
+		select {
+		case <-e.started:
+		default:
+			close(e.started)
+		}
+	}
+	if e.release != nil {
+		<-e.release
+	}
+	if e.fail {
+		return errors.New("launch failed")
+	}
+	return nil
+}
+
+func (e *launchRaceEngine) Close() error {
+	e.closes.Add(1)
+	return nil
+}
+
+func TestServiceSerializesColdSessionLaunches(t *testing.T) {
+	registry := NewSessionRegistry(SessionRegistryOptions{UserDataRoot: t.TempDir()})
+	if _, err := registry.Ensure("cold"); err != nil {
+		t.Fatal(err)
+	}
+	runtime := NewNavigationRuntime(registry, "", NavigationRuntimeOptions{})
+	started := make(chan struct{})
+	release := make(chan struct{})
+	fake := &launchRaceEngine{started: started, release: release}
+	runtime.engineFactory = func(string, navigationGuard) engine.Engine { return fake }
+
+	const callers = 12
+	errs := make(chan error, callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			_, err := runtime.service(context.Background(), "cold")
+			errs <- err
+		}()
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for the first launch")
+	}
+	time.Sleep(20 * time.Millisecond)
+	close(release)
+	for i := 0; i < callers; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("service call failed: %v", err)
+		}
+	}
+	if got := fake.launches.Load(); got != 1 {
+		t.Fatalf("Launch calls = %d, want 1", got)
+	}
+	if err := runtime.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.closes.Load(); got != 1 {
+		t.Fatalf("Close calls = %d, want 1", got)
+	}
+}
+
+func TestServiceRetriesAfterFailedLaunch(t *testing.T) {
+	registry := NewSessionRegistry(SessionRegistryOptions{UserDataRoot: t.TempDir()})
+	if _, err := registry.Ensure("retry"); err != nil {
+		t.Fatal(err)
+	}
+	runtime := NewNavigationRuntime(registry, "", NavigationRuntimeOptions{})
+	var created atomic.Int32
+	var engines []*launchRaceEngine
+	runtime.engineFactory = func(string, navigationGuard) engine.Engine {
+		current := &launchRaceEngine{fail: created.Add(1) == 1}
+		engines = append(engines, current)
+		return current
+	}
+	if _, err := runtime.service(context.Background(), "retry"); err == nil {
+		t.Fatal("first launch succeeded, want failure")
+	}
+	if _, err := runtime.service(context.Background(), "retry"); err != nil {
+		t.Fatalf("retry failed: %v", err)
+	}
+	if got := created.Load(); got != 2 {
+		t.Fatalf("engine creations = %d, want 2", got)
+	}
+	if got := engines[0].closes.Load(); got != 1 {
+		t.Fatalf("failed engine Close calls = %d, want 1", got)
+	}
+	if err := runtime.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if got := engines[1].closes.Load(); got != 1 {
+		t.Fatalf("successful engine Close calls = %d, want 1", got)
+	}
 }

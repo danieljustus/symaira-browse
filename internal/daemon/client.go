@@ -9,7 +9,9 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
+	"syscall"
 	"time"
 )
 
@@ -89,6 +91,7 @@ type ClientOptions struct {
 	StartupTimeout time.Duration
 	ReadTimeout    time.Duration
 	StartDaemon    StartDaemonFunc
+	DaemonLogPath  string
 }
 
 // Client sends requests to a daemon, optionally autostarting it when the
@@ -115,9 +118,12 @@ func NewClient(options ClientOptions) *Client {
 			}
 		}
 	}
+	if options.DaemonLogPath == "" {
+		options.DaemonLogPath = DefaultDaemonLogPath()
+	}
 	if options.StartDaemon == nil && os.Getenv("SYMBROWSE_NO_AUTOSTART") != "1" {
 		options.StartDaemon = func(ctx context.Context) error {
-			return StartDaemonProcess(ctx, os.Args[0], options.Session)
+			return StartDaemonProcessArgsWithLog(ctx, os.Args[0], options.DaemonLogPath, "daemon", "--session", options.Session)
 		}
 	}
 	return &Client{options: options}
@@ -165,7 +171,7 @@ func (c *Client) Request(ctx context.Context, frame Frame) (Response, error) {
 		return Response{}, &TransportError{
 			Code:    ErrorDaemonUnavailable,
 			Message: fmt.Sprintf("failed to start daemon for session %q: %v", session, startErr),
-			Hint:    fmt.Sprintf("start daemon with 'symbrowse daemon --session %s'", session),
+			Hint:    c.daemonHint(session, false),
 			Details: map[string]any{
 				"session":     session,
 				"socket_path": c.options.SocketPath,
@@ -192,7 +198,7 @@ func (c *Client) Request(ctx context.Context, frame Frame) (Response, error) {
 	return Response{}, &TransportError{
 		Code:    ErrorDaemonUnavailable,
 		Message: fmt.Sprintf("daemon did not become ready for session %q", session),
-		Hint:    fmt.Sprintf("start daemon with 'symbrowse daemon --session %s'", session),
+		Hint:    c.daemonHint(session, false),
 		Details: map[string]any{
 			"session":     session,
 			"socket_path": c.options.SocketPath,
@@ -207,6 +213,14 @@ func (c *Client) RequestWithoutAutostart(ctx context.Context, frame Frame) (Resp
 	return c.requestOnce(ctx, frame)
 }
 
+func (c *Client) daemonHint(session string, autostartDisabled bool) string {
+	hint := fmt.Sprintf("start daemon with 'symbrowse daemon --session %s'", session)
+	if autostartDisabled {
+		hint += " (autostart disabled via SYMBROWSE_NO_AUTOSTART)"
+	}
+	return fmt.Sprintf("%s; see daemon log at %s", hint, c.options.DaemonLogPath)
+}
+
 func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error) {
 	session := c.options.Session
 	if session == "" {
@@ -219,7 +233,7 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 		return Response{}, &TransportError{
 			Code:    ErrorDaemonUnavailable,
 			Message: "socket path is required",
-			Hint:    fmt.Sprintf("start daemon with 'symbrowse daemon --session %s'", session),
+			Hint:    c.daemonHint(session, false),
 			Details: map[string]any{"session": session},
 		}
 	}
@@ -232,9 +246,9 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 	dialer := net.Dialer{}
 	conn, err := dialer.DialContext(ctx, "unix", c.options.SocketPath)
 	if err != nil {
-		hint := fmt.Sprintf("start daemon with 'symbrowse daemon --session %s'", session)
+		hint := c.daemonHint(session, false)
 		if c.options.StartDaemon == nil || os.Getenv("SYMBROWSE_NO_AUTOSTART") == "1" {
-			hint = fmt.Sprintf("start daemon with 'symbrowse daemon --session %s' (autostart disabled via SYMBROWSE_NO_AUTOSTART)", session)
+			hint = c.daemonHint(session, true)
 		}
 		return Response{}, &TransportError{
 			Code:    ErrorDaemonUnavailable,
@@ -252,7 +266,7 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 		return Response{}, &TransportError{
 			Code:    ErrorDaemonUnavailable,
 			Message: fmt.Sprintf("failed to set deadline for session %q", session),
-			Hint:    fmt.Sprintf("start daemon with 'symbrowse daemon --session %s'", session),
+			Hint:    c.daemonHint(session, false),
 			Details: map[string]any{
 				"session":     session,
 				"socket_path": c.options.SocketPath,
@@ -264,7 +278,7 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 		return Response{}, &TransportError{
 			Code:    ErrorDaemonUnavailable,
 			Message: fmt.Sprintf("failed to write daemon frame for session %q", session),
-			Hint:    fmt.Sprintf("start daemon with 'symbrowse daemon --session %s'", session),
+			Hint:    c.daemonHint(session, false),
 			Details: map[string]any{
 				"session":     session,
 				"socket_path": c.options.SocketPath,
@@ -292,7 +306,7 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 			return Response{}, &TransportError{
 				Code:    ErrorDaemonUnavailable,
 				Message: fmt.Sprintf("failed to read daemon response for session %q", session),
-				Hint:    fmt.Sprintf("start daemon with 'symbrowse daemon --session %s'", session),
+				Hint:    c.daemonHint(session, false),
 				Details: map[string]any{
 					"session":     session,
 					"socket_path": c.options.SocketPath,
@@ -303,7 +317,7 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 		return Response{}, &TransportError{
 			Code:    ErrorDaemonUnavailable,
 			Message: fmt.Sprintf("daemon closed connection without a response for session %q", session),
-			Hint:    fmt.Sprintf("start daemon with 'symbrowse daemon --session %s'", session),
+			Hint:    c.daemonHint(session, false),
 			Details: map[string]any{
 				"session":     session,
 				"socket_path": c.options.SocketPath,
@@ -315,6 +329,26 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 		return Response{}, fmt.Errorf("decode daemon response: %w", err)
 	}
 	return response, nil
+}
+
+// DefaultDaemonLogPath returns the path used for detached daemon startup
+// diagnostics. A caller may override it with SYMBROWSE_DAEMON_LOG.
+func DefaultDaemonLogPath() string {
+	if path := os.Getenv("SYMBROWSE_DAEMON_LOG"); path != "" {
+		return path
+	}
+	stateDir := os.Getenv("SYMBROWSE_STATE_DIR")
+	if stateDir == "" {
+		if xdgStateHome := os.Getenv("XDG_STATE_HOME"); xdgStateHome != "" {
+			stateDir = filepath.Join(xdgStateHome, "symbrowse")
+		} else if home, err := os.UserHomeDir(); err == nil {
+			stateDir = filepath.Join(home, ".local", "state", "symbrowse")
+		}
+	}
+	if stateDir == "" {
+		stateDir = filepath.Join(os.TempDir(), "symbrowse")
+	}
+	return filepath.Join(stateDir, "daemon.log")
 }
 
 // StartDaemonProcess launches an independent daemon process using executable.
@@ -330,6 +364,12 @@ func StartDaemonProcess(ctx context.Context, executable, session string) error {
 // explicit argument list (e.g. "daemon", "--session", "default", "--ssrf").
 // Callers that need policy flags beyond the session use this form.
 func StartDaemonProcessArgs(ctx context.Context, executable string, args ...string) error {
+	return StartDaemonProcessArgsWithLog(ctx, executable, DefaultDaemonLogPath(), args...)
+}
+
+// StartDaemonProcessArgsWithLog is StartDaemonProcessArgs with an explicit
+// destination for detached daemon stdout and stderr.
+func StartDaemonProcessArgsWithLog(ctx context.Context, executable, logPath string, args ...string) error {
 	if executable == "" {
 		return errors.New("daemon executable path is empty")
 	}
@@ -339,10 +379,23 @@ func StartDaemonProcessArgs(ctx context.Context, executable string, args ...stri
 	if len(args) == 0 || args[0] != "daemon" {
 		return errors.New("daemon process must start with the daemon subcommand")
 	}
+	if logPath == "" {
+		logPath = DefaultDaemonLogPath()
+	}
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o700); err != nil {
+		return fmt.Errorf("create daemon log directory: %w", err)
+	}
+	logFile, err := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o600)
+	if err != nil {
+		return fmt.Errorf("open daemon log: %w", err)
+	}
+	defer func() { _ = logFile.Close() }()
+
 	cmd := exec.Command(executable, args...)
 	cmd.Stdin = nil
-	cmd.Stdout = os.Stderr
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
