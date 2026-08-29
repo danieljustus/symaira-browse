@@ -30,10 +30,27 @@ func newWatchCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				if structuredOutput(cmd) {
+					return writeEnvelopeFromResponse(cmd, response)
+				}
 				if !response.Success {
 					return responseError(response)
 				}
-				raw, _ := json.MarshalIndent(response.Data, "", "  ")
+				data, _ := response.Data.(map[string]any)
+				status, _ := data["status"].(string)
+				promptID, _ := data["prompt_id"].(string)
+				if status != "" {
+					if promptID != "" {
+						_, err = fmt.Fprintf(cmd.OutOrStdout(), "handoff %s (prompt %s)\n", status, promptID)
+					} else {
+						_, err = fmt.Fprintf(cmd.OutOrStdout(), "handoff %s\n", status)
+					}
+					return err
+				}
+				raw, marshalErr := json.MarshalIndent(response.Data, "", "  ")
+				if marshalErr != nil {
+					return marshalErr
+				}
 				_, err = fmt.Fprintln(cmd.OutOrStdout(), string(raw))
 				return err
 			}
