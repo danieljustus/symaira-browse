@@ -36,6 +36,15 @@ func redirectSocketDir(t *testing.T) {
 		t.Setenv("HOME", dir)
 		return
 	}
+	if runtime.GOOS == "windows" {
+		dir, err := os.MkdirTemp("", "sb-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = os.RemoveAll(dir) })
+		t.Setenv("XDG_RUNTIME_DIR", dir)
+		return
+	}
 	// socketBaseDir honors XDG_RUNTIME_DIR on every non-darwin platform.
 	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
 }

@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -312,6 +313,9 @@ func TestClientClosedConnectionWithoutResponse(t *testing.T) {
 }
 
 func TestStartDaemonProcessDetachesStreams(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell helper is not available on Windows")
+	}
 	dir := t.TempDir()
 	script := filepath.Join(dir, "daemon-helper")
 	if err := os.WriteFile(script, []byte("#!/bin/sh\nprintf daemon-started >&2\nsleep 1\n"), 0o700); err != nil {
