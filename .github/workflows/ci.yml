@@ -78,7 +78,23 @@ jobs:
         # GO-2026-5932 (x/crypto/openpgp) and GO-2026-5841
         # (klauspost/compress/s2) are required but not reachable. Keep this
         # assessment here so a future reachability change fails the gate.
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
+
+  race:
+    name: Main / race detector
+    if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Race test
+        run: CGO_ENABLED=1 go test -race -count=1 ./internal/daemon/... ./internal/engine/... ./internal/session/... ./internal/state/...
 
   coverage:
     name: PR / coverage gate

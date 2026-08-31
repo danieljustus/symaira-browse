@@ -56,10 +56,14 @@ func (r *StateRuntime) Save(ctx context.Context, session, name string) (state.Me
 			origins[origin] = state.OriginState{Cookies: cookies}
 		}
 	}
+	source, err := r.store.KeySource()
+	if err != nil {
+		return state.Metadata{}, fmt.Errorf("resolve state encryption key: %w", err)
+	}
 	st := &state.State{
 		SchemaVersion: state.SchemaVersion,
 		Name:          name,
-		KeySource:     string(r.store.KeySource()),
+		KeySource:     string(source),
 		Origins:       origins,
 	}
 	if err := r.store.Save(st); err != nil {

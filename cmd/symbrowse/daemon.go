@@ -354,15 +354,24 @@ func splitDomains(value string) []string {
 // The default retention window comes from SYMBROWSE_STATE_EXPIRE_DAYS
 // (default 30 days).
 func newStateStore(cmd *cobra.Command) (*state.Store, error) {
+	return newStateStoreWithResolver(cmd, state.NewKeyResolver())
+}
+
+func newStateStoreWithResolver(_ *cobra.Command, resolver state.KeyProvider) (*state.Store, error) {
 	cfg, err := config.Load()
 	if err != nil {
 		return nil, err
 	}
 	dir := filepath.Join(cfg.StateDir, "states")
-	resolver := state.NewKeyResolver()
 	var keys state.KeyProvider
-	if source, err := resolver.Source(); err == nil && source != state.KeySourceNone {
-		keys = resolver
+	if resolver != nil {
+		source, resolveErr := resolver.Source()
+		if resolveErr != nil {
+			return nil, fmt.Errorf("resolve state encryption key: %w", resolveErr)
+		}
+		if source != state.KeySourceNone {
+			keys = resolver
+		}
 	}
 	expireIn := time.Duration(state.DefaultExpireDays) * 24 * time.Hour
 	if raw := os.Getenv("SYMBROWSE_STATE_EXPIRE_DAYS"); raw != "" {
