@@ -162,14 +162,15 @@ func (s *Store) Save(st *State) error {
 	if st.Origins == nil {
 		st.Origins = map[string]OriginState{}
 	}
-	raw, err := s.encode(st)
-	if err != nil {
-		return err
-	}
 	if source == KeySourceNone {
 		if previous, ok := s.existingEncryptedKeySource(st.Name); ok {
 			slog.Warn("re-saving encrypted state without an encryption key", "state", st.Name, "previous_key_source", previous)
 		}
+		st.KeySource = string(KeySourceNone)
+	}
+	raw, err := s.encode(st)
+	if err != nil {
+		return err
 	}
 	if err := fsutil.AtomicWriteFile(s.path(st.Name), raw, 0o600); err != nil {
 		return fmt.Errorf("write state %q: %w", st.Name, err)

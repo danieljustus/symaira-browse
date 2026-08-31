@@ -921,6 +921,48 @@ func TestStoreResaveEncryptedStateWithoutKeyWarnsAndDowngradesExplicitly(t *test
 	}
 }
 
+func TestStoreResaveLoadedEncryptedStateClearsKeySourceHeader(t *testing.T) {
+	dir := t.TempDir()
+	keyed, err := NewStore(StoreOptions{Dir: dir, Keys: &fakeKeyProvider{key: testKey(), source: KeySourceEnv}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := keyed.Save(sampleState("loaded-resave")); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := keyed.Load("loaded-resave")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := NewStore(StoreOptions{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := plain.Save(loaded); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "loaded-resave.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := raw[len(fileMagic):]
+	newlineIdx := bytes.IndexByte(data, '\n')
+	if newlineIdx == -1 {
+		t.Fatal("missing state header")
+	}
+	var header stateHeader
+	if err := json.Unmarshal(data[:newlineIdx], &header); err != nil {
+		t.Fatal(err)
+	}
+	if header.KeySource != string(KeySourceNone) {
+		t.Fatalf("key source header = %q, want none", header.KeySource)
+	}
+	if _, err := plain.Load("loaded-resave"); err != nil {
+		t.Fatalf("plain re-saved state could not be loaded: %v", err)
+	}
+}
+
 func TestKeyResolverConcurrentSourceAndKeyShareVaultResolution(t *testing.T) {
 	var calls atomic.Int32
 	started := make(chan struct{})
