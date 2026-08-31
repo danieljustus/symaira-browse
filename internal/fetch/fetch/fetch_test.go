@@ -190,20 +190,6 @@ func TestControlSSRF(t *testing.T) {
 	}
 }
 
-func TestSSRFResolverCanUseLocalDNSResolver(t *testing.T) {
-	resolver, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resolver.Close()
-
-	conn, err := ssrfResolver.Dial(context.Background(), "udp", resolver.LocalAddr().String())
-	if err != nil {
-		t.Fatalf("DNS resolver must be allowed to use a local resolver: %v", err)
-	}
-	conn.Close()
-}
-
 func TestSSRFGuardIPv4MappedIPv6(t *testing.T) {
 	tests := []struct {
 		ip      string
@@ -514,5 +500,26 @@ func TestControlSSRFWiredIntoTransport(t *testing.T) {
 	}
 	if resp.StatusCode != 200 {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestStaticFetchBlocksLocalHostnames(t *testing.T) {
+	c, err := New(ProfileHonest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+
+	for _, rawURL := range []string{"http://printer.local/", "http://localhost:3000/"} {
+		t.Run(rawURL, func(t *testing.T) {
+			_, err := c.Fetch(context.Background(), Request{URL: rawURL})
+			if err == nil {
+				t.Fatal("Fetch = nil, want hostname blocked")
+			}
+			var blocked *policy.BlockedPrivateError
+			if !errors.As(err, &blocked) {
+				t.Fatalf("errors.As(..., *policy.BlockedPrivateError) = false for %T: %v", err, err)
+			}
+		})
 	}
 }

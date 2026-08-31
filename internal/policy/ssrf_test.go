@@ -143,3 +143,17 @@ func TestSSRFGuardIPClassification(t *testing.T) {
 		}
 	}
 }
+
+func TestSSRFResolverCanUseLocalDNSResolver(t *testing.T) {
+	resolver, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resolver.Close()
+
+	conn, err := ssrfResolver.Dial(context.Background(), "udp", resolver.LocalAddr().String())
+	if err != nil {
+		t.Fatalf("DNS resolver must be allowed to use a local resolver: %v", err)
+	}
+	conn.Close()
+}
