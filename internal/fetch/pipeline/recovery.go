@@ -238,17 +238,28 @@ func fuzzyScore(target, slug, title string) float64 {
 	return 0
 }
 
+// maxLevenshteinInput bounds attacker-controlled sitemap/link strings before
+// the quadratic comparison runs. Fixed-size buffers also avoid an allocation
+// whose capacity computation could overflow on a very large input.
+const maxLevenshteinInput = 4096
+
 func levenshtein(a, b string) int {
 	la := len(a)
 	lb := len(b)
+	if la > maxLevenshteinInput || lb > maxLevenshteinInput {
+		if la > lb {
+			return la
+		}
+		return lb
+	}
 	if la == 0 {
 		return lb
 	}
 	if lb == 0 {
 		return la
 	}
-	prev := make([]int, lb+1)
-	curr := make([]int, lb+1)
+	var prev [maxLevenshteinInput + 1]int
+	var curr [maxLevenshteinInput + 1]int
 	for j := 0; j <= lb; j++ {
 		prev[j] = j
 	}

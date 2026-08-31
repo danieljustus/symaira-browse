@@ -5,13 +5,11 @@ on:
     tags:
       - 'v*'
 
-permissions:
-  contents: write
-  id-token: write # keyless Cosign signing
-
 jobs:
   vulnerability-scan:
     name: Release / Go vulnerability scan
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -21,10 +19,13 @@ jobs:
         with:
           go-version: '1.26.6'
       - name: Go vulnerability scan
-        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
   release:
     needs: vulnerability-scan
+    permissions:
+      contents: write
+      id-token: write # keyless Cosign signing
     runs-on: macos-15
     environment: release
     steps:
