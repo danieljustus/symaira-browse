@@ -261,8 +261,9 @@ func TestStateStoreAccessors(t *testing.T) {
 	if store.Dir() == "" || store.ExpireIn() != 7*24*time.Hour {
 		t.Fatalf("dir=%q expireIn=%v", store.Dir(), store.ExpireIn())
 	}
-	if store.KeySource() != state.KeySourceNone {
-		t.Fatalf("key source = %q, want none", store.KeySource())
+	source, err := store.KeySource()
+	if err != nil || source != state.KeySourceNone {
+		t.Fatalf("key source = %q, error = %v, want none", source, err)
 	}
 	if err := store.Save(&state.State{SchemaVersion: state.SchemaVersion, Name: "s", Origins: map[string]state.OriginState{}}); err != nil {
 		t.Fatal(err)

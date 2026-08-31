@@ -63,12 +63,14 @@ func (s *Store) decode(raw []byte) (*State, error) {
 			body := data[newlineIdx+1:]
 			var payload []byte
 			if hdr.SchemaVersion >= 3 {
-				if s.keys == nil {
-					if hdr.KeySource != "" && hdr.KeySource != string(KeySourceNone) {
-						return nil, errors.New("encrypted state requires a key provider")
-					}
+				if hdr.KeySource == "" || hdr.KeySource == string(KeySourceNone) {
+					// Schema-v3 plaintext files remain readable after a key
+					// provider is configured; the header is the codec selector.
 					payload = body
 				} else {
+					if s.keys == nil {
+						return nil, errors.New("encrypted state requires a key provider")
+					}
 					var err error
 					payload, err = s.codec().Decrypt(body, data[:newlineIdx])
 					if err != nil {
@@ -87,6 +89,10 @@ func (s *Store) decode(raw []byte) (*State, error) {
 			var st State
 			if err := json.Unmarshal(payload, &st); err != nil {
 				return nil, fmt.Errorf("parse state payload: %w", err)
+			}
+			if hdr.SchemaVersion >= 3 && hdr.KeySource == string(KeySourceNone) &&
+				(st.KeySource != hdr.KeySource || st.SavedAt != hdr.SavedAt || st.ExpiresAt != hdr.ExpiresAt) {
+				return nil, errors.New("decrypt state file: plaintext state metadata does not match header")
 			}
 			st.SchemaVersion = hdr.SchemaVersion
 			st.SavedAt = hdr.SavedAt

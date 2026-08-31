@@ -1,6 +1,7 @@
 package state
 
 import (
+	"context"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -31,7 +32,11 @@ const (
 // most once per resolver lifetime unless Invalidate or Reset is called.
 type KeyResolver struct {
 	LookPath func(string) (string, error)
+	// RunVault is the legacy test seam. New code should use RunVaultContext so
+	// cancellation reaches the subprocess.
 	RunVault func(string, ...string) ([]byte, error)
+	// RunVaultContext is the context-aware symvault test seam.
+	RunVaultContext VaultRunner
 	// KeychainGet returns the secret for the given service/account, or
 	// (nil, false) when no item exists.
 	KeychainGet func(service, account string) ([]byte, bool, error)
@@ -39,6 +44,9 @@ type KeyResolver struct {
 
 	mu           sync.Mutex
 	resolved     bool
+	resolving    bool
+	wait         chan struct{}
+	generation   uint64
 	cachedKey    []byte
 	cachedSource KeySource
 }
@@ -46,58 +54,25 @@ type KeyResolver struct {
 // NewKeyResolver creates a resolver with production lookups.
 func NewKeyResolver() *KeyResolver {
 	return &KeyResolver{
-		LookPath:    exec.LookPath,
-		RunVault:    runCommand,
-		KeychainGet: keychainGet,
-		Env:         os.Getenv,
+		LookPath:        exec.LookPath,
+		RunVaultContext: RunVaultCommand,
+		KeychainGet:     keychainGet,
+		Env:             os.Getenv,
 	}
-}
-
-func runCommand(name string, args ...string) ([]byte, error) {
-	return exec.Command(name, args...).Output()
 }
 
 // Key implements KeyProvider. It returns KeySourceNone with a nil key when no
 // source is configured so callers can fall back to plaintext.
 // Results are cached after the first successful resolution.
 func (r *KeyResolver) Key() ([]byte, KeySource, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.resolved {
-		if r.cachedKey == nil {
-			return nil, r.cachedSource, nil
-		}
-		return append([]byte(nil), r.cachedKey...), r.cachedSource, nil
-	}
-	key, source, err := r.resolve()
-	if err != nil {
-		return nil, "", err
-	}
-	r.resolved = true
-	r.cachedKey = key
-	r.cachedSource = source
-	if key == nil {
-		return nil, source, nil
-	}
-	return append([]byte(nil), key...), source, nil
+	return r.resolveCached(context.Background())
 }
 
 // Source reports which key source would currently be used, without exposing
 // the key itself. It uses the cached resolution if available.
 func (r *KeyResolver) Source() (KeySource, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.resolved {
-		return r.cachedSource, nil
-	}
-	key, source, err := r.resolve()
-	if err != nil {
-		return "", err
-	}
-	r.resolved = true
-	r.cachedKey = key
-	r.cachedSource = source
-	return source, nil
+	_, source, err := r.resolveCached(context.Background())
+	return source, err
 }
 
 // Invalidate clears the cached key resolution so subsequent Key/Source calls
@@ -108,6 +83,7 @@ func (r *KeyResolver) Invalidate() {
 	r.resolved = false
 	r.cachedKey = nil
 	r.cachedSource = ""
+	r.generation++
 }
 
 // Reset clears the cached key resolution; alias for Invalidate.
@@ -115,9 +91,57 @@ func (r *KeyResolver) Reset() {
 	r.Invalidate()
 }
 
-func (r *KeyResolver) resolve() ([]byte, KeySource, error) {
-	if r.LookPath != nil && r.RunVault != nil {
-		if key, err := r.vaultKey(); err != nil {
+// resolveCached serializes resolution attempts without holding the mutex while
+// a provider or subprocess runs. Concurrent callers wait for the one in-flight
+// resolution and receive the same safely published result.
+func (r *KeyResolver) resolveCached(ctx context.Context) ([]byte, KeySource, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for {
+		r.mu.Lock()
+		if r.resolved {
+			key, source := append([]byte(nil), r.cachedKey...), r.cachedSource
+			r.mu.Unlock()
+			return key, source, nil
+		}
+		if !r.resolving {
+			r.resolving = true
+			r.wait = make(chan struct{})
+			wait := r.wait
+			generation := r.generation
+			r.mu.Unlock()
+
+			key, source, err := r.resolve(ctx)
+
+			r.mu.Lock()
+			if err == nil && generation == r.generation {
+				r.resolved = true
+				r.cachedKey = append([]byte(nil), key...)
+				r.cachedSource = source
+			}
+			r.resolving = false
+			close(wait)
+			r.mu.Unlock()
+			if err != nil {
+				return nil, "", err
+			}
+			return append([]byte(nil), key...), source, nil
+		}
+		wait := r.wait
+		r.mu.Unlock()
+
+		select {
+		case <-wait:
+		case <-ctx.Done():
+			return nil, "", ctx.Err()
+		}
+	}
+}
+
+func (r *KeyResolver) resolve(ctx context.Context) ([]byte, KeySource, error) {
+	if r.LookPath != nil && (r.RunVaultContext != nil || r.RunVault != nil) {
+		if key, err := r.vaultKey(ctx); err != nil {
 			return nil, "", err
 		} else if key != nil {
 			return key, KeySourceVault, nil
@@ -148,15 +172,32 @@ func (r *KeyResolver) resolve() ([]byte, KeySource, error) {
 
 // vaultKey resolves the key from symvault when the binary is present and the
 // entry exists. A missing binary or missing entry yields (nil, nil) so the
-// resolver can continue down the chain.
-func (r *KeyResolver) vaultKey() ([]byte, error) {
-	if _, err := r.LookPath("symvault"); err != nil {
-		return nil, nil
+// resolver can continue down the chain. Context cancellation and timeout are
+// errors because silently falling back could cause an unsafe save.
+func (r *KeyResolver) vaultKey(ctx context.Context) ([]byte, error) {
+	runner := r.RunVaultContext
+	if runner == nil && r.RunVault != nil {
+		runner = func(_ context.Context, name string, args ...string) ([]byte, error) {
+			return r.RunVault(name, args...)
+		}
 	}
-	out, err := r.RunVault("symvault", "get", VaultEntryName)
+	out, err := LookupVault(ctx, r.LookPath, runner, VaultEntryName)
 	if err != nil {
-		// symvault present but entry missing or locked: continue the chain.
-		return nil, nil
+		if errors.Is(err, ErrVaultUnavailable) || errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		var exitErr interface{ ExitCode() int }
+		if errors.As(err, &exitErr) && (exitErr.ExitCode() == vaultEntryNotFoundExitCode || exitErr.ExitCode() == vaultNotInitializedExitCode) {
+			// ExitNotFound and ExitNotInitialized mean no usable entry is
+			// configured; continue the documented resolution chain. Every
+			// other command failure is surfaced so a locked or denied vault
+			// cannot silently downgrade.
+			return nil, nil
+		}
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
+		return nil, fmt.Errorf("symvault entry %q: %w", VaultEntryName, err)
 	}
 	raw := strings.TrimSpace(string(out))
 	if raw == "" {
