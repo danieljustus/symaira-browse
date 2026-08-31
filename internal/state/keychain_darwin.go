@@ -2,28 +2,18 @@
 
 package state
 
-import (
-	"errors"
-	"os/exec"
-	"strings"
-)
+import "os/exec"
+
+// runKeychainCommand is a seam for Darwin-focused tests and keeps the
+// security CLI invocation isolated from result classification.
+var runKeychainCommand = func(args ...string) ([]byte, error) {
+	return exec.Command("security", args...).Output()
+}
 
 // keychainGet reads a generic-password item via the macOS security CLI.
-// It returns (nil, false) when no item exists so the resolver can continue
-// down the key chain.
+// security exit code 44 means the item is absent; every other failure is
+// returned so callers do not silently downgrade to plaintext.
 func keychainGet(service, account string) ([]byte, bool, error) {
-	out, err := exec.Command("security", "find-generic-password", "-s", service, "-a", account, "-w").Output()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			// 44 = item not found; any other failure also falls through.
-			return nil, false, nil
-		}
-		return nil, false, nil
-	}
-	value := strings.TrimSpace(string(out))
-	if value == "" {
-		return nil, false, nil
-	}
-	return []byte(value), true, nil
+	out, err := runKeychainCommand("find-generic-password", "-s", service, "-a", account, "-w")
+	return keychainLookupResult(out, err)
 }

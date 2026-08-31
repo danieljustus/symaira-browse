@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
-	"time"
+
+	"github.com/danieljustus/symaira-browse/internal/state"
 )
 
 // VaultCredentials are the resolved username/password pair. The values live
@@ -27,28 +28,22 @@ type VaultResolver struct {
 
 // NewVaultResolver creates a resolver backed by the symvault binary.
 func NewVaultResolver() *VaultResolver {
-	return &VaultResolver{LookPath: exec.LookPath, Run: runVaultCommand}
-}
-
-func runVaultCommand(ctx context.Context, name string, args ...string) ([]byte, error) {
-	return exec.CommandContext(ctx, name, args...).Output()
+	return &VaultResolver{LookPath: exec.LookPath, Run: state.RunVaultCommand}
 }
 
 // ErrVaultUnavailable is returned when symvault is not installed. The CLI
 // maps it to a clear error with setup instructions and never offers a
 // plaintext fallback.
-var ErrVaultUnavailable = errors.New("symvault is not installed")
+var ErrVaultUnavailable = state.ErrVaultUnavailable
 
 // Resolve fetches one vault entry and extracts username/password. Supported
 // entry shapes: {"username": ..., "password": ...} JSON, "key: value" lines
 // and "key=value" lines. The raw output is never returned to callers.
 func (r *VaultResolver) Resolve(ctx context.Context, entry string) (VaultCredentials, error) {
-	if _, err := r.LookPath("symvault"); err != nil {
+	out, err := state.LookupVault(ctx, r.LookPath, r.Run, entry)
+	if errors.Is(err, state.ErrVaultUnavailable) {
 		return VaultCredentials{}, ErrVaultUnavailable
 	}
-	vaultCtx, cancel := context.WithTimeout(ctx, vaultCommandTimeout)
-	defer cancel()
-	out, err := r.Run(vaultCtx, "symvault", "get", entry)
 	if err != nil {
 		return VaultCredentials{}, fmt.Errorf("symvault could not resolve entry %q: %w", entry, err)
 	}
@@ -58,10 +53,6 @@ func (r *VaultResolver) Resolve(ctx context.Context, entry string) (VaultCredent
 	}
 	return creds, nil
 }
-
-// vaultCommandTimeout bounds vault CLI calls. It is applied by callers that
-// pass a context; kept as a constant so the timeout is defined once.
-const vaultCommandTimeout = 15 * time.Second
 
 // parseVaultOutput extracts username and password from common symvault
 // output shapes.

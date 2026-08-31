@@ -22,8 +22,10 @@ uses the first one that yields a valid 32-byte key:
 | 3 | **Environment variable** | `SYMBROWSE_ENCRYPTION_KEY` must hold a 64-character hex string (32 bytes). This is the documented fallback. |
 
 If none of the sources provides a key, state files are stored as plaintext.
-`state show` and `state list` report the active `key_source` field so you can
-verify whether encryption is active.
+Resolver failures are not treated as "no key": saves fail without changing the
+state file, so a temporary vault or keychain failure cannot silently downgrade
+an encrypted state to plaintext. `state show` and `state list` report the active
+`key_source` field so you can verify whether encryption is active.
 
 ## Enabling encryption
 
@@ -37,6 +39,9 @@ security add-generic-password -s symbrowse -a encryption-key -w "$KEY"
 
 After that, restart the daemon — `state show` will report
 `key_source: "keychain"` and all subsequent saves will be encrypted.
+If the `security` lookup exits with code 44, the item is treated as absent and
+resolution continues to the environment fallback. Any other keychain failure is
+reported and aborts a save.
 
 Alternatively, set the environment variable (e.g. in your shell profile):
 
@@ -51,7 +56,9 @@ under the entry name `symbrowse/encryption-key`.
 
 When no key source is available, saving still succeeds — the file is written
 as plain JSON. `state show` reports `key_source: "none"` so the absence of
-encryption is visible, not silent.
+encryption is visible, not silent. If an existing encrypted state is re-saved
+without a key, the daemon emits a warning and writes the plaintext fallback;
+restore the key before re-saving when encryption must be retained.
 
 ## Migration
 

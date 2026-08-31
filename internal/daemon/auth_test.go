@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 )
@@ -213,4 +214,20 @@ func (f *failingFillEngine) PerformInteraction(_ context.Context, _ engine.Page,
 		return errors.New("failed to type " + request.Value + " into field")
 	}
 	return f.fakeAuthEngine.PerformInteraction(context.Background(), engine.Page{}, engine.InteractionTarget{}, request)
+}
+
+func TestVaultResolverContextCancellationReachesCommand(t *testing.T) {
+	resolver := &VaultResolver{
+		LookPath: func(string) (string, error) { return "/usr/bin/symvault", nil },
+		Run: func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	_, err := resolver.Resolve(ctx, "entry")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Resolve() error = %v, want deadline exceeded", err)
+	}
 }

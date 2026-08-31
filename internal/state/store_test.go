@@ -2,8 +2,10 @@ package state
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -239,8 +241,9 @@ func TestEncryptedRoundTripAndKeySource(t *testing.T) {
 	if got.Origins["https://example.com"].Cookies[0].Value != "s3cret" {
 		t.Fatal("round trip lost cookie value")
 	}
-	if store.KeySource() != KeySourceEnv {
-		t.Fatalf("key source = %q", store.KeySource())
+	source, err := store.KeySource()
+	if err != nil || source != KeySourceEnv {
+		t.Fatalf("key source = %q, error = %v", source, err)
 	}
 }
 
@@ -265,8 +268,9 @@ func TestPlaintextFileSurvivesWithoutVault(t *testing.T) {
 	if err := store.Save(sampleState("plain")); err != nil {
 		t.Fatal(err)
 	}
-	if store.KeySource() != KeySourceNone {
-		t.Fatalf("key source = %q", store.KeySource())
+	source, err := store.KeySource()
+	if err != nil || source != KeySourceNone {
+		t.Fatalf("key source = %q, error = %v", source, err)
 	}
 	if _, err := store.Load("plain"); err != nil {
 		t.Fatal(err)
@@ -836,5 +840,172 @@ func TestHeaderNeverExposesSensitiveValuesDetailed(t *testing.T) {
 		if strings.Contains(rawStr, s) {
 			t.Fatalf("raw encrypted file leaked sensitive data %q", s)
 		}
+	}
+}
+
+func TestKeyResolverVaultCancellationReachesRunner(t *testing.T) {
+	started := make(chan struct{})
+	resolver := &KeyResolver{
+		LookPath: func(string) (string, error) { return "/usr/bin/symvault", nil },
+		RunVaultContext: func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+			close(started)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, _, err := resolver.resolveCached(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("resolution error = %v, want context cancellation", err)
+	}
+	select {
+	case <-started:
+	default:
+		t.Fatal("vault runner was not called")
+	}
+}
+
+func TestStoreSaveResolverErrorDoesNotWritePlaintext(t *testing.T) {
+	lookupErr := errors.New("keychain unavailable")
+	store := newTestStore(t, 30*24*time.Hour, &fakeKeyProvider{err: lookupErr})
+	if err := store.Save(sampleState("no-downgrade")); err == nil || !errors.Is(err, lookupErr) {
+		t.Fatalf("Save() error = %v, want resolver error", err)
+	}
+	if _, err := os.Stat(filepath.Join(store.Dir(), "no-downgrade.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("state file error = %v, want no file", err)
+	}
+	if _, err := store.KeySource(); !errors.Is(err, lookupErr) {
+		t.Fatalf("KeySource() error = %v, want resolver error", err)
+	}
+}
+
+func TestKeyResolverVaultLookupErrorPropagates(t *testing.T) {
+	lookupErr := errors.New("vault lookup failed")
+	resolver := &KeyResolver{
+		LookPath: func(string) (string, error) { return "/usr/bin/symvault", nil },
+		RunVaultContext: func(context.Context, string, ...string) ([]byte, error) {
+			return nil, lookupErr
+		},
+	}
+	if _, _, err := resolver.Key(); !errors.Is(err, lookupErr) {
+		t.Fatalf("Key() error = %v, want vault lookup error", err)
+	}
+	if _, err := resolver.Source(); !errors.Is(err, lookupErr) {
+		t.Fatalf("Source() error = %v, want vault lookup error", err)
+	}
+}
+
+func TestStoreResaveEncryptedStateWithoutKeyWarnsAndDowngradesExplicitly(t *testing.T) {
+	dir := t.TempDir()
+	encrypted, err := NewStore(StoreOptions{Dir: dir, Keys: &fakeKeyProvider{key: testKey(), source: KeySourceEnv}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := encrypted.Save(sampleState("resave")); err != nil {
+		t.Fatal(err)
+	}
+	plain, err := NewStore(StoreOptions{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := plain.Save(sampleState("resave")); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "resave.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "s3cret") {
+		t.Fatal("re-saved plaintext state does not contain expected plaintext payload")
+	}
+}
+
+func TestStoreResaveLoadedEncryptedStateClearsKeySourceHeader(t *testing.T) {
+	dir := t.TempDir()
+	keyed, err := NewStore(StoreOptions{Dir: dir, Keys: &fakeKeyProvider{key: testKey(), source: KeySourceEnv}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := keyed.Save(sampleState("loaded-resave")); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := keyed.Load("loaded-resave")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plain, err := NewStore(StoreOptions{Dir: dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := plain.Save(loaded); err != nil {
+		t.Fatal(err)
+	}
+
+	raw, err := os.ReadFile(filepath.Join(dir, "loaded-resave.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := raw[len(fileMagic):]
+	newlineIdx := bytes.IndexByte(data, '\n')
+	if newlineIdx == -1 {
+		t.Fatal("missing state header")
+	}
+	var header stateHeader
+	if err := json.Unmarshal(data[:newlineIdx], &header); err != nil {
+		t.Fatal(err)
+	}
+	if header.KeySource != string(KeySourceNone) {
+		t.Fatalf("key source header = %q, want none", header.KeySource)
+	}
+	if _, err := plain.Load("loaded-resave"); err != nil {
+		t.Fatalf("plain re-saved state could not be loaded: %v", err)
+	}
+}
+
+func TestKeyResolverConcurrentSourceAndKeyShareVaultResolution(t *testing.T) {
+	var calls atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var startOnce sync.Once
+	resolver := &KeyResolver{
+		LookPath: func(string) (string, error) { return "/usr/bin/symvault", nil },
+		RunVaultContext: func(ctx context.Context, _ string, _ ...string) ([]byte, error) {
+			calls.Add(1)
+			startOnce.Do(func() { close(started) })
+			select {
+			case <-release:
+				return []byte(strings.Repeat("ab", 32)), nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		},
+	}
+	keyResult := make(chan error, 1)
+	sourceResult := make(chan error, 1)
+	go func() {
+		key, source, err := resolver.Key()
+		if err == nil && (len(key) != 32 || source != KeySourceVault) {
+			err = fmt.Errorf("key len=%d source=%s", len(key), source)
+		}
+		keyResult <- err
+	}()
+	<-started
+	go func() {
+		source, err := resolver.Source()
+		if err == nil && source != KeySourceVault {
+			err = fmt.Errorf("source=%s", source)
+		}
+		sourceResult <- err
+	}()
+	close(release)
+	if err := <-keyResult; err != nil {
+		t.Fatalf("Key() error = %v", err)
+	}
+	if err := <-sourceResult; err != nil {
+		t.Fatalf("Source() error = %v", err)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("vault calls = %d, want 1", got)
 	}
 }
