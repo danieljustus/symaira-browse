@@ -17,6 +17,12 @@ func newTempCache(t *testing.T, ttl time.Duration) *cache.Cache {
 	return cache.New(dir, ttl, 0)
 }
 
+func newTempCacheWithClock(t *testing.T, ttl time.Duration, now func() time.Time) *cache.Cache {
+	t.Helper()
+	dir := t.TempDir()
+	return cache.NewWithClock(dir, ttl, 0, now)
+}
+
 func TestCacheGetMiss(t *testing.T) {
 	c := newTempCache(t, 15*time.Minute)
 	_, _, ok := c.Get("https://example.com", "chrome", "markdown", "", "")
@@ -48,7 +54,8 @@ func TestCachePutAndGet(t *testing.T) {
 
 func TestCacheTTLExpiry(t *testing.T) {
 	ttl := 50 * time.Millisecond
-	c := newTempCache(t, ttl)
+	now := time.Date(2026, 8, 31, 19, 0, 0, 0, time.UTC)
+	c := newTempCacheWithClock(t, ttl, func() time.Time { return now })
 
 	if err := c.Put("https://example.com", "chrome", "markdown", "", "", []byte("data"), cache.Meta{StatusCode: 200}); err != nil {
 		t.Fatal(err)
@@ -58,8 +65,7 @@ func TestCacheTTLExpiry(t *testing.T) {
 		t.Fatal("expected immediate hit")
 	}
 
-	time.Sleep(ttl + 20*time.Millisecond)
-
+	now = now.Add(ttl + time.Nanosecond)
 	if _, _, ok := c.Get("https://example.com", "chrome", "markdown", "", ""); ok {
 		t.Error("expected cache miss after TTL expiry")
 	}

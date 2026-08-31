@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,7 +53,13 @@ func Scan(pageHTML string, options ScanOptions) ([]ScanWarning, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse page html: %w", err)
 	}
-	scanner := &scanner{matcher: matcher, styleRules: collectStyleRules(document)}
+	styleRules := collectStyleRules(document)
+	scanner := &scanner{
+		matcher:    matcher,
+		styleRules: styleRules,
+		styleIndex: newStyleRuleIndex(styleRules),
+		styleCache: make(map[*html.Node]map[string]string),
+	}
 	scanner.walk(document, nil, "", false)
 	return scanner.warnings, nil
 }
@@ -61,6 +68,8 @@ func Scan(pageHTML string, options ScanOptions) ([]ScanWarning, error) {
 type scanner struct {
 	matcher    *patternMatcher
 	styleRules map[string][]string // selector -> declarations (from <style> blocks)
+	styleIndex styleRuleIndex
+	styleCache map[*html.Node]map[string]string
 	warnings   []ScanWarning
 }
 
@@ -184,67 +193,75 @@ func (s *scanner) scanAriaLabel(node *html.Node, ref string) {
 // limitation.
 func (s *scanner) hidden(node *html.Node, ancestors []*html.Node) (bool, string) {
 	for _, ancestor := range ancestors {
-		display, _ := s.styleValue(ancestor, "display")
-		if display == "none" {
+		styles := s.stylesFor(ancestor)
+		if styles["display"] == "none" {
 			return true, KindHiddenText
 		}
-		visibility, _ := s.styleValue(ancestor, "visibility")
-		if visibility == "hidden" {
+		if styles["visibility"] == "hidden" {
 			return true, KindHiddenText
 		}
 	}
-	display, _ := s.styleValue(node, "display")
-	if display == "none" {
+	styles := s.stylesFor(node)
+	if styles["display"] == "none" {
 		return true, KindHiddenText
 	}
-	visibility, _ := s.styleValue(node, "visibility")
-	if visibility == "hidden" {
+	if styles["visibility"] == "hidden" {
 		return true, KindHiddenText
 	}
-	fontSize, _ := s.styleValue(node, "font-size")
+	fontSize := styles["font-size"]
 	if fontSize == "0" || fontSize == "0px" || fontSize == "0em" || fontSize == "0pt" || fontSize == "0rem" {
 		return true, KindHiddenText
 	}
-	opacity, _ := s.styleValue(node, "opacity")
+	opacity := styles["opacity"]
 	if opacity == "0" || opacity == "0.0" || opacity == "0%" || opacity == "0.00" {
 		return true, KindHiddenText
 	}
-	position, _ := s.styleValue(node, "position")
-	left, _ := s.styleValue(node, "left")
-	top, _ := s.styleValue(node, "top")
+	position := styles["position"]
 	if position == "absolute" || position == "fixed" {
-		if negativeOffset(left) || negativeOffset(top) {
+		if negativeOffset(styles["left"]) || negativeOffset(styles["top"]) {
 			return true, KindHiddenText
 		}
 	}
-	foreground, _ := s.styleValue(node, "color")
-	background, _ := s.styleValue(node, "background-color")
+	foreground := styles["color"]
+	background := styles["background-color"]
 	if foreground != "" && background != "" && colorsEqual(foreground, background) {
 		return true, KindHiddenText
 	}
 	return false, ""
 }
 
-// styleValue returns the effective declaration for one property: inline
-// style wins, then matching <style> rules.
-func (s *scanner) styleValue(node *html.Node, property string) (string, bool) {
-	for _, attr := range node.Attr {
-		if strings.ToLower(attr.Key) == "style" {
-			if value, ok := declarationValue(attr.Val, property); ok {
-				return value, true
-			}
-		}
+func (s *scanner) stylesFor(node *html.Node) map[string]string {
+	if node == nil {
+		return nil
 	}
-	for selector, declarations := range s.styleRules {
-		if selectorMatches(node, selector) {
-			for _, declaration := range declarations {
-				if value, ok := declarationValue(declaration, property); ok {
-					return value, true
+	if s.styleCache == nil {
+		s.styleCache = make(map[*html.Node]map[string]string)
+	}
+	if len(s.styleIndex.rules) == 0 && len(s.styleRules) > 0 {
+		s.styleIndex = newStyleRuleIndex(s.styleRules)
+	}
+	if styles, ok := s.styleCache[node]; ok {
+		return styles
+	}
+	styles := make(map[string]string)
+	for _, attr := range node.Attr {
+		if strings.EqualFold(attr.Key, "style") {
+			for property, value := range parseDeclarations(attr.Val) {
+				if _, exists := styles[property]; !exists {
+					styles[property] = value
 				}
 			}
 		}
 	}
-	return "", false
+	for _, rule := range s.styleIndex.matching(node) {
+		for property, value := range rule.declarations {
+			if _, exists := styles[property]; !exists {
+				styles[property] = value
+			}
+		}
+	}
+	s.styleCache[node] = styles
+	return styles
 }
 
 // elementText collects the text content of an element (excluding script and
@@ -485,6 +502,124 @@ func normalizeText(text string) string {
 	return strings.ToLower(strings.Join(strings.Fields(text), " "))
 }
 
+// indexedStyleRule stores parsed selector parts and declarations so CSS
+// matching does not repeat string splitting or declaration parsing per property.
+type indexedStyleRule struct {
+	selector     string
+	parts        []string
+	declarations map[string]string
+}
+
+type styleRuleIndex struct {
+	rules   []indexedStyleRule
+	byID    map[string][]int
+	byClass map[string][]int
+	byTag   map[string][]int
+}
+
+func newStyleRuleIndex(rules map[string][]string) styleRuleIndex {
+	selectors := make([]string, 0, len(rules))
+	for selector := range rules {
+		selectors = append(selectors, selector)
+	}
+	sort.Strings(selectors)
+	index := styleRuleIndex{
+		byID:    make(map[string][]int),
+		byClass: make(map[string][]int),
+		byTag:   make(map[string][]int),
+	}
+	for _, selector := range selectors {
+		parts := strings.Fields(selector)
+		if len(parts) == 0 {
+			continue
+		}
+		declarations := make(map[string]string)
+		for _, declaration := range rules[selector] {
+			property, value, ok := parseDeclaration(declaration)
+			if ok {
+				if _, exists := declarations[property]; !exists {
+					declarations[property] = value
+				}
+			}
+		}
+		ruleIndex := len(index.rules)
+		index.rules = append(index.rules, indexedStyleRule{selector: selector, parts: parts, declarations: declarations})
+		rightmost := parts[len(parts)-1]
+		switch {
+		case strings.HasPrefix(rightmost, "#"):
+			index.byID[strings.TrimPrefix(rightmost, "#")] = append(index.byID[strings.TrimPrefix(rightmost, "#")], ruleIndex)
+		case strings.HasPrefix(rightmost, "."):
+			index.byClass[strings.TrimPrefix(rightmost, ".")] = append(index.byClass[strings.TrimPrefix(rightmost, ".")], ruleIndex)
+		default:
+			index.byTag[strings.ToLower(rightmost)] = append(index.byTag[strings.ToLower(rightmost)], ruleIndex)
+		}
+	}
+	return index
+}
+
+func (i styleRuleIndex) matching(node *html.Node) []indexedStyleRule {
+	if node == nil || len(i.rules) == 0 {
+		return nil
+	}
+	candidateSet := make(map[int]struct{})
+	for _, attr := range node.Attr {
+		switch strings.ToLower(attr.Key) {
+		case "id":
+			for _, ruleIndex := range i.byID[attr.Val] {
+				candidateSet[ruleIndex] = struct{}{}
+			}
+		case "class":
+			for _, className := range strings.Fields(attr.Val) {
+				for _, ruleIndex := range i.byClass[className] {
+					candidateSet[ruleIndex] = struct{}{}
+				}
+			}
+		}
+	}
+	for _, ruleIndex := range i.byTag[strings.ToLower(node.Data)] {
+		candidateSet[ruleIndex] = struct{}{}
+	}
+	candidates := make([]int, 0, len(candidateSet))
+	for ruleIndex := range candidateSet {
+		candidates = append(candidates, ruleIndex)
+	}
+	sort.Ints(candidates)
+	matched := make([]indexedStyleRule, 0, len(candidates))
+	for _, ruleIndex := range candidates {
+		rule := i.rules[ruleIndex]
+		if selectorPartsMatch(node, rule.parts) {
+			matched = append(matched, rule)
+		}
+	}
+	return matched
+}
+
+func parseDeclarations(source string) map[string]string {
+	values := make(map[string]string)
+	for _, declaration := range strings.Split(source, ";") {
+		property, value, ok := parseDeclaration(declaration)
+		if ok {
+			if _, exists := values[property]; !exists {
+				values[property] = value
+			}
+		}
+	}
+	return values
+}
+
+func parseDeclaration(declaration string) (string, string, bool) {
+	colon := strings.IndexByte(declaration, ':')
+	if colon <= 0 {
+		return "", "", false
+	}
+	property := strings.ToLower(strings.TrimSpace(declaration[:colon]))
+	value := strings.TrimSpace(declaration[colon+1:])
+	if property == "" || value == "" {
+		return "", "", false
+	}
+	return property, value, true
+}
+
 // collectStyleRules extracts selector -> declarations maps from <style>
 // blocks. Selector support is deliberately simple: id, class, element, and
 // single-descendant combinations; @media and complex selectors are ignored
@@ -561,10 +696,7 @@ func parseStyleBlock(block string) (selector string, declarations []string, ok b
 	return selector, declarations, true
 }
 
-// selectorMatches supports id, class, element, and space-separated
-// descendant selectors against the element's ancestry.
-func selectorMatches(node *html.Node, selector string) bool {
-	parts := strings.Fields(selector)
+func selectorPartsMatch(node *html.Node, parts []string) bool {
 	if len(parts) == 0 {
 		return false
 	}
@@ -618,25 +750,6 @@ func simpleSelectorMatches(node *html.Node, selector string) bool {
 	return strings.EqualFold(node.Data, selector)
 }
 
-// declarationValue extracts one property from a style attribute or
-// declaration list.
-func declarationValue(source, property string) (string, bool) {
-	lower := strings.ToLower(source)
-	index := strings.Index(lower, property+":")
-	if index < 0 {
-		return "", false
-	}
-	rest := source[index+len(property)+1:]
-	if semicolon := strings.Index(rest, ";"); semicolon >= 0 {
-		rest = rest[:semicolon]
-	}
-	value := strings.TrimSpace(rest)
-	if value == "" {
-		return "", false
-	}
-	return value, true
-}
-
 var offsetPattern = regexp.MustCompile(`^-(\d+)(px|em|rem|pt|%)?$`)
 
 // negativeOffset reports whether a length value is a strongly negative
@@ -671,6 +784,14 @@ func colorsEqual(a, b string) bool {
 
 var hexColorPattern = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
 
+var namedColors = map[string][3]int{
+	"white": {255, 255, 255}, "black": {0, 0, 0},
+	"red": {255, 0, 0}, "green": {0, 128, 0}, "blue": {0, 0, 255},
+	"gray": {128, 128, 128}, "grey": {128, 128, 128},
+	"silver": {192, 192, 192}, "yellow": {255, 255, 0},
+	"transparent": {0, 0, 0},
+}
+
 func parseColor(value string) (r, g, b int, ok bool) {
 	value = strings.ToLower(strings.TrimSpace(value))
 	if match := hexColorPattern.FindStringSubmatch(value); match != nil {
@@ -684,14 +805,7 @@ func parseColor(value string) (r, g, b int, ok bool) {
 		}
 		return int(raw >> 16 & 0xff), int(raw >> 8 & 0xff), int(raw & 0xff), true
 	}
-	named := map[string][3]int{
-		"white": {255, 255, 255}, "black": {0, 0, 0},
-		"red": {255, 0, 0}, "green": {0, 128, 0}, "blue": {0, 0, 255},
-		"gray": {128, 128, 128}, "grey": {128, 128, 128},
-		"silver": {192, 192, 192}, "yellow": {255, 255, 0},
-		"transparent": {0, 0, 0},
-	}
-	if rgb, exists := named[value]; exists {
+	if rgb, exists := namedColors[value]; exists {
 		return rgb[0], rgb[1], rgb[2], true
 	}
 	return 0, 0, 0, false

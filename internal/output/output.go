@@ -154,8 +154,7 @@ func writeHuman(w io.Writer, envelope Envelope) error {
 		_, err := fmt.Fprintln(w, text)
 		return err
 	}
-	_, err := fmt.Fprintln(w, envelope.Data)
-	return err
+	return writeHumanValue(w, envelope.Data)
 }
 
 // truncationMarker detects the budget truncation payload (daemon-side,

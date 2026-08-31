@@ -34,6 +34,7 @@ type Meta struct {
 type Cache struct {
 	dir          string
 	ttl          time.Duration
+	now          func() time.Time
 	maxSize      int64
 	mu           sync.RWMutex
 	indexMgr     *indexManager
@@ -51,13 +52,22 @@ type Cache struct {
 // trusted as-is, avoiding startup latency proportional to cache size on
 // every invocation.
 func New(dir string, ttl time.Duration, maxSize int64) *Cache {
+	return NewWithClock(dir, ttl, maxSize, time.Now)
+}
+
+// NewWithClock creates a Cache with an injected clock. Production callers
+// should use New; the clock seam keeps TTL tests deterministic without sleeps.
+func NewWithClock(dir string, ttl time.Duration, maxSize int64, now func() time.Time) *Cache {
+	if now == nil {
+		now = time.Now
+	}
 	ensureCacheDir(dir)
 	im := newIndexManager(dir)
 	valid, _ := im.load()
 	if maxSize <= 0 {
 		maxSize = defaultMaxSize
 	}
-	c := &Cache{dir: dir, ttl: ttl, maxSize: maxSize, indexMgr: im}
+	c := &Cache{dir: dir, ttl: ttl, now: now, maxSize: maxSize, indexMgr: im}
 	if !valid {
 		c.reconcileIndex()
 	}
@@ -154,7 +164,7 @@ func (c *Cache) Get(url, profile, format, session, contentKey string) ([]byte, *
 	if ttl <= 0 {
 		ttl = c.ttl
 	}
-	if time.Since(m.StoredAt) > ttl {
+	if c.now().Sub(m.StoredAt) > ttl {
 		return nil, nil, false
 	}
 	body, err := os.ReadFile(c.bodyPath(k))
@@ -175,7 +185,7 @@ func (c *Cache) Put(url, profile, format, session, contentKey string, body []byt
 		return err
 	}
 
-	meta.StoredAt = time.Now()
+	meta.StoredAt = c.now()
 	meta.TTL = c.ttl
 
 	metaData, err := json.MarshalIndent(meta, "", "  ")
@@ -213,7 +223,7 @@ type cacheEntryInfo struct {
 }
 
 func (c *Cache) evictIfOverSize() {
-	if time.Since(c.lastEviction) < evictionDebounce {
+	if c.now().Sub(c.lastEviction) < evictionDebounce {
 		return
 	}
 
@@ -240,11 +250,11 @@ func (c *Cache) evictIfOverSize() {
 		slog.Debug("evicted cache entry", "key", entry.Key)
 	}
 
-	c.lastEviction = time.Now()
+	c.lastEviction = c.now()
 
-	if c.indexMgr.needsSave() && time.Since(c.lastSave) > time.Minute {
+	if c.indexMgr.needsSave() && c.now().Sub(c.lastSave) > time.Minute {
 		c.indexMgr.save()
-		c.lastSave = time.Now()
+		c.lastSave = c.now()
 	}
 }
 
