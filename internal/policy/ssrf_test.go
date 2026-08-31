@@ -149,11 +149,11 @@ func TestSSRFResolverCanUseLocalDNSResolver(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resolver.Close()
+	t.Cleanup(func() { _ = resolver.Close() })
 
 	conn, err := ssrfResolver.Dial(context.Background(), "udp", resolver.LocalAddr().String())
 	if err != nil {
 		t.Fatalf("DNS resolver must be allowed to use a local resolver: %v", err)
 	}
-	conn.Close()
+	_ = conn.Close()
 }
