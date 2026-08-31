@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -99,16 +100,13 @@ func (s *Store) WithKeyProvider(keys KeyProvider) *Store {
 }
 
 // KeySource returns the currently active key source label ("none" when the
-// store has no key provider).
-func (s *Store) KeySource() KeySource {
+// store has no key provider). Resolver failures are returned so callers cannot
+// accidentally downgrade an encrypted save to plaintext.
+func (s *Store) KeySource() (KeySource, error) {
 	if s.keys == nil {
-		return KeySourceNone
+		return KeySourceNone, nil
 	}
-	source, err := s.keys.Source()
-	if err != nil {
-		return KeySourceNone
-	}
-	return source
+	return s.keys.Source()
 }
 
 // Dir returns the store root directory.
@@ -154,8 +152,12 @@ func (s *Store) Save(st *State) error {
 	now := s.now()
 	st.SavedAt = now.UTC().Format(time.RFC3339Nano)
 	st.ExpiresAt = now.Add(s.expireIn).UTC().Format(time.RFC3339Nano)
+	source, err := s.KeySource()
+	if err != nil {
+		return fmt.Errorf("resolve state encryption key: %w", err)
+	}
 	if st.KeySource == "" {
-		st.KeySource = string(s.KeySource())
+		st.KeySource = string(source)
 	}
 	if st.Origins == nil {
 		st.Origins = map[string]OriginState{}
@@ -164,10 +166,38 @@ func (s *Store) Save(st *State) error {
 	if err != nil {
 		return err
 	}
+	if source == KeySourceNone {
+		if previous, ok := s.existingEncryptedKeySource(st.Name); ok {
+			slog.Warn("re-saving encrypted state without an encryption key", "state", st.Name, "previous_key_source", previous)
+		}
+	}
 	if err := fsutil.AtomicWriteFile(s.path(st.Name), raw, 0o600); err != nil {
 		return fmt.Errorf("write state %q: %w", st.Name, err)
 	}
 	return nil
+}
+
+// existingEncryptedKeySource reads only the unencrypted metadata header to
+// identify an encrypted file before a save. It is used for a warning only; the
+// normal load path still authenticates encrypted headers.
+func (s *Store) existingEncryptedKeySource(name string) (KeySource, bool) {
+	raw, err := os.ReadFile(s.path(name))
+	if err != nil || !bytes.HasPrefix(raw, fileMagic) {
+		return "", false
+	}
+	data := raw[len(fileMagic):]
+	newlineIdx := bytes.IndexByte(data, '\n')
+	if newlineIdx == -1 {
+		return "", false
+	}
+	var hdr stateHeader
+	if err := json.Unmarshal(data[:newlineIdx], &hdr); err != nil || hdr.SchemaVersion < 2 {
+		return "", false
+	}
+	if hdr.KeySource == "" || hdr.KeySource == string(KeySourceNone) {
+		return "", false
+	}
+	return KeySource(hdr.KeySource), true
 }
 
 // Load reads and decodes one named state.
