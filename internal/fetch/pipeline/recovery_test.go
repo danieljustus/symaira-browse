@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
@@ -48,5 +49,15 @@ func TestRecoveryRankCandidates(t *testing.T) {
 	}
 	if candidates[0].URL != "https://example.com/docs/guide" {
 		t.Fatalf("top candidate = %q, want exact guide URL", candidates[0].URL)
+	}
+}
+
+func TestLevenshteinBoundsOversizedInput(t *testing.T) {
+	large := strings.Repeat("x", maxLevenshteinInput+1)
+	if got := levenshtein(large, "target"); got != len(large) {
+		t.Fatalf("levenshtein oversized input = %d, want %d", got, len(large))
+	}
+	if got := fuzzyScore("target", large, ""); got != 0 {
+		t.Fatalf("fuzzyScore oversized input = %f, want 0", got)
 	}
 }
