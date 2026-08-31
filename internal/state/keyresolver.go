@@ -186,10 +186,12 @@ func (r *KeyResolver) vaultKey(ctx context.Context) ([]byte, error) {
 		if errors.Is(err, ErrVaultUnavailable) || errors.Is(err, os.ErrNotExist) {
 			return nil, nil
 		}
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			// A completed symvault command that reports a missing or locked
-			// entry preserves the resolver's fallback order.
+		var exitErr interface{ ExitCode() int }
+		if errors.As(err, &exitErr) && (exitErr.ExitCode() == vaultEntryNotFoundExitCode || exitErr.ExitCode() == vaultNotInitializedExitCode) {
+			// ExitNotFound and ExitNotInitialized mean no usable entry is
+			// configured; continue the documented resolution chain. Every
+			// other command failure is surfaced so a locked or denied vault
+			// cannot silently downgrade.
 			return nil, nil
 		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {

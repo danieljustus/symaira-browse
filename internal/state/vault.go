@@ -9,7 +9,11 @@ import (
 
 // VaultCommandTimeout is the maximum time allowed for one symvault CLI lookup.
 // Both daemon credential and state-key lookups use this same bound.
-const VaultCommandTimeout = 15 * time.Second
+const (
+	VaultCommandTimeout         = 15 * time.Second
+	vaultEntryNotFoundExitCode  = 2 // symvault's public ExitNotFound contract
+	vaultNotInitializedExitCode = 3 // no vault exists yet; continue fallback
+)
 
 // ErrVaultUnavailable indicates that symvault is not installed or cannot be
 // discovered on PATH.
