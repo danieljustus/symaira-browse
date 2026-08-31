@@ -60,17 +60,17 @@ SymFetch output schema. Without Chrome, use the JS-free static engine:
 
 ```text
 $ ./symbrowse open "https://example.com" --session research
-map[action:open http_status:200 url:https://example.com/]
+open https://example.com/ (HTTP 200)
 
 $ ./symbrowse snapshot --session research
 snap-1 tree:
-  - document "Example Domain" [ref=e5]
-    - heading "Example Domain" [ref=e2]
-    - paragraph [ref=e1]
-      - statictext "This domain is for use in documentation examples without needing permission. Avoid use in operations." [ref=e12]
-    - paragraph [ref=e10]
-      - link "Learn more" [ref=e6]
-        - statictext "Learn more" [ref=e5]
+- document "Example Domain" [ref=e5]
+  - heading "Example Domain" [ref=e2]
+  - paragraph [ref=e1]
+    - statictext "This domain is for use in documentation examples without needing permission. Avoid use in operations." [ref=e12]
+  - paragraph [ref=e10]
+    - link "Learn more" [ref=e6]
+      - statictext "Learn more" [ref=e5]
 
 $ ./symbrowse read "https://example.com" --session research --engine-hint
 ---

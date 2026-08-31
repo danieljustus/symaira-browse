@@ -141,7 +141,7 @@ func TestWriteHumanEnvelopeVariants(t *testing.T) {
 			"head":            "HEAD TEXT",
 			"foot":            "FOOT TEXT",
 		}, nil), want: "HEAD TEXT\n\n… [truncated: 90 of 18400 tokens] …\n\nFOOT TEXT\n\nfull output: symbrowse cache get out_abc --range 40-120\n"},
-		{name: "plain map is not a marker", envelope: OK(map[string]any{"truncated": "yes"}, nil), want: "map[truncated:yes]\n"},
+		{name: "plain map is not a marker", envelope: OK(map[string]any{"truncated": "yes"}, nil), want: "{\n  \"truncated\": \"yes\"\n}\n"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
