@@ -62,16 +62,13 @@ Hintergrundaktivität des Menschen) sind nicht abgedeckt — der Daemon warnt
 beim Start mit `network_policy.limitation`. Für garantierte Durchsetzung
 einen eigenen Browser mit privatem Profil starten.
 
-## Abweichungen zu `symfetch` (dokumentiert)
+## Gemeinsame SSRF-Policy
 
-Der Guard ist bewusst mit `symfetch` (`internal/fetch/guard.go`) deckungsgleich
-gebaut: dieselben privaten Bereiche, dieselbe Fail-closed-Auflösung, dasselbe
-`AllowPrivate`-Opt-out. Dokumentierte Abweichungen:
+Der Guard verwendet für `symbrowse` und den statischen Fetch dieselbe Policy aus
+`internal/policy`: dieselben privaten Bereiche, dieselbe Fail-closed-Auflösung
+und dieselben Namensregeln. `.local`-Namen und `localhost` werden unabhängig von
+der DNS-Auflösung blockiert; `--allow-private` bleibt der explizite Opt-out.
 
-1. **`.local`/`localhost`-Suffix-Sperre:** `symfetch` blockt `.local` nicht
-   explizit. `symbrowse` blockt den Suffix zusätzlich, damit mDNS-Namen auch
-   bei fehlschlagender Auflösung nicht durchrutschen.
-2. **Default im Daemon-Modus:** `symfetch` hat den Guard grundsätzlich an
-   (Opt-out per `AllowPrivate`). `symbrowse` hat ihn im regulären
-   Daemon-Modus opt-in (`--ssrf`), um lokale Workflows und Fixture-Tests
-   nicht zu brechen; der MCP-Modus ist wie bei `symfetch` deny-by-default.
+Die Aktivierungsdefaults unterscheiden sich weiterhin: Der statische Fetch ist
+standardmäßig geschützt, während der reguläre `symbrowse daemon` den Guard erst
+mit `--ssrf` aktiviert. Im MCP-Modus ist der Guard standardmäßig aktiv.
