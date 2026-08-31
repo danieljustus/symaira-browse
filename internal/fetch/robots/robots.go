@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // DefaultTTL is the cache lifetime for a domain's robots.txt rules.
@@ -87,7 +88,7 @@ func (c *Checker) Check(ctx context.Context, userAgent, rawURL string) (bool, er
 	domain := u.Scheme + "://" + u.Host
 	groups, err := c.groupsForDomain(ctx, domain)
 	if err != nil {
-		var blocked *fetch.ErrBlockedPrivate
+		var blocked *policy.BlockedPrivateError
 		if errors.As(err, &blocked) {
 			return false, nil
 		}
@@ -280,7 +281,7 @@ func (c *Checker) Sitemaps(ctx context.Context, userAgent, rawURL string) ([]str
 	domain := u.Scheme + "://" + u.Host
 	groups, err := c.groupsForDomain(ctx, domain)
 	if err != nil {
-		var blocked *fetch.ErrBlockedPrivate
+		var blocked *policy.BlockedPrivateError
 		if errors.As(err, &blocked) {
 			return nil, err
 		}

@@ -30,10 +30,16 @@ var ssrfResolver = &net.Resolver{
 	},
 }
 
-// ssrfLookupFunc resolves a hostname to IP addresses. It is a field so tests
-// can inject a deterministic resolver (DNS-rebinding fixtures) without
-// touching the network.
-type ssrfLookupFunc func(ctx context.Context, host string) ([]string, error)
+// LookupFunc resolves a hostname to IP addresses. Callers can provide one to
+// make SSRF decisions deterministic without touching the network.
+type LookupFunc func(ctx context.Context, host string) ([]string, error)
+
+// ssrfLookupFunc is retained as a package-local alias for focused tests.
+type ssrfLookupFunc = LookupFunc
+
+func defaultSSRFLookup(ctx context.Context, host string) ([]string, error) {
+	return ssrfResolver.LookupHost(ctx, host)
+}
 
 // SSRFGuard blocks requests to private network ranges. It is deny-by-default
 // while enabled: RFC1918, loopback, link-local, .local mDNS names, IPv6
@@ -44,19 +50,42 @@ type ssrfLookupFunc func(ctx context.Context, host string) ([]string, error)
 type SSRFGuard struct {
 	enabled      bool
 	allowPrivate bool
-	lookup       ssrfLookupFunc
+	lookup       LookupFunc
 }
 
 // NewSSRFGuard builds a guard. allowPrivate relaxes the policy so that
 // private targets are permitted (the --allow-private opt-in).
 func NewSSRFGuard(allowPrivate bool) *SSRFGuard {
+	return NewSSRFGuardWithLookup(allowPrivate, nil)
+}
+
+// NewSSRFGuardWithLookup builds a guard with an injectable hostname resolver.
+// A nil lookup uses the canonical system resolver used by NewSSRFGuard.
+func NewSSRFGuardWithLookup(allowPrivate bool, lookup LookupFunc) *SSRFGuard {
+	if lookup == nil {
+		lookup = defaultSSRFLookup
+	}
 	return &SSRFGuard{
 		enabled:      true,
 		allowPrivate: allowPrivate,
-		lookup: func(ctx context.Context, host string) ([]string, error) {
-			return ssrfResolver.LookupHost(ctx, host)
-		},
+		lookup:       lookup,
 	}
+}
+
+// CheckSSRF returns an error if rawURL targets a blocked private/loopback
+// address. It is the raw-URL entry point for the canonical SSRF policy.
+func CheckSSRF(rawURL string) error {
+	return CheckSSRFWithLookup(rawURL, nil)
+}
+
+// CheckSSRFWithLookup is CheckSSRF with an injectable hostname lookup for
+// deterministic callers and tests. A nil lookup uses policy's default resolver.
+func CheckSSRFWithLookup(rawURL string, lookup LookupFunc) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	return NewSSRFGuardWithLookup(false, lookup).AllowsURL(u)
 }
 
 // Enabled reports whether the guard is active. A nil guard is inactive.
@@ -95,9 +124,8 @@ func (g *SSRFGuard) AllowsHost(hostname, raw string) error {
 		return &BlockedPrivateError{URL: raw}
 	}
 	// .local is the mDNS namespace: it resolves through link-local
-	// multicast and almost always lands on private addresses. It is
-	// blocked by suffix so a resolution failure cannot be used to slip
-	// past the guard. (Deviation from symfetch, documented in docs/ssrf.md.)
+	// multicast and almost always lands on private addresses. It is blocked
+	// by suffix so a resolution failure cannot be used to slip past the guard.
 	if strings.HasSuffix(host, ".local") || host == "localhost" {
 		return &BlockedPrivateError{URL: raw}
 	}
@@ -105,7 +133,11 @@ func (g *SSRFGuard) AllowsHost(hostname, raw string) error {
 	// fails closed: a rebinding host or NXDOMAIN bypass must not proceed.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	ips, err := g.lookup(ctx, host)
+	lookup := g.lookup
+	if lookup == nil {
+		lookup = defaultSSRFLookup
+	}
+	ips, err := lookup(ctx, host)
 	if err != nil {
 		return fmt.Errorf("DNS resolution failed for %s: %w", host, err)
 	}
