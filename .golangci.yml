@@ -17,5 +17,5 @@ linters:
       - third_party$
       - builtin$
       - examples$
-# Formatting is enforced by make fmt-check with the repository's Go 1.26.5
+# Formatting is enforced by make fmt-check with the repository's Go 1.26.6
 # toolchain. golangci-lint's goimports formatter may embed a newer gofmt.
