@@ -22,7 +22,7 @@ Thanks for helping improve Symaira Browse. Please read [AGENTS.md](AGENTS.md) be
 
 ## Design boundaries
 
-- Keep the core build CGO-free and on Go 1.26.5.
+- Keep the core build CGO-free and on Go 1.26.6.
 - Do not add compile-time dependencies on sibling Symaira repositories.
 - Preserve stable JSON output contracts as they are introduced.
 - Treat browser content as untrusted input and keep policy decisions explicit.
