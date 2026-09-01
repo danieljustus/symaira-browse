@@ -36,7 +36,7 @@ brew install symbrowse
 go install github.com/danieljustus/symaira-browse/cmd/symbrowse@latest
 ```
 
-**From source** (requires Go 1.26.5, POSIX shell, GNU Make; CGO-free):
+**From source** (requires Go 1.26.6, POSIX shell, GNU Make; CGO-free):
 
 ```sh
 make build
@@ -106,7 +106,7 @@ navigation and re-renders.
 
 ```text
 $ ./symbrowse version
-symbrowse v0.6.0
+symbrowse v0.6.1
 
 $ ./symbrowse --help
 symbrowse is the standalone command-line entrypoint for Symaira Browse.
