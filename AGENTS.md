@@ -5,7 +5,7 @@ more detail, the per-topic documents under [docs/](docs) are the reference.
 
 ## Project invariants
 
-- Use Go 1.26.5, keep builds CGO-free with `CGO_ENABLED=0`, and preserve the Apache-2.0 license.
+- Use Go 1.26.6, keep builds CGO-free with `CGO_ENABLED=0`, and preserve the Apache-2.0 license.
 - Do not write to `os.Stdout` outside JSON-RPC frames. Route logs through `logkit` to stderr once the corekit wiring is introduced.
 - Follow the standalone-first boundary: do not add compile-time imports of sibling Symaira repositories. Integrations must be runtime-detected and have a fallback.
 - Every new output must provide a JSON mode with a stable field schema.
