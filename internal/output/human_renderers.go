@@ -12,9 +12,11 @@ import (
 // to deterministic indented JSON for payloads without a dedicated renderer.
 // JSON and YAML callers never reach this path.
 func writeHumanValue(w io.Writer, data any) error {
-	if rendered, ok := renderHumanPayload(data); ok {
-		_, err := io.WriteString(w, rendered)
-		return err
+	if fields, ok := humanFields(data); ok {
+		if rendered, ok := renderHumanPayload(fields); ok {
+			_, err := io.WriteString(w, rendered)
+			return err
+		}
 	}
 
 	raw, err := json.MarshalIndent(data, "", "  ")
@@ -27,11 +29,7 @@ func writeHumanValue(w io.Writer, data any) error {
 	return err
 }
 
-func renderHumanPayload(data any) (string, bool) {
-	fields, ok := humanFields(data)
-	if !ok {
-		return "", false
-	}
+func renderHumanPayload(fields map[string]any) (string, bool) {
 	if rendered, ok := renderSnapshotPayload(fields); ok {
 		return rendered, true
 	}
@@ -141,7 +139,7 @@ func renderSnapshotDiff(fields map[string]any) string {
 }
 
 func snapshotItemText(item any) string {
-	fields, ok := humanFields(item)
+	fields, ok := item.(map[string]any)
 	if !ok {
 		return fmt.Sprint(item)
 	}
@@ -234,7 +232,7 @@ func renderStateMetadata(fields map[string]any, heading string) string {
 }
 
 func originMetadataText(origin any) string {
-	fields, ok := humanFields(origin)
+	fields, ok := origin.(map[string]any)
 	if !ok {
 		return fmt.Sprint(origin)
 	}
@@ -266,7 +264,7 @@ func renderCookiesPayload(fields map[string]any) (string, bool) {
 }
 
 func cookieText(cookie any) string {
-	fields, ok := humanFields(cookie)
+	fields, ok := cookie.(map[string]any)
 	if !ok {
 		return fmt.Sprint(cookie)
 	}
@@ -320,7 +318,7 @@ func renderTabsPayload(fields map[string]any) (string, bool) {
 }
 
 func tabText(tab any) string {
-	fields, ok := humanFields(tab)
+	fields, ok := tab.(map[string]any)
 	if !ok {
 		return fmt.Sprint(tab)
 	}
@@ -386,7 +384,8 @@ func mapField(fields map[string]any, key string) (map[string]any, bool) {
 	if !ok {
 		return nil, false
 	}
-	return humanFields(value)
+	result, ok := value.(map[string]any)
+	return result, ok
 }
 
 func stringField(fields map[string]any, key string) (string, bool) {

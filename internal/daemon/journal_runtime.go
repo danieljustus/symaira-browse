@@ -9,6 +9,7 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/journal"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 	"github.com/danieljustus/symaira-browse/internal/trace"
 )
 
@@ -49,7 +50,7 @@ func (r *JournalRuntime) HandleWithDecider(ctx context.Context, frame Frame, dec
 		Command:    frame.Cmd,
 		Args:       frame.Args,
 		URLBefore:  urlBefore,
-		RiskClass:  riskClassOf(frame.Cmd),
+		RiskClass:  string(policy.ClassForCommand(frame.Cmd)),
 		Decider:    decider,
 		DurationMS: duration,
 	}
@@ -113,7 +114,7 @@ func (r *JournalRuntime) HandleOOB(ctx context.Context, frame Frame, handler fun
 		Session:    frame.Session,
 		Command:    frame.Cmd,
 		Args:       frame.Args,
-		RiskClass:  riskClassOf(frame.Cmd),
+		RiskClass:  string(policy.ClassForCommand(frame.Cmd)),
 		Decider:    "human",
 		DurationMS: time.Since(started).Milliseconds(),
 	}
