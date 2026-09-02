@@ -37,6 +37,10 @@ type KeyResolver struct {
 	RunVault func(string, ...string) ([]byte, error)
 	// RunVaultContext is the context-aware symvault test seam.
 	RunVaultContext VaultRunner
+	// SetVaultContext provisions a value in a symvault entry through stdin.
+	SetVaultContext VaultSetter
+	// KeychainSet provisions a generic-password item when the OS supports it.
+	KeychainSet func(service, account string, value []byte) error
 	// KeychainGet returns the secret for the given service/account, or
 	// (nil, false) when no item exists.
 	KeychainGet func(service, account string) ([]byte, bool, error)
@@ -56,6 +60,8 @@ func NewKeyResolver() *KeyResolver {
 	return &KeyResolver{
 		LookPath:        exec.LookPath,
 		RunVaultContext: RunVaultCommand,
+		SetVaultContext: RunVaultSetCommand,
+		KeychainSet:     keychainSet,
 		KeychainGet:     keychainGet,
 		Env:             os.Getenv,
 	}

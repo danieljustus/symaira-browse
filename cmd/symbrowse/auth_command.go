@@ -36,6 +36,9 @@ func newAuthLoginCommand(session *string) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if structuredOutput(cmd) {
+				return writeEnvelopeFromResponse(cmd, response)
+			}
 			if !response.Success {
 				return responseError(response)
 			}
