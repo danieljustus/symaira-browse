@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/net/html"
 )
@@ -356,13 +357,19 @@ type patternMatcher struct {
 	root *ahoNode
 }
 
+type customMatcherEntry struct {
+	matcher *patternMatcher
+	size    int64
+	modTime time.Time
+}
+
 var (
 	embeddedMatcher     *patternMatcher
 	embeddedMatcherOnce sync.Once
 	embeddedMatcherErr  error
 
 	customMatcherMu    sync.RWMutex
-	customMatcherCache = make(map[string]*patternMatcher)
+	customMatcherCache = make(map[string]customMatcherEntry)
 )
 
 // matchPattern reports the first pattern contained in text, or "".
@@ -405,30 +412,34 @@ func loadMatcher(path string) (*patternMatcher, error) {
 		return embeddedMatcher, nil
 	}
 
-	raw, err := os.ReadFile(path)
+	info, err := os.Stat(path)
 	if err != nil {
 		return nil, fmt.Errorf("read injection pattern file: %w", err)
 	}
 
-	cacheKey := path + "\x00" + string(raw)
 	customMatcherMu.RLock()
-	matcher, ok := customMatcherCache[cacheKey]
+	entry, ok := customMatcherCache[path]
 	customMatcherMu.RUnlock()
-	if ok {
-		return matcher, nil
+	if ok && entry.size == info.Size() && entry.modTime.Equal(info.ModTime()) {
+		return entry.matcher, nil
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read injection pattern file: %w", err)
 	}
 
 	patterns, err := parsePatternList(string(raw))
 	if err != nil {
 		return nil, err
 	}
-	matcher, err = compileMatcher(patterns)
+	matcher, err := compileMatcher(patterns)
 	if err != nil {
 		return nil, err
 	}
 
 	customMatcherMu.Lock()
-	customMatcherCache[cacheKey] = matcher
+	customMatcherCache[path] = customMatcherEntry{matcher: matcher, size: info.Size(), modTime: info.ModTime()}
 	customMatcherMu.Unlock()
 	return matcher, nil
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // AuthRuntime implements credential login through symvault. Credentials are
@@ -107,15 +105,4 @@ func (r *AuthRuntime) Handle(ctx context.Context, frame Frame) (any, []Warning, 
 	default:
 		return nil, nil, errors.New("unknown auth command")
 	}
-}
-
-// riskClassOf reports the risk class of a command via the policy
-// classification table (issue B-43). Unclassified commands fall back to
-// "interact" so the journal stays complete.
-func riskClassOf(command string) string {
-	class, err := policy.Classify(command)
-	if err != nil {
-		return string(policy.ClassInteract)
-	}
-	return string(class)
 }
