@@ -10,7 +10,7 @@
 
 > The browser an agent can operate while a person can take over at any time — without losing the session.
 
-**Status:** pre-1.0 — the command surface is stabilizing under [SemVer](https://semver.org/); see [CHANGELOG.md](CHANGELOG.md) for the release history.
+**Status:** pre-1.0 — the command surface is stabilizing under [SemVer](https://semver.org/); see [CHANGELOG.md](CHANGELOG.md) for curated highlights and [GitHub Releases](https://github.com/danieljustus/symaira-browse/releases) for the complete release history.
 
 ## Why symbrowse
 

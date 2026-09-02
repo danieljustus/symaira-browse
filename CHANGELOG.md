@@ -7,15 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+No unreleased changes.
 
-- Public `formflow` package: the consumable web-form automation contract for downstream products — typed outcome taxonomy (`success`, `form_not_found`, `field_not_found`, `navigation_timeout`, `blocked_captcha`, `blocked_botwall`, `interaction_failed`, `submit_failed`, `confirmation_failed`), deterministic evidence capture (pre/post-submit screenshots, final URL, page text), and an in-process Go API over the symbrowse engine (#280)
-- `formflow` confirmation-link flows (German/English control candidates, contracted success URL) and respectful per-host pacing for campaigns across many brokers (#281)
-- Hostile-form test corpus in `internal/testserver` (misleading labels + honeypot, CAPTCHA gate, bot wall, confirmation pages) with pinned classification tests (#281)
+## [v0.6.1] - 2026-09-01
 
 ### Fixed
 
-- macOS release notarization now uses the App Store Connect API-key flow, decodes the base64 `.p8` key to a temporary file, and passes the key ID and issuer to the matching `notarytool` flags (#304)
+- Detached daemon startup is portable across supported platforms (#324).
+- Recovery similarity allocations are bounded to prevent excessive memory use (#338).
+
+### Security
+
+- Go vulnerability gates run in CI and release workflows (#318).
+- SSRF address checks are hardened and consolidated (#320, #335).
+- Daemon URL and session-engine boundaries are enforced (#321).
+
+### Changed
+
+- CLI session streams and policy output are handled consistently (#319).
+
+### Build
+
+- GitHub Actions, Go-version and Syft dependencies were updated (#322, #339, #340).
+
+### Tests
+
+- Windows CI tests are portable across checkout and line-ending behavior (#326).
+
+## [v0.6.0] - 2026-08-27
+
+### Added
+
+- `safari-attach` drives a live, logged-in Safari session through Apple Events (#297, #307).
+
+### Fixed
+
+- Risk decisions can be delegated to the symbrain guard without changing the local fallback (#303).
+- macOS release notarization uses App Store Connect API-key authentication (#306).
+
+### Docs
+
+- The README version sample was updated for the v0.6.0 release (#308).
+
+## [v0.5.0] - 2026-08-27
+
+### Added
+
+- The engine capability boundary and browser attach mode are documented and exposed (#301).
+
+### Build
+
+- The exact symaira-corekit dependency pin was updated to v0.14.0 (#285).
+
+### Docs
+
+- The README includes an example CLI session (#294).
+- Engine-boundary and measured Safari capability documentation was added (#298).
+- References to the internal architecture and planning documents were corrected (#300).
+- The README example version was updated to v0.5.0 (#302).
+
+## [v0.4.0] - 2026-08-26
+
+### Added
+
+- The consumable `formflow` web-form automation contract and hardened flows were added (#282).
+- Confirmation-link flows, evidence capture and per-host pacing support multi-broker campaigns (#280, #281).
+- The hostile-form test corpus covers misleading labels, honeypots, CAPTCHA gates, bot walls and confirmation pages (#281).
+
+### Build
+
+- The exact symaira-corekit dependency pin was updated to v0.13.0 (#279).
+
+### Tests
+
+- Formflow driver-adapter and failure branches are covered (#284).
 
 ## [v0.3.1] - 2026-08-25
 
@@ -203,7 +268,11 @@ Initial release of `symbrowse`, the agent-operable browser automation CLI.
   badges, go install quickstart, issue forms and PR template, Apache-2.0
   LICENSE (#106, #124, #140, #139, #120)
 
-[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.6.1...HEAD
+[v0.6.1]: https://github.com/danieljustus/symaira-browse/compare/v0.6.0...v0.6.1
+[v0.6.0]: https://github.com/danieljustus/symaira-browse/compare/v0.5.0...v0.6.0
+[v0.5.0]: https://github.com/danieljustus/symaira-browse/compare/v0.4.0...v0.5.0
+[v0.4.0]: https://github.com/danieljustus/symaira-browse/compare/v0.3.1...v0.4.0
 [v0.3.1]: https://github.com/danieljustus/symaira-browse/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/danieljustus/symaira-browse/compare/v0.2.3...v0.3.0
 [v0.2.3]: https://github.com/danieljustus/symaira-browse/compare/v0.2.2...v0.2.3
