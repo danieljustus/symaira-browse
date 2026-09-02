@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"github.com/danieljustus/symaira-browse/internal/config"
 )
 
 // TransportError represents a client-side daemon transport, dial, or lifecycle failure.
@@ -111,7 +113,9 @@ func NewClient(options ClientOptions) *Client {
 	}
 	if options.ReadTimeout == 0 {
 		options.ReadTimeout = DefaultReadTimeout
-		if raw := os.Getenv("SYMBROWSE_READ_TIMEOUT"); raw != "" {
+		if cfg, err := config.Load(); err == nil && cfg.ReadTimeoutSeconds > 0 {
+			options.ReadTimeout = time.Duration(cfg.ReadTimeoutSeconds) * time.Second
+		} else if raw := os.Getenv("SYMBROWSE_READ_TIMEOUT"); raw != "" {
 			if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
 				options.ReadTimeout = time.Duration(seconds) * time.Second
 			}
@@ -331,23 +335,13 @@ func (c *Client) requestOnce(ctx context.Context, frame Frame) (Response, error)
 }
 
 // DefaultDaemonLogPath returns the path used for detached daemon startup
-// diagnostics. A caller may override it with SYMBROWSE_DAEMON_LOG.
+// diagnostics. Path resolution belongs to internal/config so config show,
+// daemon startup, and client hints agree under XDG and env overrides.
 func DefaultDaemonLogPath() string {
-	if path := os.Getenv("SYMBROWSE_DAEMON_LOG"); path != "" {
-		return path
+	if cfg, err := config.Load(); err == nil && cfg.DaemonLogPath != "" {
+		return cfg.DaemonLogPath
 	}
-	stateDir := os.Getenv("SYMBROWSE_STATE_DIR")
-	if stateDir == "" {
-		if xdgStateHome := os.Getenv("XDG_STATE_HOME"); xdgStateHome != "" {
-			stateDir = filepath.Join(xdgStateHome, "symbrowse")
-		} else if home, err := os.UserHomeDir(); err == nil {
-			stateDir = filepath.Join(home, ".local", "state", "symbrowse")
-		}
-	}
-	if stateDir == "" {
-		stateDir = filepath.Join(os.TempDir(), "symbrowse")
-	}
-	return filepath.Join(stateDir, "daemon.log")
+	return config.DefaultDaemonLogPath()
 }
 
 // StartDaemonProcess launches an independent daemon process using executable.

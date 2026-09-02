@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -99,33 +98,30 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			profile = resolved
 		}
 	}
+	cfg, configErr := config.Load()
+	if configErr != nil {
+		return configErr
+	}
 	allowedDomainsFlag, _ := cmd.Flags().GetString("allowed-domains")
-	allowedDomains := resolveAllowedDomains(allowedDomainsFlag)
+	allowedDomains := resolveAllowedDomainsWithConfig(allowedDomainsFlag, cfg)
 	ssrfFlag, _ := cmd.Flags().GetBool("ssrf")
-	ssrfEnabled := resolveBoolPolicy("SYMBROWSE_SSRF", ssrfFlag, func(cfg *config.Config) bool { return cfg.SSRFEnabled })
+	ssrfEnabled := resolveBoolPolicyWithConfig(ssrfFlag, func(cfg *config.Config) bool { return cfg.SSRFEnabled }, cfg)
 	allowPrivateFlag, _ := cmd.Flags().GetBool("allow-private")
-	allowPrivate := resolveBoolPolicy("SYMBROWSE_ALLOW_PRIVATE", allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate })
+	allowPrivate := resolveBoolPolicyWithConfig(allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate }, cfg)
 	headless := false
 	if raw := cmd.Flags().Lookup("headless"); raw != nil {
 		headless, _ = cmd.Flags().GetBool("headless")
 	}
-	headless = headless || os.Getenv("SYMBROWSE_HEADLESS") == "1"
+	headless = headless || cfg.Headless
 	engineKind := "chrome"
 	if raw := cmd.Flags().Lookup("engine"); raw != nil {
 		engineKind, _ = cmd.Flags().GetString("engine")
-	}
-	cfg, configErr := config.Load()
-	if configErr != nil {
-		return configErr
 	}
 	// Attach endpoint precedence (issue #296): flag → SYMBROWSE_CDP_ENDPOINT
 	// → config.toml. An attached engine does not launch or own Chrome.
 	cdpEndpoint := ""
 	if raw := cmd.Flags().Lookup("cdp-endpoint"); raw != nil {
 		cdpEndpoint, _ = cmd.Flags().GetString("cdp-endpoint")
-	}
-	if cdpEndpoint == "" {
-		cdpEndpoint = os.Getenv("SYMBROWSE_CDP_ENDPOINT")
 	}
 	if cdpEndpoint == "" {
 		cdpEndpoint = cfg.CDPEndpoint
@@ -135,26 +131,11 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	if err != nil {
 		return err
 	}
-	idle := time.Duration(daemon.DefaultIdleTimeout)
-	if raw := os.Getenv("SYMBROWSE_IDLE_TIMEOUT"); raw != "" {
-		seconds, parseErr := strconv.Atoi(raw)
-		if parseErr != nil || seconds < 0 {
-			return fmt.Errorf("invalid SYMBROWSE_IDLE_TIMEOUT %q", raw)
-		}
-		if seconds == 0 {
-			idle = -1
-		} else {
-			idle = time.Duration(seconds) * time.Second
-		}
+	idle := time.Duration(cfg.IdleTimeoutSeconds) * time.Second
+	if cfg.IdleTimeoutSeconds == 0 {
+		idle = -1
 	}
-	operation := time.Duration(daemon.DefaultOperationTimeout)
-	if raw := os.Getenv("SYMBROWSE_OPERATION_TIMEOUT"); raw != "" {
-		seconds, parseErr := strconv.Atoi(raw)
-		if parseErr != nil || seconds <= 0 {
-			return fmt.Errorf("invalid SYMBROWSE_OPERATION_TIMEOUT %q", raw)
-		}
-		operation = time.Duration(seconds) * time.Second
-	}
+	operation := time.Duration(cfg.OperationTimeoutSeconds) * time.Second
 	ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	// Sessions record where they were created (worktree/repo/cwd scope) so
@@ -184,18 +165,15 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			restoreOnStart[session] = restoreKey
 		}
 	}
-	autosave, err := autosaveFromEnv(cmd, restoreOnStart[session])
+	autosave, err := autosaveFromConfig(cfg, restoreOnStart[session])
 	if err != nil {
 		return err
 	}
 
 	// Screenshots (issue #16) are written into the cache out directory by
 	// default; --screenshot-dir on the command expands the allowed roots.
-	screenshotDirs := []string{}
-	if paths, pathErr := config.DefaultPaths(); pathErr == nil {
-		screenshotDirs = []string{filepath.Join(paths.CacheDir, "out")}
-	}
-	navigation := daemon.NewNavigationRuntime(registry, os.Getenv("SYMBROWSE_EXECUTABLE_PATH"), daemon.NavigationRuntimeOptions{
+	screenshotDirs := []string{filepath.Join(cfg.CacheDir, "out")}
+	navigation := daemon.NewNavigationRuntime(registry, cfg.ExecutablePath, daemon.NavigationRuntimeOptions{
 		AllowedDomains: allowedDomains,
 		SSRFEnabled:    ssrfEnabled,
 		AllowPrivate:   allowPrivate,
@@ -204,7 +182,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		RestoreOnStart: restoreOnStart,
 		Autosave:       autosave,
 		Profile:        profile,
-		UploadDirs:     uploadDirsFromEnv(),
+		UploadDirs:     cfg.UploadDirs,
 		ScreenshotDirs: screenshotDirs,
 		Engine:         engineKind,
 		CDPEndpoint:    cdpEndpoint,
@@ -214,10 +192,6 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	stateRuntime := daemon.NewStateRuntime(stateStore, navigation)
 	stateRuntime.ReportExpired()
 	authRuntime := daemon.NewAuthRuntime(navigation, nil)
-	cfg, configErr = config.Load()
-	if configErr != nil {
-		return configErr
-	}
 	journalRuntime := daemon.NewJournalRuntime(journalFor(cfg, session), navigation)
 	policyRuntime := daemon.NewPolicyRuntime(cfg.StateDir, policyMode())
 	oobRuntime := daemon.NewOOBRuntime(oob.NewManager(), oob.NewNotifier(), navigation, policyRuntime.Policy(), policyMode())
@@ -260,7 +234,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
 			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "read", "find", "a11y", "screenshot", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear", "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent", "eval", "console.list", "console.clear", "errors.list", "errors.clear", "network.requests", "network.request", "network.route", "network.unroute", "network.har", "upload", "downloads.list", "download.setdir":
-				allowed, decision, decider, gateErr := oobRuntime.DecideAndConfirm(ctx, frame.Session, frame.Cmd, frameURL(frame), approvalTimeout())
+				allowed, decision, decider, gateErr := oobRuntime.DecideAndConfirm(ctx, frame.Session, frame.Cmd, frameURL(frame), approvalTimeoutFromConfig(cfg))
 				if gateErr != nil {
 					return nil, nil, gateErr
 				}
@@ -300,14 +274,18 @@ func runDaemon(cmd *cobra.Command, session string) error {
 // domain allowlist: flag value, then SYMBROWSE_ALLOWED_DOMAINS, then the
 // allowed_domains setting from config.toml.
 func resolveAllowedDomains(flagValue string) []string {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil
+	}
+	return resolveAllowedDomainsWithConfig(flagValue, cfg)
+}
+
+func resolveAllowedDomainsWithConfig(flagValue string, cfg *config.Config) []string {
 	if strings.TrimSpace(flagValue) != "" {
 		return splitDomains(flagValue)
 	}
-	if envValue := os.Getenv("SYMBROWSE_ALLOWED_DOMAINS"); strings.TrimSpace(envValue) != "" {
-		return splitDomains(envValue)
-	}
-	cfg, err := config.Load()
-	if err != nil || len(cfg.AllowedDomains) == 0 {
+	if cfg == nil || len(cfg.AllowedDomains) == 0 {
 		return nil
 	}
 	return cfg.AllowedDomains
@@ -318,18 +296,18 @@ func resolveAllowedDomains(flagValue string) []string {
 // the config.toml setting. Environment values follow strconv.ParseBool
 // semantics ("1", "t", "true", "0", "f", "false").
 func resolveBoolPolicy(envName string, flagValue bool, fromConfig func(*config.Config) bool) bool {
+	cfg, err := config.Load()
+	if err != nil {
+		return false
+	}
+	return resolveBoolPolicyWithConfig(flagValue, fromConfig, cfg)
+}
+
+func resolveBoolPolicyWithConfig(flagValue bool, fromConfig func(*config.Config) bool, cfg *config.Config) bool {
 	if flagValue {
 		return true
 	}
-	if envValue := os.Getenv(envName); envValue != "" {
-		parsed, err := strconv.ParseBool(envValue)
-		if err != nil {
-			return false
-		}
-		return parsed
-	}
-	cfg, err := config.Load()
-	if err != nil {
+	if cfg == nil {
 		return false
 	}
 	return fromConfig(cfg)
@@ -373,15 +351,9 @@ func newStateStoreWithResolver(_ *cobra.Command, resolver state.KeyProvider) (*s
 			keys = resolver
 		}
 	}
-	expireIn := time.Duration(state.DefaultExpireDays) * 24 * time.Hour
-	if raw := os.Getenv("SYMBROWSE_STATE_EXPIRE_DAYS"); raw != "" {
-		days, parseErr := strconv.Atoi(raw)
-		if parseErr != nil || days < 0 {
-			return nil, fmt.Errorf("invalid SYMBROWSE_STATE_EXPIRE_DAYS %q", raw)
-		}
-		if days > 0 {
-			expireIn = time.Duration(days) * 24 * time.Hour
-		}
+	expireIn := time.Duration(cfg.StateExpireDays) * 24 * time.Hour
+	if cfg.StateExpireDays == 0 {
+		expireIn = time.Duration(state.DefaultExpireDays) * 24 * time.Hour
 	}
 	store, err := state.NewStore(state.StoreOptions{Dir: dir, Keys: keys, ExpireIn: expireIn})
 	if err != nil {
@@ -395,25 +367,23 @@ func newStateStoreWithResolver(_ *cobra.Command, resolver state.KeyProvider) (*s
 // 0 means save only on close). Autosave is disabled unless a restore key was
 // given or SYMBROWSE_AUTOSAVE_KEY names a target state.
 func autosaveFromEnv(cmd *cobra.Command, restoreKey string) (*daemon.AutosaveConfig, error) {
-	key := restoreKey
-	if raw := os.Getenv("SYMBROWSE_AUTOSAVE_KEY"); raw != "" {
-		key = raw
-	}
-	config := &daemon.AutosaveConfig{Policy: daemon.AutosaveAuto, Interval: 30 * time.Second, Key: key}
-	if raw := os.Getenv("SYMBROWSE_AUTOSAVE"); raw != "" {
-		config.Policy = daemon.AutosavePolicy(raw)
-	}
-	if raw := os.Getenv("SYMBROWSE_AUTOSAVE_INTERVAL"); raw != "" {
-		seconds, parseErr := strconv.Atoi(raw)
-		if parseErr != nil || seconds < 0 {
-			return nil, fmt.Errorf("invalid SYMBROWSE_AUTOSAVE_INTERVAL %q", raw)
-		}
-		config.Interval = time.Duration(seconds) * time.Second
-	}
-	if err := config.Validate(); err != nil {
+	cfg, err := config.Load()
+	if err != nil {
 		return nil, err
 	}
-	return config, nil
+	return autosaveFromConfig(cfg, restoreKey)
+}
+
+func autosaveFromConfig(cfg *config.Config, restoreKey string) (*daemon.AutosaveConfig, error) {
+	key := restoreKey
+	if cfg.AutosaveKey != "" {
+		key = cfg.AutosaveKey
+	}
+	autosave := &daemon.AutosaveConfig{Policy: daemon.AutosavePolicy(cfg.AutosavePolicy), Interval: time.Duration(cfg.AutosaveIntervalSeconds) * time.Second, Key: key}
+	if err := autosave.Validate(); err != nil {
+		return nil, err
+	}
+	return autosave, nil
 }
 
 // journalFor builds the session journal under <state-dir>/journal.
@@ -451,10 +421,16 @@ func frameURL(frame daemon.Frame) string {
 // approvalTimeout bounds an OOB approval wait. SYMBROWSE_APPROVAL_TIMEOUT
 // overrides the default of 60 seconds; timeout always resolves to deny.
 func approvalTimeout() time.Duration {
-	if raw := os.Getenv("SYMBROWSE_APPROVAL_TIMEOUT"); raw != "" {
-		if seconds, err := strconv.Atoi(raw); err == nil && seconds > 0 {
-			return time.Duration(seconds) * time.Second
-		}
+	cfg, err := config.Load()
+	if err != nil {
+		return 60 * time.Second
+	}
+	return approvalTimeoutFromConfig(cfg)
+}
+
+func approvalTimeoutFromConfig(cfg *config.Config) time.Duration {
+	if cfg != nil && cfg.ApprovalTimeoutSeconds > 0 {
+		return time.Duration(cfg.ApprovalTimeoutSeconds) * time.Second
 	}
 	return 60 * time.Second
 }

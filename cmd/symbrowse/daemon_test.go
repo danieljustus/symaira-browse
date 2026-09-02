@@ -16,6 +16,11 @@ import (
 // which makes the global config.toml written below unreachable.
 func setTestHome(t *testing.T, dir string) {
 	t.Helper()
+	// Keep the home-directory fixture authoritative when the host test runner
+	// exports XDG paths pointing at a different profile.
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("XDG_CACHE_HOME", "")
+	t.Setenv("XDG_STATE_HOME", "")
 	if runtime.GOOS == "windows" {
 		t.Setenv("USERPROFILE", dir)
 	} else {

@@ -1,13 +1,15 @@
-// Package config wires symbrowse's TOML configuration to symaira-corekit.
+// Package config resolves symbrowse's complete configuration surface.
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"github.com/BurntSushi/toml"
-	"github.com/danieljustus/symaira-corekit/configkit"
 	"github.com/danieljustus/symaira-corekit/exitcodes"
 )
 
@@ -16,33 +18,34 @@ const (
 	envPrefix = "SYMBROWSE"
 )
 
-// Config is the effective symbrowse configuration. All fields use JSON tags
-// because configkit uses the same tags for TOML and environment lookups.
+// Config is the effective symbrowse configuration. Fields use JSON tags for
+// the corresponding config.toml keys and SYMBROWSE_* environment names.
 type Config struct {
-	LogLevel       string `json:"log_level"`
-	LogFormat      string `json:"log_format"`
-	ConfigDir      string `json:"config_dir"`
-	CacheDir       string `json:"cache_dir"`
-	StateDir       string `json:"state_dir"`
-	ExecutablePath string `json:"executable_path"`
-	// CDPEndpoint attaches session engines to an existing DevTools endpoint
-	// instead of launching Chrome (issue #296; precedence flag →
-	// SYMBROWSE_CDP_ENDPOINT → this value).
-	CDPEndpoint string `json:"cdp_endpoint"`
-	// AllowedDomains activates the domain allowlist network policy. Patterns
-	// are bare hostnames, optionally prefixed with "*." (see internal/policy).
-	AllowedDomains []string `json:"allowed_domains"`
-	// SSRFEnabled activates the SSRF guard (RFC1918, loopback, link-local,
-	// .local, IPv6-ULA denied). MCP mode defaults it to true.
-	SSRFEnabled bool `json:"ssrf_enabled"`
-	// AllowPrivate relaxes the SSRF guard for private targets.
-	AllowPrivate bool `json:"allow_private"`
-	// CacheTTLHours is the truncate-and-store output cache lifetime
-	// (issue #23, B-19; default 24 h). Values <= 0 disable expiry.
-	CacheTTLHours int `json:"cache_ttl_hours"`
+	LogLevel                string   `json:"log_level"`
+	LogFormat               string   `json:"log_format"`
+	ConfigDir               string   `json:"config_dir"`
+	CacheDir                string   `json:"cache_dir"`
+	StateDir                string   `json:"state_dir"`
+	ExecutablePath          string   `json:"executable_path"`
+	CDPEndpoint             string   `json:"cdp_endpoint"`
+	AllowedDomains          []string `json:"allowed_domains"`
+	SSRFEnabled             bool     `json:"ssrf_enabled"`
+	AllowPrivate            bool     `json:"allow_private"`
+	Headless                bool     `json:"headless"`
+	CacheTTLHours           int      `json:"cache_ttl_hours"`
+	IdleTimeoutSeconds      int      `json:"idle_timeout"`
+	OperationTimeoutSeconds int      `json:"operation_timeout"`
+	ReadTimeoutSeconds      int      `json:"read_timeout"`
+	StateExpireDays         int      `json:"state_expire_days"`
+	AutosavePolicy          string   `json:"autosave"`
+	AutosaveIntervalSeconds int      `json:"autosave_interval"`
+	AutosaveKey             string   `json:"autosave_key"`
+	UploadDirs              []string `json:"upload_dirs"`
+	DaemonLogPath           string   `json:"daemon_log"`
+	ApprovalTimeoutSeconds  int      `json:"approval_timeout"`
 }
 
-// Paths contains the default XDG directories used by symbrowse.
+// Paths contains the XDG directories used by symbrowse.
 type Paths struct {
 	ConfigDir string `json:"config_dir"`
 	CacheDir  string `json:"cache_dir"`
@@ -50,8 +53,7 @@ type Paths struct {
 }
 
 // FlagOverrides contains only explicitly supplied command-line values. A nil
-// field means that the corresponding flag was not supplied and must not
-// override a higher-level configuration source.
+// field means that the corresponding flag was not supplied.
 type FlagOverrides struct {
 	LogLevel       *string
 	LogFormat      *string
@@ -68,47 +70,94 @@ type Result struct {
 	Sources map[string]string
 }
 
+var configFields = []string{
+	"log_level", "log_format", "config_dir", "cache_dir", "state_dir",
+	"executable_path", "cdp_endpoint", "allowed_domains", "ssrf_enabled",
+	"allow_private", "headless", "cache_ttl_hours", "idle_timeout",
+	"operation_timeout", "read_timeout", "state_expire_days", "autosave",
+	"autosave_interval", "autosave_key", "upload_dirs", "daemon_log",
+	"approval_timeout",
+}
+
 // Defaults returns the built-in configuration defaults.
 func Defaults() *Config {
 	paths, err := DefaultPaths()
 	if err != nil {
-		return &Config{LogLevel: "warn", LogFormat: "text"}
+		return &Config{
+			LogLevel:                "warn",
+			LogFormat:               "text",
+			AutosavePolicy:          "auto",
+			IdleTimeoutSeconds:      30 * 60,
+			OperationTimeoutSeconds: 25,
+			ReadTimeoutSeconds:      30,
+			StateExpireDays:         30,
+			AutosaveIntervalSeconds: 30,
+			ApprovalTimeoutSeconds:  60,
+		}
+	}
+	var uploadDirs []string
+	if cwd, cwdErr := os.Getwd(); cwdErr == nil {
+		uploadDirs = []string{cwd}
 	}
 	return &Config{
-		LogLevel:       "warn",
-		LogFormat:      "text",
-		ConfigDir:      paths.ConfigDir,
-		CacheDir:       paths.CacheDir,
-		StateDir:       paths.StateDir,
-		ExecutablePath: "",
-		CacheTTLHours:  24,
+		LogLevel:                "warn",
+		LogFormat:               "text",
+		ConfigDir:               paths.ConfigDir,
+		CacheDir:                paths.CacheDir,
+		StateDir:                paths.StateDir,
+		CacheTTLHours:           24,
+		IdleTimeoutSeconds:      30 * 60,
+		OperationTimeoutSeconds: 25,
+		ReadTimeoutSeconds:      30,
+		StateExpireDays:         30,
+		AutosavePolicy:          "auto",
+		AutosaveIntervalSeconds: 30,
+		UploadDirs:              uploadDirs,
+		DaemonLogPath:           filepath.Join(paths.StateDir, "daemon.log"),
+		ApprovalTimeoutSeconds:  60,
 	}
 }
 
-// DefaultPaths returns the XDG-style config, cache, and state directories.
-// The defaults intentionally follow the repository contract:
-// ~/.config/symbrowse, ~/.cache/symbrowse, and ~/.local/state/symbrowse.
+// DefaultPaths returns the XDG config, cache, and state directories. When an
+// XDG variable is unset, the existing platform-independent defaults are kept.
 func DefaultPaths() (Paths, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return Paths{}, fmt.Errorf("cannot determine home directory: %w", err)
 	}
+	configHome := os.Getenv("XDG_CONFIG_HOME")
+	if configHome == "" {
+		configHome = filepath.Join(home, ".config")
+	}
+	cacheHome := os.Getenv("XDG_CACHE_HOME")
+	if cacheHome == "" {
+		cacheHome = filepath.Join(home, ".cache")
+	}
+	stateHome := os.Getenv("XDG_STATE_HOME")
+	if stateHome == "" {
+		stateHome = filepath.Join(home, ".local", "state")
+	}
 	return Paths{
-		ConfigDir: filepath.Join(home, ".config", appName),
-		CacheDir:  filepath.Join(home, ".cache", appName),
-		StateDir:  filepath.Join(home, ".local", "state", appName),
+		ConfigDir: filepath.Join(configHome, appName),
+		CacheDir:  filepath.Join(cacheHome, appName),
+		StateDir:  filepath.Join(stateHome, appName),
 	}, nil
 }
 
-// NewLoader creates a fresh corekit-backed loader. A fresh loader per command
-// keeps CLI invocations and tests isolated while retaining corekit's cache API
-// for callers that need Reload or ResetCache.
-func NewLoader() *configkit.Loader[Config] {
-	return configkit.NewLoader[Config](configkit.Options{
-		AppName:    appName,
-		EnvPrefix:  envPrefix,
-		ConfigName: appName,
-	}, Defaults)
+// DefaultDaemonLogPath returns the default detached-daemon log path. The
+// explicit SYMBROWSE_DAEMON_LOG setting is handled here so callers do not
+// re-derive state paths independently.
+func DefaultDaemonLogPath() string {
+	if path := os.Getenv("SYMBROWSE_DAEMON_LOG"); path != "" {
+		return path
+	}
+	if stateDir := os.Getenv("SYMBROWSE_STATE_DIR"); stateDir != "" {
+		return filepath.Join(stateDir, "daemon.log")
+	}
+	if paths, err := DefaultPaths(); err == nil {
+		return filepath.Join(paths.StateDir, "daemon.log")
+	}
+	return filepath.Join(os.TempDir(), appName, "daemon.log")
 }
 
 // Load returns the effective configuration without command-line overrides.
@@ -123,69 +172,96 @@ func Load() (*Config, error) {
 // LoadWithOverrides applies the complete precedence chain:
 // defaults < global TOML < project TOML < SYMBROWSE_* < flags.
 func LoadWithOverrides(overrides FlagOverrides) (Result, error) {
-	cfg, err := NewLoader().Load()
-	if err != nil {
-		return Result{}, exitcodes.Wrap(err, exitcodes.ExitConfig, exitcodes.KindConfig,
-			"failed to load configuration")
+	cfg := Defaults()
+	sources := make(map[string]string, len(configFields))
+	for _, field := range configFields {
+		sources[field] = "default"
 	}
 
-	sources := map[string]string{
-		"log_level":       "default",
-		"log_format":      "default",
-		"config_dir":      "default",
-		"cache_dir":       "default",
-		"state_dir":       "default",
-		"executable_path": "default",
-		"cdp_endpoint":    "default",
-		"allowed_domains": "default",
-		"cache_ttl_hours": "default",
-	}
-
-	home, err := os.UserHomeDir()
+	paths, err := DefaultPaths()
 	if err != nil {
 		return Result{}, exitcodes.Wrap(err, exitcodes.ExitConfig, exitcodes.KindConfig,
 			"failed to determine configuration home")
 	}
-	globalPath := filepath.Join(home, ".config", appName, "config.toml")
+	globalPath := filepath.Join(paths.ConfigDir, "config.toml")
 	cwd, err := os.Getwd()
 	if err != nil {
 		return Result{}, exitcodes.Wrap(err, exitcodes.ExitConfig, exitcodes.KindConfig,
 			"failed to determine project directory")
 	}
 	projectPath := filepath.Join(cwd, "."+appName+".toml")
-
-	if err := markFileSources(sources, globalPath, "global"); err != nil {
-		return Result{}, exitcodes.Wrap(err, exitcodes.ExitConfig, exitcodes.KindConfig,
-			"failed to inspect global configuration")
+	if err := applyFile(cfg, sources, globalPath, "global"); err != nil {
+		return configError(err, "failed to load global configuration")
 	}
-	if err := markFileSources(sources, projectPath, "project"); err != nil {
-		return Result{}, exitcodes.Wrap(err, exitcodes.ExitConfig, exitcodes.KindConfig,
-			"failed to inspect project configuration")
+	if err := applyFile(cfg, sources, projectPath, "project"); err != nil {
+		return configError(err, "failed to load project configuration")
 	}
-	markEnvSources(sources)
+	if err := applyEnv(cfg, sources); err != nil {
+		return configError(err, "failed to load environment configuration")
+	}
 
-	applyOverride(&cfg.LogLevel, overrides.LogLevel, sources, "log_level")
-	applyOverride(&cfg.LogFormat, overrides.LogFormat, sources, "log_format")
-	applyOverride(&cfg.ConfigDir, overrides.ConfigDir, sources, "config_dir")
-	applyOverride(&cfg.CacheDir, overrides.CacheDir, sources, "cache_dir")
-	applyOverride(&cfg.StateDir, overrides.StateDir, sources, "state_dir")
-	applyOverride(&cfg.ExecutablePath, overrides.ExecutablePath, sources, "executable_path")
-
+	applyStringOverride(&cfg.LogLevel, overrides.LogLevel, sources, "log_level")
+	applyStringOverride(&cfg.LogFormat, overrides.LogFormat, sources, "log_format")
+	applyStringOverride(&cfg.ConfigDir, overrides.ConfigDir, sources, "config_dir")
+	applyStringOverride(&cfg.CacheDir, overrides.CacheDir, sources, "cache_dir")
+	applyStringOverride(&cfg.StateDir, overrides.StateDir, sources, "state_dir")
+	applyStringOverride(&cfg.ExecutablePath, overrides.ExecutablePath, sources, "executable_path")
+	cfg.DaemonLogPath = effectiveDaemonLogPath(cfg, sources)
+	if err := validate(cfg); err != nil {
+		return configError(err, "invalid configuration")
+	}
 	return Result{Config: *cfg, Sources: sources}, nil
 }
 
-func markFileSources(sources map[string]string, path, source string) error {
+func configError(err error, message string) (Result, error) {
+	return Result{}, exitcodes.Wrap(err, exitcodes.ExitConfig, exitcodes.KindConfig, message)
+}
+
+type fileConfig struct {
+	LogLevel                *string   `json:"log_level"`
+	LogFormat               *string   `json:"log_format"`
+	ConfigDir               *string   `json:"config_dir"`
+	CacheDir                *string   `json:"cache_dir"`
+	StateDir                *string   `json:"state_dir"`
+	ExecutablePath          *string   `json:"executable_path"`
+	CDPEndpoint             *string   `json:"cdp_endpoint"`
+	AllowedDomains          *[]string `json:"allowed_domains"`
+	SSRFEnabled             *bool     `json:"ssrf_enabled"`
+	AllowPrivate            *bool     `json:"allow_private"`
+	Headless                *bool     `json:"headless"`
+	CacheTTLHours           *int      `json:"cache_ttl_hours"`
+	IdleTimeoutSeconds      *int      `json:"idle_timeout"`
+	OperationTimeoutSeconds *int      `json:"operation_timeout"`
+	ReadTimeoutSeconds      *int      `json:"read_timeout"`
+	StateExpireDays         *int      `json:"state_expire_days"`
+	AutosavePolicy          *string   `json:"autosave"`
+	AutosaveIntervalSeconds *int      `json:"autosave_interval"`
+	AutosaveKey             *string   `json:"autosave_key"`
+	UploadDirs              *[]string `json:"upload_dirs"`
+	DaemonLogPath           *string   `json:"daemon_log"`
+	ApprovalTimeoutSeconds  *int      `json:"approval_timeout"`
+}
+
+func applyFile(cfg *Config, sources map[string]string, path, source string) error {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
 		return err
 	}
-
 	var raw map[string]interface{}
 	if _, err := toml.DecodeFile(path, &raw); err != nil {
 		return err
 	}
-	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "cdp_endpoint", "allowed_domains", "cache_ttl_hours"} {
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		return err
+	}
+	var patch fileConfig
+	if err := json.Unmarshal(encoded, &patch); err != nil {
+		return err
+	}
+	applyFileConfig(cfg, patch)
+	for _, field := range configFields {
 		if _, ok := raw[field]; ok {
 			sources[field] = source
 		}
@@ -193,31 +269,209 @@ func markFileSources(sources map[string]string, path, source string) error {
 	return nil
 }
 
-func markEnvSources(sources map[string]string) {
-	for _, field := range []string{"log_level", "log_format", "config_dir", "cache_dir", "state_dir", "executable_path", "cdp_endpoint", "allowed_domains", "cache_ttl_hours"} {
-		if value, ok := os.LookupEnv(envPrefix + "_" + envKey(field)); ok && value != "" {
+func applyFileConfig(cfg *Config, patch fileConfig) {
+	if patch.LogLevel != nil {
+		cfg.LogLevel = *patch.LogLevel
+	}
+	if patch.LogFormat != nil {
+		cfg.LogFormat = *patch.LogFormat
+	}
+	if patch.ConfigDir != nil {
+		cfg.ConfigDir = *patch.ConfigDir
+	}
+	if patch.CacheDir != nil {
+		cfg.CacheDir = *patch.CacheDir
+	}
+	if patch.StateDir != nil {
+		cfg.StateDir = *patch.StateDir
+	}
+	if patch.ExecutablePath != nil {
+		cfg.ExecutablePath = *patch.ExecutablePath
+	}
+	if patch.CDPEndpoint != nil {
+		cfg.CDPEndpoint = *patch.CDPEndpoint
+	}
+	if patch.AllowedDomains != nil {
+		cfg.AllowedDomains = *patch.AllowedDomains
+	}
+	if patch.SSRFEnabled != nil {
+		cfg.SSRFEnabled = *patch.SSRFEnabled
+	}
+	if patch.AllowPrivate != nil {
+		cfg.AllowPrivate = *patch.AllowPrivate
+	}
+	if patch.Headless != nil {
+		cfg.Headless = *patch.Headless
+	}
+	if patch.CacheTTLHours != nil {
+		cfg.CacheTTLHours = *patch.CacheTTLHours
+	}
+	if patch.IdleTimeoutSeconds != nil {
+		cfg.IdleTimeoutSeconds = *patch.IdleTimeoutSeconds
+	}
+	if patch.OperationTimeoutSeconds != nil {
+		cfg.OperationTimeoutSeconds = *patch.OperationTimeoutSeconds
+	}
+	if patch.ReadTimeoutSeconds != nil {
+		cfg.ReadTimeoutSeconds = *patch.ReadTimeoutSeconds
+	}
+	if patch.StateExpireDays != nil {
+		cfg.StateExpireDays = *patch.StateExpireDays
+	}
+	if patch.AutosavePolicy != nil {
+		cfg.AutosavePolicy = *patch.AutosavePolicy
+	}
+	if patch.AutosaveIntervalSeconds != nil {
+		cfg.AutosaveIntervalSeconds = *patch.AutosaveIntervalSeconds
+	}
+	if patch.AutosaveKey != nil {
+		cfg.AutosaveKey = *patch.AutosaveKey
+	}
+	if patch.UploadDirs != nil {
+		cfg.UploadDirs = *patch.UploadDirs
+	}
+	if patch.DaemonLogPath != nil {
+		cfg.DaemonLogPath = *patch.DaemonLogPath
+	}
+	if patch.ApprovalTimeoutSeconds != nil {
+		cfg.ApprovalTimeoutSeconds = *patch.ApprovalTimeoutSeconds
+	}
+}
+
+func applyEnv(cfg *Config, sources map[string]string) error {
+	for _, field := range configFields {
+		envName := envName(field)
+		if raw, ok := os.LookupEnv(envName); ok && raw != "" {
 			sources[field] = "env"
 		}
 	}
-}
-
-func envKey(field string) string {
-	result := make([]byte, 0, len(field))
-	for i := 0; i < len(field); i++ {
-		if field[i] == '_' {
-			result = append(result, '_')
-			continue
-		}
-		if field[i] >= 'a' && field[i] <= 'z' {
-			result = append(result, field[i]-('a'-'A'))
-		} else {
-			result = append(result, field[i])
+	var err error
+	applyStringEnv := func(dst *string, field string) {
+		if err == nil {
+			if raw := os.Getenv(envName(field)); raw != "" {
+				*dst = raw
+			}
 		}
 	}
-	return string(result)
+	applyStringEnv(&cfg.LogLevel, "log_level")
+	applyStringEnv(&cfg.LogFormat, "log_format")
+	applyStringEnv(&cfg.ConfigDir, "config_dir")
+	applyStringEnv(&cfg.CacheDir, "cache_dir")
+	applyStringEnv(&cfg.StateDir, "state_dir")
+	applyStringEnv(&cfg.ExecutablePath, "executable_path")
+	applyStringEnv(&cfg.CDPEndpoint, "cdp_endpoint")
+	applyStringEnv(&cfg.AutosavePolicy, "autosave")
+	applyStringEnv(&cfg.AutosaveKey, "autosave_key")
+	applyStringEnv(&cfg.DaemonLogPath, "daemon_log")
+	if err = applyBoolEnv(&cfg.SSRFEnabled, "ssrf_enabled"); err != nil {
+		return err
+	}
+	if err = applyBoolEnv(&cfg.AllowPrivate, "allow_private"); err != nil {
+		return err
+	}
+	if err = applyBoolEnv(&cfg.Headless, "headless"); err != nil {
+		return err
+	}
+	if err = applyIntEnv(&cfg.CacheTTLHours, "cache_ttl_hours", func(int) bool { return true }); err != nil {
+		return err
+	}
+	if err = applyIntEnv(&cfg.IdleTimeoutSeconds, "idle_timeout", func(v int) bool { return v >= 0 }); err != nil {
+		return err
+	}
+	if err = applyIntEnv(&cfg.OperationTimeoutSeconds, "operation_timeout", func(v int) bool { return v > 0 }); err != nil {
+		return err
+	}
+	if err = applyIntEnv(&cfg.ReadTimeoutSeconds, "read_timeout", func(v int) bool { return v > 0 }); err != nil {
+		return err
+	}
+	if err = applyIntEnv(&cfg.StateExpireDays, "state_expire_days", func(v int) bool { return v >= 0 }); err != nil {
+		return err
+	}
+	if err = applyIntEnv(&cfg.AutosaveIntervalSeconds, "autosave_interval", func(v int) bool { return v >= 0 }); err != nil {
+		return err
+	}
+	if err = applyIntEnv(&cfg.ApprovalTimeoutSeconds, "approval_timeout", func(v int) bool { return v > 0 }); err != nil {
+		return err
+	}
+	if raw := os.Getenv(envName("allowed_domains")); raw != "" {
+		cfg.AllowedDomains = splitList(raw)
+	}
+	if raw := os.Getenv(envName("upload_dirs")); raw != "" {
+		cfg.UploadDirs = splitList(raw)
+	}
+	return nil
 }
 
-func applyOverride(dst *string, value *string, sources map[string]string, field string) {
+func applyBoolEnv(dst *bool, field string) error {
+	raw := os.Getenv(envName(field))
+	if raw == "" {
+		return nil
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return fmt.Errorf("invalid %s %q: %w", envName(field), raw, err)
+	}
+	*dst = value
+	return nil
+}
+
+func applyIntEnv(dst *int, field string, valid func(int) bool) error {
+	raw := os.Getenv(envName(field))
+	if raw == "" {
+		return nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || !valid(value) {
+		return fmt.Errorf("invalid %s %q", envName(field), raw)
+	}
+	*dst = value
+	return nil
+}
+
+func splitList(raw string) []string {
+	var values []string
+	for _, item := range strings.Split(raw, ",") {
+		if item = strings.TrimSpace(item); item != "" {
+			values = append(values, item)
+		}
+	}
+	return values
+}
+
+func envName(field string) string {
+	// A few configuration keys intentionally retain their historical env names.
+	keys := map[string]string{
+		"idle_timeout": "IDLE_TIMEOUT", "operation_timeout": "OPERATION_TIMEOUT",
+		"read_timeout": "READ_TIMEOUT", "autosave": "AUTOSAVE",
+		"autosave_interval": "AUTOSAVE_INTERVAL", "autosave_key": "AUTOSAVE_KEY",
+		"upload_dirs": "UPLOAD_DIRS", "daemon_log": "DAEMON_LOG",
+		"approval_timeout": "APPROVAL_TIMEOUT", "state_expire_days": "STATE_EXPIRE_DAYS",
+		"ssrf_enabled": "SSRF",
+	}
+	if key, ok := keys[field]; ok {
+		return envPrefix + "_" + key
+	}
+	return envPrefix + "_" + strings.ToUpper(field)
+}
+
+func effectiveDaemonLogPath(cfg *Config, sources map[string]string) string {
+	if sources["daemon_log"] != "default" {
+		return cfg.DaemonLogPath
+	}
+	return filepath.Join(cfg.StateDir, "daemon.log")
+}
+
+func validate(cfg *Config) error {
+	if cfg.IdleTimeoutSeconds < 0 || cfg.OperationTimeoutSeconds <= 0 || cfg.ReadTimeoutSeconds <= 0 || cfg.StateExpireDays < 0 || cfg.AutosaveIntervalSeconds < 0 || cfg.ApprovalTimeoutSeconds <= 0 {
+		return fmt.Errorf("timeout and retention values must be non-negative, with operation, read, and approval timeouts positive")
+	}
+	if cfg.AutosavePolicy != "auto" && cfg.AutosavePolicy != "always" && cfg.AutosavePolicy != "never" {
+		return fmt.Errorf("invalid autosave policy %q", cfg.AutosavePolicy)
+	}
+	return nil
+}
+
+func applyStringOverride(dst *string, value *string, sources map[string]string, field string) {
 	if value == nil {
 		return
 	}
