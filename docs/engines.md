@@ -129,9 +129,23 @@ Zwei weitere Fallen, beide in der Messung aufgetreten:
 
 - Playwright oder eine Node-Laufzeit als Abhängigkeit. Verstößt gegen die
   standalone-first- und CGO-freie Invariante aus [AGENTS.md](../AGENTS.md).
-- `safaridriver` als Backend: liefert eine isolierte Sitzung ohne die Logins
-  des Menschen und damit genau den Nutzen nicht, um dessentwillen Safari
-  überhaupt interessant ist.
+- **`safaridriver --mcp` als Backend:** Der Safari-MCP-Server liefert eine
+  isolierte Sitzung ohne die Logins des Menschen. Außerdem müsste symbrowse
+  als MCP-Client LLM-förmige `content`-Blobs in seine stabile Engine- und
+  Output-Grenze übersetzen. Das ist eine bewusste Schichtungsschranke, keine
+  fehlende Funktion. Safari 27.0 auf macOS 27.0 lieferte bei der Messung am
+  2026-09-02 für die laufende Automationssitzung `list_tabs: []`; die Sitzung
+  ist daher auch inhaltlich nicht der eingeloggte Safari des Menschen.
+- **`safaridriver --bidi` als Backend:** Dieser Modus bleibt kein pauschales
+  Nicht-Ziel. Er wird als eigenständige, standardisierte Engine in #355
+  untersucht; seine isolierte Sitzung und seine WebDriver-BiDi-Fähigkeiten
+  werden getrennt von `safari-attach` bewertet.
+- **Plain WebDriver als Backend:** Auch die ursprüngliche WebDriver-Variante
+  öffnet eine isolierte Sitzung ohne die Logins des Menschen und liefert damit
+  nicht den Grundnutzen, für den Safari in symbrowse interessant ist.
+- Apples Safari-MCP-Server ist ein legitimes Schwesterwerkzeug, das ein
+  Entwickler direkt ausführen kann. Dass symbrowse es nicht als Backend
+  konsumiert, ist deshalb keine Lücke im direkten MCP-Werkzeug.
 - Getrennte Downloads oder Build-Tags pro Engine. `symbrowse` liefert keine
   Browser aus, sondern benutzt installierte; die Modularität gehört in die
   Fähigkeitsaushandlung und in `doctor`, nicht in die Release-Matrix.
