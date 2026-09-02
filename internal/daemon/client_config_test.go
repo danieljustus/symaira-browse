@@ -17,7 +17,7 @@ func TestDefaultDaemonLogPathFollowsResolvedStateDirectory(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(configHome, "symbrowse"), 0o750); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(configHome, "symbrowse", "config.toml"), []byte("state_dir = \""+stateDir+"\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(configHome, "symbrowse", "config.toml"), []byte("state_dir = \""+filepath.ToSlash(stateDir)+"\"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
