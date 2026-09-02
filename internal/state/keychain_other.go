@@ -7,3 +7,7 @@ package state
 func keychainGet(service, account string) ([]byte, bool, error) {
 	return nil, false, nil
 }
+
+func keychainSet(service, account string, value []byte) error {
+	return nil
+}

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/danieljustus/symaira-browse/internal/engine"
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 func newSetCommand() *cobra.Command {
@@ -74,6 +75,9 @@ func newSetDeviceCommand(session *string) *cobra.Command {
 				devices, err := deviceList()
 				if err != nil {
 					return err
+				}
+				if structuredOutput(cmd) {
+					return writeEnvelope(cmd, output.OK(map[string]any{"devices": devices}, nil))
 				}
 				for _, name := range devices {
 					_, _ = fmt.Fprintln(cmd.OutOrStdout(), name)
@@ -196,6 +200,9 @@ func sendSetFrame(cmd *cobra.Command, session, command string, request map[strin
 	}
 	if !response.Success {
 		return responseError(response)
+	}
+	if structuredOutput(cmd) {
+		return writeEnvelopeFromResponse(cmd, response)
 	}
 	_, err = fmt.Fprintln(cmd.OutOrStdout(), "ok")
 	return err
