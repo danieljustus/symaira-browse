@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/danieljustus/symaira-corekit/updatecheck"
+	"github.com/danieljustus/symaira-corekit/updatecheck/installmethod"
 	"github.com/danieljustus/symaira-corekit/updatecheck/updateapply"
 
 	"github.com/danieljustus/symaira-browse/internal/output"
@@ -22,6 +23,20 @@ const (
 	upgradeOwner = "danieljustus"
 	upgradeRepo  = "symaira-browse"
 )
+
+var (
+	upgradeExecutable   = os.Executable
+	detectInstallMethod = installmethod.Detect
+	applyRelease        = applyReleaseWithCorekit
+)
+
+func applyReleaseWithCorekit(ctx context.Context, release *updatecheck.Release, executable string) error {
+	applier := updateapply.NewApplier()
+	applier.CheckInstallMethod = true
+	applier.GOOS = runtime.GOOS
+	applier.GOARCH = runtime.GOARCH
+	return applier.Apply(ctx, release, executable)
+}
 
 // newUpgradeCommand builds `symbrowse upgrade [--check]`.
 func newUpgradeCommand() *cobra.Command {
@@ -81,7 +96,7 @@ func versionString() string {
 
 // applyUpgrade downloads, verifies and atomically installs the release.
 func applyUpgrade(cmd *cobra.Command, release *updatecheck.Release) error {
-	executable, err := os.Executable()
+	executable, err := upgradeExecutable()
 	if err != nil {
 		return fmt.Errorf("locate running binary: %w", err)
 	}
@@ -89,20 +104,20 @@ func applyUpgrade(cmd *cobra.Command, release *updatecheck.Release) error {
 	if err == nil {
 		executable = resolved
 	}
-	applier := updateapply.NewApplier()
-	applier.CheckInstallMethod = true
-	applier.GOOS = runtime.GOOS
-	applier.GOARCH = runtime.GOARCH
-	if err := applier.Apply(cmd.Context(), release, executable); err != nil {
-		// Homebrew installs must use brew upgrade, never self-replace.
-		if strings.Contains(err.Error(), "not supported") || strings.Contains(err.Error(), "brew") {
-			return writeEnvelope(cmd, output.OK(map[string]any{
-				"applied":        false,
-				"hint":           err.Error(),
-				"latest":         release.TagName,
-				"install_method": "homebrew",
-			}, nil))
-		}
+
+	method, err := detectInstallMethod(executable)
+	if err != nil {
+		return fmt.Errorf("detect install method: %w", err)
+	}
+	if method == installmethod.Homebrew {
+		return writeEnvelope(cmd, output.OK(map[string]any{
+			"applied":        false,
+			"hint":           installmethod.Guidance(method, "symbrowse"),
+			"latest":         release.TagName,
+			"install_method": string(method),
+		}, nil))
+	}
+	if err := applyRelease(cmd.Context(), release, executable); err != nil {
 		return fmt.Errorf("update failed (rollback performed): %w", err)
 	}
 	return writeEnvelope(cmd, output.OK(map[string]any{
