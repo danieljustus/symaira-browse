@@ -218,8 +218,9 @@ migration, and the Hermes config switch.
 Configuration follows XDG conventions with a `SYMBROWSE_` environment prefix
 and a `config.toml` (via `configkit`). Key settings: domain allowlist,
 SSRF guard, cache TTL and directory, state retention, autosave policy, and
-Chrome executable override. See [docs/state.md](docs/state.md) for state
-encryption and [docs/allowlist.md](docs/allowlist.md) for the network policy.
+Chrome executable override. See the complete [configuration and environment
+reference](docs/config.md), [docs/state.md](docs/state.md) for state encryption,
+and [docs/allowlist.md](docs/allowlist.md) for the network policy.
 
 ## Documentation
 
@@ -231,6 +232,7 @@ encryption and [docs/allowlist.md](docs/allowlist.md) for the network policy.
 - [docs/ssrf.md](docs/ssrf.md) — SSRF guard (private/loopback targets; MCP default deny, `--allow-private`)
 - [docs/injection.md](docs/injection.md) — prompt-injection scan
 - [docs/allowlist.md](docs/allowlist.md) — domain allowlist network policy
+- [docs/config.md](docs/config.md) — configuration files, environment variables and precedence
 - [docs/notarize.md](docs/notarize.md) — macOS notarization and API-key secret mapping
 - [docs/state.md](docs/state.md) — state encryption and retention
 

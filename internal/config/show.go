@@ -26,16 +26,30 @@ func ShowOutputFor(result Result) ShowOutput {
 }
 
 func showFields(result Result) map[string]Field {
+	cfg := result.Config
 	return map[string]Field{
-		"cache_dir":       {Value: result.Config.CacheDir, Source: result.Sources["cache_dir"]},
-		"config_dir":      {Value: result.Config.ConfigDir, Source: result.Sources["config_dir"]},
-		"log_format":      {Value: result.Config.LogFormat, Source: result.Sources["log_format"]},
-		"log_level":       {Value: result.Config.LogLevel, Source: result.Sources["log_level"]},
-		"state_dir":       {Value: result.Config.StateDir, Source: result.Sources["state_dir"]},
-		"executable_path": {Value: result.Config.ExecutablePath, Source: result.Sources["executable_path"]},
-		"allowed_domains": {Value: strings.Join(result.Config.AllowedDomains, ","), Source: result.Sources["allowed_domains"]},
-		"ssrf_enabled":    {Value: strconv.FormatBool(result.Config.SSRFEnabled), Source: result.Sources["ssrf_enabled"]},
-		"allow_private":   {Value: strconv.FormatBool(result.Config.AllowPrivate), Source: result.Sources["allow_private"]},
+		"allow_private":     {Value: strconv.FormatBool(cfg.AllowPrivate), Source: result.Sources["allow_private"]},
+		"allowed_domains":   {Value: strings.Join(cfg.AllowedDomains, ","), Source: result.Sources["allowed_domains"]},
+		"approval_timeout":  {Value: strconv.Itoa(cfg.ApprovalTimeoutSeconds), Source: result.Sources["approval_timeout"]},
+		"autosave":          {Value: cfg.AutosavePolicy, Source: result.Sources["autosave"]},
+		"autosave_interval": {Value: strconv.Itoa(cfg.AutosaveIntervalSeconds), Source: result.Sources["autosave_interval"]},
+		"autosave_key":      {Value: cfg.AutosaveKey, Source: result.Sources["autosave_key"]},
+		"cache_dir":         {Value: cfg.CacheDir, Source: result.Sources["cache_dir"]},
+		"cache_ttl_hours":   {Value: strconv.Itoa(cfg.CacheTTLHours), Source: result.Sources["cache_ttl_hours"]},
+		"cdp_endpoint":      {Value: cfg.CDPEndpoint, Source: result.Sources["cdp_endpoint"]},
+		"config_dir":        {Value: cfg.ConfigDir, Source: result.Sources["config_dir"]},
+		"daemon_log":        {Value: cfg.DaemonLogPath, Source: result.Sources["daemon_log"]},
+		"executable_path":   {Value: cfg.ExecutablePath, Source: result.Sources["executable_path"]},
+		"headless":          {Value: strconv.FormatBool(cfg.Headless), Source: result.Sources["headless"]},
+		"idle_timeout":      {Value: strconv.Itoa(cfg.IdleTimeoutSeconds), Source: result.Sources["idle_timeout"]},
+		"log_format":        {Value: cfg.LogFormat, Source: result.Sources["log_format"]},
+		"log_level":         {Value: cfg.LogLevel, Source: result.Sources["log_level"]},
+		"operation_timeout": {Value: strconv.Itoa(cfg.OperationTimeoutSeconds), Source: result.Sources["operation_timeout"]},
+		"read_timeout":      {Value: strconv.Itoa(cfg.ReadTimeoutSeconds), Source: result.Sources["read_timeout"]},
+		"ssrf_enabled":      {Value: strconv.FormatBool(cfg.SSRFEnabled), Source: result.Sources["ssrf_enabled"]},
+		"state_dir":         {Value: cfg.StateDir, Source: result.Sources["state_dir"]},
+		"state_expire_days": {Value: strconv.Itoa(cfg.StateExpireDays), Source: result.Sources["state_expire_days"]},
+		"upload_dirs":       {Value: strings.Join(cfg.UploadDirs, ","), Source: result.Sources["upload_dirs"]},
 	}
 }
 

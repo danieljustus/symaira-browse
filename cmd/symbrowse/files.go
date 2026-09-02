@@ -3,8 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -97,22 +95,4 @@ func newDownloadsCommand() *cobra.Command {
 	command.PersistentFlags().StringVar(&session, "session", "default", "session name")
 	command.Flags().String("dir", "", "set the download directory first")
 	return command
-}
-
-// uploadDirsFromEnv resolves the allowed upload roots: SYMBROWSE_UPLOAD_DIRS
-// (comma-separated) or the daemon's working directory as a safe default.
-func uploadDirsFromEnv() []string {
-	if raw := strings.TrimSpace(os.Getenv("SYMBROWSE_UPLOAD_DIRS")); raw != "" {
-		var dirs []string
-		for _, dir := range strings.Split(raw, ",") {
-			if dir = strings.TrimSpace(dir); dir != "" {
-				dirs = append(dirs, dir)
-			}
-		}
-		return dirs
-	}
-	if cwd, err := os.Getwd(); err == nil {
-		return []string{cwd}
-	}
-	return nil
 }
