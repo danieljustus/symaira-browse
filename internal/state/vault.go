@@ -1,7 +1,9 @@
 package state
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"os/exec"
 	"time"
@@ -49,4 +51,13 @@ func LookupVault(ctx context.Context, lookPath func(string) (string, error), run
 		return nil, vaultCtx.Err()
 	}
 	return out, err
+}
+
+// RunVaultSetCommand stores a state-encryption key in symvault. The key is
+// passed through stdin so it never appears in the child process arguments.
+func RunVaultSetCommand(ctx context.Context, name, entry string, key []byte) ([]byte, error) {
+	encoded := []byte(hex.EncodeToString(key) + "\n")
+	command := exec.CommandContext(ctx, name, "set", entry, "--stdin-value")
+	command.Stdin = bytes.NewReader(encoded)
+	return command.Output()
 }

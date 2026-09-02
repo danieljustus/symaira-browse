@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/danieljustus/symaira-browse/internal/output"
+	"github.com/danieljustus/symaira-browse/internal/state"
 )
 
 func newStateCommand() *cobra.Command {
@@ -25,6 +26,36 @@ func newStateCommand() *cobra.Command {
 	command.AddCommand(newStateShowCommand(&session))
 	command.AddCommand(newStateClearCommand(&session))
 	command.AddCommand(newStateCleanCommand(&session))
+	command.AddCommand(newStateKeyCommand())
+	return command
+}
+
+func newStateKeyCommand() *cobra.Command {
+	command := &cobra.Command{
+		Use:   "key",
+		Short: "Provision the state-encryption key",
+		Args:  cobra.NoArgs,
+	}
+	command.AddCommand(&cobra.Command{
+		Use:   "init",
+		Short: "Generate and provision a state-encryption key without rotating an existing key",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			result, err := state.NewKeyResolver().Initialize(cmd.Context())
+			if err != nil {
+				return err
+			}
+			if structuredOutput(cmd) {
+				return writeEnvelope(cmd, output.OK(result, nil))
+			}
+			if result.Instruction != "" {
+				_, err = fmt.Fprintf(cmd.OutOrStdout(), "No secure key store is available. Configure the generated key with:\n%s\n", result.Instruction)
+				return err
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "State encryption key %s via %s.\n", result.Action, result.KeySource)
+			return err
+		},
+	})
 	return command
 }
 

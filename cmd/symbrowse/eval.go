@@ -7,6 +7,8 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
+
+	"github.com/danieljustus/symaira-browse/internal/output"
 )
 
 // Issue #60: JavaScript evaluation command.
@@ -68,6 +70,9 @@ func evalExpression(cmd *cobra.Command, args []string) (string, error) {
 // printEvalResult prints the evaluation result; an uncaught exception is
 // reported as an error with its text.
 func printEvalResult(cmd *cobra.Command, data any) error {
+	if structuredOutput(cmd) {
+		return writeEnvelope(cmd, output.OK(data, nil))
+	}
 	payload, _ := data.(map[string]any)
 	if exception, _ := payload["exception_text"].(string); exception != "" {
 		return fmt.Errorf("eval threw: %s", exception)

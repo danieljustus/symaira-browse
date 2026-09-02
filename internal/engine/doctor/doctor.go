@@ -20,6 +20,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/engine/chrome"
 	"github.com/danieljustus/symaira-browse/internal/engine/safari"
 	"github.com/danieljustus/symaira-browse/internal/engine/static"
+	"github.com/danieljustus/symaira-browse/internal/state"
 )
 
 const (
@@ -172,7 +173,7 @@ func run(options Options, goos string, environ func(string) string, lookPath fun
 
 	search := searchPaths(goos, environ)
 	browser, discoveryErr := discover(goos, options.ExecutablePath, environ, lookPath)
-	report := Report{Checks: make([]Check, 0, 8)}
+	report := Report{Checks: make([]Check, 0, 9)}
 	report.Checks = append(report.Checks, checkEngineCapabilities(options.Engine))
 	if options.Engine == "safari-attach" {
 		report.Checks = append(report.Checks, checkSafariPrerequisites())
@@ -211,6 +212,7 @@ func run(options Options, goos string, environ func(string) string, lookPath fun
 		checkWritable("cache_dir", options.Paths.CacheDir),
 		checkWritable("state_dir", options.Paths.StateDir),
 		checkWritable("socket_dir", options.SocketDir),
+		checkKeySource(goos, environ, lookPath),
 	)
 	report.Status = aggregateStatus(report.Checks)
 	return report
@@ -407,6 +409,38 @@ func checkEngineCapabilities(kind string) Check {
 	}
 }
 
+func checkKeySource(goos string, environ func(string) string, lookPath func(string) (string, error)) Check {
+	resolver := state.NewKeyResolver()
+	resolver.LookPath = lookPath
+	resolver.Env = environ
+	if goos != "darwin" {
+		resolver.KeychainGet = nil
+	}
+	source, err := resolver.Source()
+	if err != nil {
+		return Check{
+			Name:    "key_source",
+			Status:  StatusWarn,
+			Message: fmt.Sprintf("state encryption key source could not be resolved; run `symbrowse state key init` after fixing the provider: %v", err),
+			Details: map[string]string{"fix": "symbrowse state key init"},
+		}
+	}
+	if source == state.KeySourceNone {
+		return Check{
+			Name:    "key_source",
+			Status:  StatusWarn,
+			Message: "no state encryption key configured (key_source: none); run `symbrowse state key init` to enable encryption",
+			Details: map[string]string{"source": string(source), "fix": "symbrowse state key init"},
+		}
+	}
+	return Check{
+		Name:    "key_source",
+		Status:  StatusPass,
+		Message: fmt.Sprintf("state encryption key resolved from %s", source),
+		Details: map[string]string{"source": string(source)},
+	}
+}
+
 func checkWritable(name, path string) Check {
 	if path == "" {
 		return Check{Name: name, Status: StatusFail, Message: "path is empty"}
@@ -483,7 +517,7 @@ func (r Report) HasFailures() bool {
 
 // StableCheckNames is useful to callers that validate the doctor schema.
 func StableCheckNames() []string {
-	names := []string{"engine", "chrome", "version", "cdp", "config_dir", "cache_dir", "state_dir", "socket_dir"}
+	names := []string{"engine", "chrome", "version", "cdp", "config_dir", "cache_dir", "state_dir", "socket_dir", "key_source"}
 	return append([]string(nil), names...)
 }
 
