@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	cdproto "github.com/chromedp/cdproto"
@@ -45,6 +46,12 @@ type Options struct {
 	StartupTimeout time.Duration
 	RequestTimeout time.Duration
 	UserDataDir    string
+	// ManagedProfile marks UserDataDir as symbrowse's own private session
+	// directory rather than a Chrome profile the user pointed at with
+	// --profile. It only affects how a profile-reuse limitation is worded,
+	// so the warning never tells a user to "use a private profile" when the
+	// daemon is already using one (issue #372).
+	ManagedProfile bool
 	// AllowedDomains activates the domain allowlist network policy. Patterns
 	// are bare hostnames, optionally prefixed with "*." (see internal/policy).
 	// When non-empty, every request outside the allowlist is denied on the
@@ -167,14 +174,15 @@ func (e *Engine) Launch(ctx context.Context) error {
 	} else {
 		// A running Chrome holds a SingletonLock in the profile directory. In
 		// that state the profile is not exclusively ours and the allowlist
-		// cannot be guaranteed to cover its requests (see issue #42).
-		for _, lock := range []string{"SingletonLock", "SingletonSocket"} {
-			if _, statErr := os.Stat(filepath.Join(dataDir, lock)); statErr == nil {
-				e.mu.Lock()
-				e.profileReused = true
-				e.mu.Unlock()
-				break
-			}
+		// cannot be guaranteed to cover its requests (see issue #42). A lock
+		// left behind by a crashed or killed Chrome does not have that effect,
+		// so the owner is resolved before the limitation is reported (issue
+		// #372) — the managed session directory outlives every daemon run and
+		// would otherwise warn forever.
+		if profileLockedByLiveProcess(dataDir) {
+			e.mu.Lock()
+			e.profileReused = true
+			e.mu.Unlock()
 		}
 		if err := os.MkdirAll(dataDir, 0o700); err != nil {
 			return fmt.Errorf("create Chrome profile: %w", err)
@@ -628,7 +636,11 @@ func (e *Engine) Limitations() []string {
 	}
 	var limitations []string
 	if reused {
-		limitations = append(limitations, "domain allowlist is not fully enforceable: reusing an existing Chrome profile; use a private profile for guaranteed enforcement")
+		if e.options.ManagedProfile {
+			limitations = append(limitations, "domain allowlist is not fully enforceable: another browser process is still using this session profile; stop it or use a different session for guaranteed enforcement")
+		} else {
+			limitations = append(limitations, "domain allowlist is not fully enforceable: reusing an existing Chrome profile; use a private profile for guaranteed enforcement")
+		}
 	}
 	if attached {
 		limitations = append(limitations, "domain allowlist is not fully enforceable: attached to an existing browser session; requests outside this session are not observed")
@@ -644,4 +656,73 @@ type sessionExecutor struct {
 
 func (s *sessionExecutor) Execute(ctx context.Context, method string, params, result any) error {
 	return s.conn.execute(ctx, s.sessionID, method, params, result)
+}
+
+// profileLockedByLiveProcess reports whether another browser process currently
+// holds the Chrome singleton lock in dataDir.
+//
+// Chrome writes SingletonLock as a symlink whose target is "<hostname>-<pid>"
+// and unlinks it on a clean shutdown. A crash or SIGKILL leaves it behind, and
+// symbrowse's managed session directories are persistent, so a stale link used
+// to make every later run report a profile-reuse limitation that was not true
+// (issue #372).
+//
+// The check stays conservative: anything that cannot be resolved to a
+// definitely-dead local process counts as live, so the enforcement guarantee
+// from issue #42 is never weakened by a parsing failure.
+func profileLockedByLiveProcess(dataDir string) bool {
+	path := filepath.Join(dataDir, "SingletonLock")
+	target, err := os.Readlink(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No lock link. A leftover SingletonSocket without a lock is not
+			// evidence of a live browser.
+			return false
+		}
+		// Present but not a symlink (or unreadable): assume it is live.
+		if _, statErr := os.Lstat(path); statErr == nil {
+			return true
+		}
+		return false
+	}
+	host, pid, ok := parseSingletonLock(target)
+	if !ok {
+		return true
+	}
+	if localHost, err := os.Hostname(); err != nil || localHost != host {
+		// Another machine's lock (a shared profile directory): not ours to
+		// judge, so treat it as live.
+		return true
+	}
+	return processAlive(pid)
+}
+
+// parseSingletonLock splits a Chrome SingletonLock target ("<hostname>-<pid>")
+// into its parts. Hostnames may contain "-", so the pid is taken from the last
+// separator.
+func parseSingletonLock(target string) (host string, pid int, ok bool) {
+	index := strings.LastIndex(target, "-")
+	if index <= 0 || index == len(target)-1 {
+		return "", 0, false
+	}
+	pid, err := strconv.Atoi(target[index+1:])
+	if err != nil || pid <= 0 {
+		return "", 0, false
+	}
+	return target[:index], pid, true
+}
+
+// processAlive reports whether pid names a running process. An error other
+// than "no such process" is treated as alive so the limitation stays
+// conservative.
+func processAlive(pid int) bool {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	err = process.Signal(syscall.Signal(0))
+	if err == nil {
+		return true
+	}
+	return !errors.Is(err, os.ErrProcessDone) && !errors.Is(err, syscall.ESRCH)
 }
