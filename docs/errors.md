@@ -82,11 +82,46 @@ score}]`. Der Probe läuft **nur** für diese beiden Codes — er kostet echte
 HTTP-Anfragen gegen denselben Host, und bei einer Auth-Ablehnung oder einem
 Rate-Limit wäre eine Ersatz-URL ohnehin nicht die Antwort.
 
-**Grenze am MCP-Rand:** Der MCP-Server überträgt einen fehlgeschlagenen
-Tool-Aufruf als reine Fehlerzeichenkette. `resume_hint` und die
-Recovery-Kandidaten werden deshalb in die Meldung hineingerendert; `code`,
-`retryable` und `details` als getrennte Felder erreichen nur Clients am
-Daemon-Socket, nicht MCP-Clients.
+## Fehler am MCP-Rand
+
+Ein fehlgeschlagener Tool-Aufruf ist ein MCP-Tool-Result mit `isError: true`,
+kein JSON-RPC-Fehlerobjekt — das JSON-RPC-Fehlerobjekt gehört
+Protokollfehlern, und ein dorthin verschobener Tool-Fehler wäre für das Modell
+nicht mehr sichtbar.
+
+Der Textblock trägt weiterhin `code: message`. Alle strukturierten Felder
+liegen daneben im `_meta` des Results, unter dem Schlüssel
+`symaira.dev/tool_error`:
+
+```json
+{
+  "content": [{"type": "text", "text": "operation_failed: fetch https://example.com/docs/gone: HTTP 404"}],
+  "isError": true,
+  "_meta": {
+    "symaira.dev/tool_error": {
+      "code": "operation_failed",
+      "message": "operation_failed: fetch https://example.com/docs/gone: HTTP 404",
+      "retryable": false,
+      "requires_confirmation": false,
+      "resume_hint": "check the URL; the response carries candidate replacements when the probe found any",
+      "details": {"recovery": {"nearest_ancestor": "…", "ancestor_status": 200, "candidates": […]}}
+    }
+  }
+}
+```
+
+Damit erreichen `code`, `retryable`, `requires_confirmation`, `resume_hint`,
+`hint` und `details` MCP-Clients als Felder — dieselben Werte wie am
+Daemon-Socket, ohne Umweg über die Meldung. Der Transport liegt in
+`corekit/mcpserver` (`ToolErrorData`, festgeschrieben in dessen
+`contracts/mcp_tool_errors.json`): dort werden optionale Methoden des
+zurückgegebenen Fehlers abgefragt, `internal/mcp.toolError` implementiert sie.
+Ein Fehler ohne diese Methoden erzeugt gar kein `_meta`.
+
+`retryable` und `requires_confirmation` stehen auch dann im Objekt, wenn sie
+`false` sind: „ein zweiter Versuch hilft nicht“ ist die Aussage, auf die ein
+Agent reagieren kann; ein fehlendes Feld hieße nur, dass der Fehler nichts
+dazu gesagt hat.
 
 ## Regeln
 

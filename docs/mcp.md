@@ -205,6 +205,15 @@ Im MCP-Modus gilt zusätzlich das Token-Budget (Default 4 000 Tokens,
 `mcpDefaultMaxTokens`) wie für `snapshot` und `read` — pro Aufruf über
 `max_tokens` übersteuerbar.
 
+## Fehler
+
+Ein fehlgeschlagener Tool-Aufruf kommt als Tool-Result mit `isError: true`
+zurück, nie als JSON-RPC-Fehler. Der Textblock ist `code: message`; `code`,
+`retryable`, `requires_confirmation`, `resume_hint`, `hint` und `details`
+stehen zusätzlich als Felder im `_meta` des Results unter
+`symaira.dev/tool_error`. Die Codes und die Fetch-Fehlerklassen stehen in
+[errors.md](errors.md).
+
 Alle drei laufen über die **Non-Browser-Fetch-Pipeline** (honest HTTP +
 StaticEngine): Sie brauchen keine Chrome-Sitzung und keinen Daemon-Browser.
 SSRF-Guard gilt wie für alle MCP-Tools (private/loopback sind deny, außer

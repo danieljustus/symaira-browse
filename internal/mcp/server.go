@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -200,6 +199,9 @@ func (s *Server) proxyTool(tool ProxyTool) *mcpserver.Tool {
 }
 
 // daemonToolError converts a failed daemon response into an MCP tool error.
+// Every field of the daemon payload is carried over: corekit's MCP server
+// reads them back off the methods below and publishes them as the structured
+// half of the tool result, so nothing here has to be flattened into prose.
 func daemonToolError(response daemon.Response) error {
 	if response.Error == nil {
 		return fmt.Errorf("daemon request failed")
@@ -207,6 +209,7 @@ func daemonToolError(response daemon.Response) error {
 	return &toolError{
 		code:                 response.Error.Code,
 		message:              response.Error.Message,
+		hint:                 response.Error.Hint,
 		retryable:            pointerBool(response.Error.Retryable),
 		requiresConfirmation: pointerBool(response.Error.RequiresUserConfirmation),
 		resumeHint:           response.Error.ResumeHint,
@@ -214,60 +217,29 @@ func daemonToolError(response daemon.Response) error {
 	}
 }
 
+// toolError is a daemon failure on its way to an MCP client. Its methods are
+// the optional interfaces corekit/mcpserver consults (see that package's
+// ToolErrorData and contracts/mcp_tool_errors.json): the code, the retry and
+// confirmation flags, the resume hint, the remediation hint and the details
+// map travel as machine-readable fields under the tool result's _meta, while
+// Error() stays the plain sentence a client renders for the model.
 type toolError struct {
 	code                 string
 	message              string
+	hint                 string
 	retryable            bool
 	requiresConfirmation bool
 	resumeHint           string
 	details              map[string]any
 }
 
-// Error renders the actionable parts of the failure into the message itself.
-// The MCP server transmits a failed tool call as the error string alone, so
-// anything left in a struct field — the resume hint, the recovery candidates
-// a 404 probe found — would never reach the client.
-func (e *toolError) Error() string {
-	message := fmt.Sprintf("%s: %s", e.code, e.message)
-	if e.resumeHint != "" {
-		message += " — " + e.resumeHint
-	}
-	if suggestions := recoverySuggestions(e.details); suggestions != "" {
-		message += " Did you mean: " + suggestions
-	}
-	return message
-}
-
-// recoverySuggestions renders candidate replacement URLs from a 404 recovery
-// probe as a short, comma-separated list.
-func recoverySuggestions(details map[string]any) string {
-	recovery, ok := details["recovery"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	candidates, ok := recovery["candidates"].([]any)
-	if !ok {
-		return ""
-	}
-	urls := make([]string, 0, len(candidates))
-	for _, entry := range candidates {
-		candidate, ok := entry.(map[string]any)
-		if !ok {
-			continue
-		}
-		if url, ok := candidate["url"].(string); ok && url != "" {
-			urls = append(urls, url)
-		}
-		if len(urls) == 3 {
-			break
-		}
-	}
-	return strings.Join(urls, ", ")
-}
-func (e *toolError) ErrorCode() string          { return e.code }
-func (e *toolError) RetryableError() bool       { return e.retryable }
-func (e *toolError) RequiresConfirmation() bool { return e.requiresConfirmation }
-func (e *toolError) ResumeGuidance() string     { return e.resumeHint }
+func (e *toolError) Error() string                { return fmt.Sprintf("%s: %s", e.code, e.message) }
+func (e *toolError) ErrorCode() string            { return e.code }
+func (e *toolError) ErrorHint() string            { return e.hint }
+func (e *toolError) RetryableError() bool         { return e.retryable }
+func (e *toolError) RequiresConfirmation() bool   { return e.requiresConfirmation }
+func (e *toolError) ResumeGuidance() string       { return e.resumeHint }
+func (e *toolError) ErrorDetails() map[string]any { return e.details }
 
 func pointerBool(value *bool) bool {
 	return value != nil && *value
