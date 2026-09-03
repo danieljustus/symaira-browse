@@ -91,6 +91,9 @@ func (s *Server) SocketPath() string { return s.options.SocketPath }
 // Registry returns the daemon-local session registry.
 func (s *Server) Registry() *SessionRegistry { return s.registry }
 
+// Policy returns the network policy this server reports through daemon.status.
+func (s *Server) Policy() PolicyStatus { return s.options.Policy }
+
 // ListenAndServe binds the socket and serves until ctx is canceled, Close is
 // called, or the configured idle timeout expires.
 func (s *Server) ListenAndServe(ctx context.Context) error {
