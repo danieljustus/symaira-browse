@@ -67,6 +67,9 @@ type Engine struct {
 	// rootContext is the session's top-level context, kept so SetActiveFrame
 	// can return to the main frame.
 	rootContext string
+	// activeFrames records the selected child context for each top-level page.
+	// Frame selection is page-local so switching tabs cannot leak frame state.
+	activeFrames map[string]string
 }
 
 // New creates a safari-bidi engine with default options.
@@ -74,7 +77,11 @@ func New() *Engine { return NewWithOptions(Options{}) }
 
 // NewWithOptions creates a safari-bidi engine with explicit options.
 func NewWithOptions(options Options) *Engine {
-	return &Engine{options: options, blocked: map[string]*engine.BlockedRequest{}}
+	return &Engine{
+		options:      options,
+		blocked:      map[string]*engine.BlockedRequest{},
+		activeFrames: map[string]string{},
+	}
 }
 
 // Launch starts safaridriver, creates the BiDi session, and binds the engine
@@ -103,6 +110,16 @@ func (e *Engine) Launch(ctx context.Context) error {
 	}
 
 	e.mu.Lock()
+	if e.closed {
+		e.mu.Unlock()
+		_ = live.Close(ctx)
+		return errors.New("safari-bidi engine: already closed")
+	}
+	if e.live != nil {
+		e.mu.Unlock()
+		_ = live.Close(ctx)
+		return nil
+	}
 	e.live = live
 	e.context = topLevel
 	e.rootContext = topLevel
@@ -163,18 +180,35 @@ func (e *Engine) NewPage(_ context.Context, _ engine.Context, _ string) (engine.
 	return engine.Page{ID: e.context}, nil
 }
 
-// pageContext resolves the BiDi context a Page addresses, falling back to the
-// engine's top-level context for zero-valued pages.
+// pageContext resolves the selected frame for a Page, falling back to the
+// Page's top-level context and then the engine's initial context.
 func (e *Engine) pageContext(page engine.Page) (string, error) {
-	if page.ID != "" {
-		return page.ID, nil
-	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.context == "" {
+	pageID := page.ID
+	if pageID == "" {
+		pageID = e.context
+	}
+	if pageID == "" {
 		return "", errors.New("safari-bidi engine: not launched")
 	}
-	return e.context, nil
+	if frameID := e.activeFrames[pageID]; frameID != "" {
+		return frameID, nil
+	}
+	return pageID, nil
+}
+
+func (e *Engine) topLevelPageContext(page engine.Page) (string, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	pageID := page.ID
+	if pageID == "" {
+		pageID = e.context
+	}
+	if pageID == "" {
+		return "", errors.New("safari-bidi engine: not launched")
+	}
+	return pageID, nil
 }
 
 // Navigate loads a URL after the target has passed the daemon's URL policies.
@@ -185,13 +219,16 @@ func (e *Engine) pageContext(page engine.Page) (string, error) {
 // (see the package comment), but the command's own completion is sufficient
 // here and is what the engine relies on.
 func (e *Engine) Navigate(ctx context.Context, page engine.Page, target string) (engine.NavigationResult, error) {
-	contextID, err := e.pageContext(page)
+	contextID, err := e.topLevelPageContext(page)
 	if err != nil {
 		return engine.NavigationResult{}, err
 	}
 	if err := e.guardTarget(target); err != nil {
 		return engine.NavigationResult{}, err
 	}
+	e.mu.Lock()
+	delete(e.activeFrames, contextID)
+	e.mu.Unlock()
 	var result struct {
 		Navigation string `json:"navigation"`
 		URL        string `json:"url"`

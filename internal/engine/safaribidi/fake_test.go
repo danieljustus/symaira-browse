@@ -21,6 +21,7 @@ type fakeBidi struct {
 	upgrader websocket.Upgrader
 
 	mu       sync.Mutex
+	writeMu  sync.Mutex
 	handlers map[string]func(params json.RawMessage) (any, *fakeError)
 	calls    []string
 	conns    []*websocket.Conn
@@ -81,7 +82,7 @@ func (f *fakeBidi) serve(w http.ResponseWriter, r *http.Request) {
 		f.mu.Unlock()
 
 		if handler == nil {
-			_ = conn.WriteJSON(map[string]any{
+			_ = f.writeJSON(conn, map[string]any{
 				"type": "error", "id": request.ID,
 				"error": "unknown command", "message": "'" + request.Method + "' was not found",
 			})
@@ -89,7 +90,7 @@ func (f *fakeBidi) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		result, failure := handler(request.Params)
 		if failure != nil {
-			_ = conn.WriteJSON(map[string]any{
+			_ = f.writeJSON(conn, map[string]any{
 				"type": "error", "id": request.ID,
 				"error": failure.Code, "message": failure.Message,
 			})
@@ -98,8 +99,14 @@ func (f *fakeBidi) serve(w http.ResponseWriter, r *http.Request) {
 		if result == nil {
 			result = map[string]any{}
 		}
-		_ = conn.WriteJSON(map[string]any{"type": "success", "id": request.ID, "result": result})
+		_ = f.writeJSON(conn, map[string]any{"type": "success", "id": request.ID, "result": result})
 	}
+}
+
+func (f *fakeBidi) writeJSON(conn *websocket.Conn, value any) error {
+	f.writeMu.Lock()
+	defer f.writeMu.Unlock()
+	return conn.WriteJSON(value)
 }
 
 // emit pushes an event frame to every connected client.
@@ -108,7 +115,7 @@ func (f *fakeBidi) emit(method string, params any) {
 	conns := append([]*websocket.Conn(nil), f.conns...)
 	f.mu.Unlock()
 	for _, conn := range conns {
-		_ = conn.WriteJSON(map[string]any{"type": "event", "method": method, "params": params})
+		_ = f.writeJSON(conn, map[string]any{"type": "event", "method": method, "params": params})
 	}
 }
 

@@ -60,7 +60,7 @@ func (e *Engine) TabNew(ctx context.Context, _ engine.Context, _ string, target 
 		return engine.Page{}, errors.New("safari-bidi engine: Safari returned no context for the new tab")
 	}
 	page := engine.Page{ID: created.Context}
-	if target != "" {
+	if target != "" && target != "about:blank" {
 		if _, err := e.Navigate(ctx, page, target); err != nil {
 			// The tab exists but is unusable for the requested target; close it
 			// rather than leaking an automation window the caller did not ask for.
@@ -73,13 +73,16 @@ func (e *Engine) TabNew(ctx context.Context, _ engine.Context, _ string, target 
 
 // TabClose closes the browsing context behind a page.
 func (e *Engine) TabClose(ctx context.Context, page engine.Page) error {
-	contextID, err := e.pageContext(page)
+	contextID, err := e.topLevelPageContext(page)
 	if err != nil {
 		return err
 	}
 	if err := e.call(ctx, "browsingContext.close", map[string]any{"context": contextID}, nil); err != nil {
 		return fmt.Errorf("safari-bidi engine: close tab: %w", err)
 	}
+	e.mu.Lock()
+	delete(e.activeFrames, contextID)
+	e.mu.Unlock()
 	return nil
 }
 
@@ -90,9 +93,14 @@ func (e *Engine) TabClose(ctx context.Context, page engine.Page) error {
 // than a null contentDocument. Measured against the /iframe fixture, the child
 // and grandchild frames both appear as contexts.
 func (e *Engine) FrameTree(ctx context.Context, page engine.Page) ([]engine.FrameInfo, error) {
-	contextID, err := e.pageContext(page)
-	if err != nil {
-		return nil, err
+	contextID := page.ID
+	if contextID == "" {
+		e.mu.Lock()
+		contextID = e.context
+		e.mu.Unlock()
+		if contextID == "" {
+			return nil, errors.New("safari-bidi engine: not launched")
+		}
 	}
 	contexts, err := e.contextTree(ctx)
 	if err != nil {
@@ -118,26 +126,48 @@ func frameInfo(node bidiContext, parent string) engine.FrameInfo {
 // browsing contexts in BiDi, so selecting one is rebinding the engine's
 // context after verifying the frame is really in this page's tree.
 func (e *Engine) SetActiveFrame(ctx context.Context, page engine.Page, frameID string) error {
+	pageID := page.ID
+	if pageID == "" {
+		e.mu.Lock()
+		pageID = e.context
+		e.mu.Unlock()
+	}
+	if pageID == "" {
+		return errors.New("safari-bidi engine: not launched")
+	}
 	if frameID == "" {
 		e.mu.Lock()
 		defer e.mu.Unlock()
-		if e.rootContext == "" {
-			return errors.New("safari-bidi engine: not launched")
-		}
-		e.context = e.rootContext
+		delete(e.activeFrames, pageID)
 		return nil
 	}
 	contexts, err := e.contextTree(ctx)
 	if err != nil {
 		return err
 	}
-	if !containsContext(contexts, frameID) {
-		return fmt.Errorf("safari-bidi engine: no frame %q in this session", frameID)
+	pageNode, found := findContext(contexts, pageID)
+	if !found || !containsContext([]bidiContext{pageNode}, frameID) {
+		return fmt.Errorf("safari-bidi engine: no frame %q in page %q", frameID, pageID)
 	}
 	e.mu.Lock()
-	e.context = frameID
+	if e.activeFrames == nil {
+		e.activeFrames = map[string]string{}
+	}
+	e.activeFrames[pageID] = frameID
 	e.mu.Unlock()
 	return nil
+}
+
+func findContext(nodes []bidiContext, id string) (bidiContext, bool) {
+	for _, node := range nodes {
+		if node.Context == id {
+			return node, true
+		}
+		if found, ok := findContext(node.Children, id); ok {
+			return found, true
+		}
+	}
+	return bidiContext{}, false
 }
 
 func containsContext(nodes []bidiContext, id string) bool {

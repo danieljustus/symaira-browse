@@ -53,7 +53,12 @@ func TestProbeSurface(t *testing.T) {
 			Context string `json:"context"`
 		} `json:"contexts"`
 	}
-	_ = call("browsingContext.getTree", map[string]any{}, &tree)
+	if err := call("browsingContext.getTree", map[string]any{}, &tree); err != nil {
+		t.Fatalf("get browsing context tree: %v", err)
+	}
+	if len(tree.Contexts) == 0 {
+		t.Fatal("get browsing context tree: Safari returned no contexts")
+	}
 	page := tree.Contexts[0].Context
 
 	// Command surface enumeration: "unknown command" means absent, anything

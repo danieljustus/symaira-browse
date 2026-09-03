@@ -144,9 +144,11 @@ func (c *connection) Execute(ctx context.Context, method string, params, result 
 	c.mu.Unlock()
 
 	c.writeMu.Lock()
+	writeDeadline := time.Time{}
 	if deadline, ok := ctx.Deadline(); ok {
-		_ = c.ws.SetWriteDeadline(deadline)
+		writeDeadline = deadline
 	}
+	_ = c.ws.SetWriteDeadline(writeDeadline)
 	writeErr := c.ws.WriteJSON(bidiRequest{ID: id, Method: method, Params: params})
 	c.writeMu.Unlock()
 	if writeErr != nil {
@@ -157,8 +159,9 @@ func (c *connection) Execute(ctx context.Context, method string, params, result 
 	select {
 	case answer := <-reply:
 		if answer.Err != nil {
-			answer.Err.Method = method
-			return answer.Err
+			commandErr := *answer.Err
+			commandErr.Method = method
+			return &commandErr
 		}
 		if result != nil && len(answer.Result) > 0 && string(answer.Result) != "null" {
 			if err := json.Unmarshal(answer.Result, result); err != nil {

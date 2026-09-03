@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -54,6 +55,8 @@ type driverSession struct {
 	webSocketURL string
 	capabilities json.RawMessage
 	stderr       *bytes.Buffer
+	waitDone     chan struct{}
+	waitErr      error
 }
 
 // startDriver spawns safaridriver and creates a BiDi-enabled session.
@@ -86,15 +89,19 @@ func startDriver(ctx context.Context, options Options) (*driverSession, error) {
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start %s: %w", driver, err)
 	}
-	session := &driverSession{cmd: cmd, httpPort: httpPort, stderr: stderr}
+	session := &driverSession{cmd: cmd, httpPort: httpPort, stderr: stderr, waitDone: make(chan struct{})}
+	go func() {
+		session.waitErr = cmd.Wait()
+		close(session.waitDone)
+	}()
 
-	if err := waitForDriver(ctx, httpPort, options.driverReadyTimeout()); err != nil {
+	if err := waitForDriver(ctx, session, options.driverReadyTimeout()); err != nil {
 		session.kill()
-		return nil, err
+		return nil, session.withStderr(err)
 	}
 	if err := session.createSession(ctx, options); err != nil {
-		session.kill()
-		return nil, err
+		_ = session.Close(context.Background())
+		return nil, session.withStderr(err)
 	}
 	return session, nil
 }
@@ -135,6 +142,7 @@ func (d *driverSession) createSession(ctx context.Context, options Options) erro
 	if decoded.Value.SessionID == "" {
 		return fmt.Errorf("safaridriver returned no session id (HTTP %d)", response.StatusCode)
 	}
+	d.sessionID = decoded.Value.SessionID
 
 	var caps struct {
 		WebSocketURL json.RawMessage `json:"webSocketUrl"`
@@ -149,7 +157,6 @@ func (d *driverSession) createSession(ctx context.Context, options Options) erro
 		return fmt.Errorf("safaridriver created a session without a BiDi socket (webSocketUrl=%s); this Safari does not support safari:experimentalWebSocketUrl", strings.TrimSpace(string(caps.WebSocketURL)))
 	}
 
-	d.sessionID = decoded.Value.SessionID
 	d.webSocketURL = socketURL
 	d.capabilities = decoded.Value.Capabilities
 	return nil
@@ -207,19 +214,42 @@ func (d *driverSession) kill() {
 		return
 	}
 	_ = d.cmd.Process.Kill()
-	_, _ = d.cmd.Process.Wait()
+	if d.waitDone != nil {
+		<-d.waitDone
+	} else {
+		_, _ = d.cmd.Process.Wait()
+	}
 	d.cmd = nil
+}
+
+func (d *driverSession) withStderr(err error) error {
+	if d == nil || d.stderr == nil {
+		return err
+	}
+	detail := strings.TrimSpace(d.stderr.String())
+	if detail == "" {
+		return err
+	}
+	if len(detail) > 1024 {
+		detail = detail[len(detail)-1024:]
+	}
+	return fmt.Errorf("%w: safaridriver stderr: %s", err, detail)
 }
 
 // waitForDriver polls /status until safaridriver's HTTP server accepts
 // requests. safaridriver writes nothing to stdout on success, so readiness
 // cannot be detected by watching its output.
-func waitForDriver(ctx context.Context, port int, timeout time.Duration) error {
+func waitForDriver(ctx context.Context, session *driverSession, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
-	url := fmt.Sprintf("http://127.0.0.1:%d/status", port)
+	url := fmt.Sprintf("http://127.0.0.1:%d/status", session.httpPort)
 	for {
+		select {
+		case <-session.waitDone:
+			return driverExitError(session.waitErr)
+		default:
+		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("safaridriver did not become ready on port %d within %s", port, timeout)
+			return fmt.Errorf("safaridriver did not become ready on port %d within %s", session.httpPort, timeout)
 		}
 		if err := ctx.Err(); err != nil {
 			return err
@@ -238,9 +268,18 @@ func waitForDriver(ctx context.Context, port int, timeout time.Duration) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-session.waitDone:
+			return driverExitError(session.waitErr)
 		case <-time.After(50 * time.Millisecond):
 		}
 	}
+}
+
+func driverExitError(err error) error {
+	if err == nil {
+		return errors.New("safaridriver exited before becoming ready")
+	}
+	return fmt.Errorf("safaridriver exited before becoming ready: %w", err)
 }
 
 // freePort asks the kernel for an unused localhost port. safaridriver takes a

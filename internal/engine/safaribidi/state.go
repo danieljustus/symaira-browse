@@ -22,8 +22,12 @@ func (e *Engine) NavigationState(ctx context.Context, page engine.Page) (engine.
 		return engine.NavigationState{}, err
 	}
 	var result struct {
-		Type   string `json:"type"`
-		Result remote `json:"result"`
+		Type      string `json:"type"`
+		Result    remote `json:"result"`
+		Exception struct {
+			Text      string `json:"text"`
+			Exception remote `json:"exception"`
+		} `json:"exceptionDetails"`
 	}
 	if err := e.call(ctx, "script.evaluate", map[string]any{
 		"expression":   `JSON.stringify({url: location.href, ready: document.readyState})`,
@@ -31,6 +35,13 @@ func (e *Engine) NavigationState(ctx context.Context, page engine.Page) (engine.
 		"awaitPromise": false,
 	}, &result); err != nil {
 		return engine.NavigationState{}, err
+	}
+	if result.Type == "exception" {
+		text := result.Exception.Text
+		if text == "" {
+			text = string(result.Exception.Exception.Value)
+		}
+		return engine.NavigationState{}, fmt.Errorf("safari-bidi engine: read navigation state: %s", text)
 	}
 	var encoded string
 	if err := json.Unmarshal(result.Result.Value, &encoded); err != nil {
@@ -69,7 +80,7 @@ func (e *Engine) BlockedRequests() []engine.BlockedRequest {
 // known limitation and a false sense of enforcement.
 func (e *Engine) Limitations() []string {
 	return []string{
-		"safari-bidi enforces the domain allowlist and SSRF guard on navigation targets only: Safari 27.0 implements no WebDriver BiDi network module, so subresource requests (fetch, XHR, images, scripts) are not intercepted and not policed",
+		"safari-bidi enforces the domain allowlist and SSRF guard on navigation targets only, specifically URLs passed directly to navigate: Safari 27.0 implements no WebDriver BiDi network module, so redirects, script-initiated navigations, and subresource requests (fetch, XHR, images, scripts) are not intercepted and not policed",
 	}
 }
 
