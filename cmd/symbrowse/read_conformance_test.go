@@ -13,8 +13,6 @@ import (
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
-	"github.com/danieljustus/symaira-browse/internal/fetch/pipeline"
-	"github.com/danieljustus/symaira-browse/internal/fetch/render"
 	"github.com/danieljustus/symaira-corekit/domkit"
 )
 
@@ -62,14 +60,30 @@ func TestHermeticReadConformance(t *testing.T) {
 	}
 	defer client.Close()
 
-	pipelineResult, err := pipeline.Run(ctx, client, pipeline.StaticEngine{}, server.URL, pipeline.Options{
-		Security: pipeline.SecurityOptions{AllowPrivate: true},
-	})
+	// Go through the fetch.url frame rather than calling the renderer
+	// directly: the contract that matters is what the tool returns, and
+	// asking the renderer would pass even when nothing wires it up.
+	fetchRuntime, err := daemon.NewFetchRuntime(daemon.FetchRuntimeOptions{AllowPrivate: true})
 	if err != nil {
-		t.Fatalf("pipeline.Run: %v", err)
+		t.Fatalf("NewFetchRuntime: %v", err)
 	}
+	defer func() { _ = fetchRuntime.Close() }()
 
-	fetchFrontmatter := render.GenerateFrontmatter(pipelineResult.Meta, pipelineResult.Doc)
+	fetchArgs, _ := json.Marshal(map[string]any{
+		"url":         server.URL,
+		"format":      "markdown",
+		"frontmatter": true,
+	})
+	fetchResponse, _, err := fetchRuntime.Handle(ctx, daemon.Frame{Cmd: "fetch.url", Args: fetchArgs})
+	if err != nil {
+		t.Fatalf("fetch.url: %v", err)
+	}
+	fetchMap, ok := fetchResponse.(map[string]any)
+	if !ok {
+		t.Fatalf("fetch.url returned %T, want a map", fetchResponse)
+	}
+	fetchMarkdown, _ := fetchMap["markdown"].(string)
+	fetchFrontmatter, fetchBody := splitFrontmatter(t, fetchMarkdown)
 
 	// 2. Run through daemon + static engine + domkit (symbrowse read path)
 	registry := daemon.NewSessionRegistry(daemon.SessionRegistryOptions{})
@@ -110,7 +124,7 @@ func TestHermeticReadConformance(t *testing.T) {
 
 	// 3. Conformance checks: Frontmatter YAML keys and values
 	var fetchFMMap map[string]any
-	if err := yaml.Unmarshal([]byte(strings.Trim(fetchFrontmatter, "-\n")), &fetchFMMap); err != nil {
+	if err := yaml.Unmarshal([]byte(fetchFrontmatter), &fetchFMMap); err != nil {
 		t.Fatalf("parse fetch frontmatter YAML: %v", err)
 	}
 
@@ -177,6 +191,30 @@ func TestHermeticReadConformance(t *testing.T) {
 	if strings.Contains(browseMD, "<script") || strings.Contains(browseMD, "<nav") {
 		t.Errorf("browse markdown leaked script or nav markup: %s", browseMD)
 	}
+	if !strings.Contains(fetchBody, "ground-penetrating radar") {
+		t.Errorf("fetch markdown missing content: %s", fetchBody)
+	}
+	if strings.Contains(fetchBody, "<script") || strings.Contains(fetchBody, "<nav") {
+		t.Errorf("fetch markdown leaked script or nav markup: %s", fetchBody)
+	}
+}
+
+// splitFrontmatter separates a markdown document's YAML frontmatter block
+// from its body. It fails the test when the block is missing, because a
+// caller that asked for frontmatter and got none is exactly the drift these
+// conformance tests exist to catch.
+func splitFrontmatter(t *testing.T, document string) (string, string) {
+	t.Helper()
+	const open = "---\n"
+	const close = "\n---\n"
+	if !strings.HasPrefix(document, open) {
+		t.Fatalf("document has no frontmatter block: %q", document)
+	}
+	end := strings.Index(document[len(open):], close)
+	if end < 0 {
+		t.Fatalf("frontmatter block is not closed: %q", document)
+	}
+	return document[len(open) : len(open)+end], document[len(open)+end+len(close):]
 }
 
 func TestHermeticReadJSONModeConformance(t *testing.T) {

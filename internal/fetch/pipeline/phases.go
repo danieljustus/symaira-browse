@@ -261,14 +261,20 @@ func composeWithinBudget(page *processedPage, o Options, meta agentdom.Meta) (st
 	}
 
 	budget := maxChars
+	frontmatter := ""
 	if o.Format == FormatMarkdown {
-		// Reserve room for the header at its worst case — with the truncation
-		// warning and the pre-cap token estimate — so composing it afterwards
-		// cannot push the payload past the budget.
+		// Reserve room for the prefixes at their worst case — the header with
+		// the truncation warning, and the frontmatter with the pre-cap token
+		// estimate — so composing them afterwards cannot push the payload past
+		// the budget.
 		worst := meta
 		worst.Truncated = true
 		worst.CharCount = utf8.RuneCountInString(body)
 		worst.EstTokens = worst.CharCount / 4
+		if o.Frontmatter {
+			frontmatter = render.GenerateFrontmatter(worst, page.doc)
+			budget -= utf8.RuneCountInString(frontmatter)
+		}
 		if HasMetaHeader(worst) {
 			budget -= utf8.RuneCountInString(render.FormatMarkdownWithMeta(worst, ""))
 		}
@@ -278,8 +284,15 @@ func composeWithinBudget(page *processedPage, o Options, meta agentdom.Meta) (st
 	meta.Truncated = cut || page.docTruncated
 	meta.CharCount = utf8.RuneCountInString(body)
 	meta.EstTokens = meta.CharCount / 4
-	if o.Format == FormatMarkdown && HasMetaHeader(meta) {
-		body = render.FormatMarkdownWithMeta(meta, body)
+	if o.Format == FormatMarkdown {
+		if HasMetaHeader(meta) {
+			body = render.FormatMarkdownWithMeta(meta, body)
+		}
+		if o.Frontmatter {
+			// The frontmatter describes the document that was actually
+			// returned, so it is regenerated from the post-cap metadata.
+			body = render.GenerateFrontmatter(meta, page.doc) + body
+		}
 	}
 	return body, meta
 }

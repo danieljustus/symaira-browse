@@ -5,17 +5,26 @@
 
 ## Quelle des Schemas
 
-Die maschinenprüfbare Kopie liegt in
-`internal/render/testdata/fetch-schema.json` und wurde am 2026-08-03 aus
-`https://github.com/danieljustus/symaira-fetch` übernommen:
+Das Schema liegt seit der Repo-Konsolidierung im Code dieses Repos, nicht
+mehr als kopierte Datei:
 
-- `internal/agentdom/document.go` — JSON-Feldnamen des `Document`-Typs
-- `internal/render/frontmatter.go` — YAML-Frontmatter-Schlüssel
+- [`internal/fetch/agentdom/document.go`](../internal/fetch/agentdom/document.go)
+  — JSON-Feldnamen des `Document`-Typs
+- [`internal/fetch/render/frontmatter.go`](../internal/fetch/render/frontmatter.go)
+  — YAML-Frontmatter-Schlüssel
 
-Der Konformitätstest (`internal/render/conformance_test.go`) prüft, dass
-browse-emittierte Frontmatter-Schlüssel und JSON-Feldnamen eine Teilmenge
-dieses Schemas sind. Bei Schema-Änderungen in symfetch wird die Kopie samt
-Datumsangabe aktualisiert.
+Der Konformitätstest ist
+[`cmd/symbrowse/read_conformance_test.go`](../cmd/symbrowse/read_conformance_test.go)
+(`TestHermeticReadConformance`). Er vergleicht hermetisch gegen eine
+statische Fixture, **was beide Wege tatsächlich zurückgeben** — die
+`fetch.url`-Frame-Antwort gegen den `read`-Pfad —, nicht was die Renderer
+könnten. Genau das ist der Punkt: Ein Test, der `render.GenerateFrontmatter`
+direkt aufruft, besteht auch dann, wenn kein Aufrufer die Funktion
+verdrahtet.
+
+Geprüft werden Frontmatter-Schlüssel, deren Werte (`title`, `lang`,
+`schema_type`, RFC3339-`fetched_at`), die JSON-Feldnamen und der
+Markdown-Körper beider Seiten.
 
 ## Frontmatter-Schlüssel (Markdown-Modus)
 
@@ -33,6 +42,13 @@ schema_type: …        # JSON-LD @type, optional
 Identisch zu symfetch: `title`, `url`, `final_url`, `fetched_at`, `lang`,
 `tokens_est`, `schema_type` (optional: `source`, `snapshot_at` für
 Wayback-Quellen; browse setzt sie nicht).
+
+## Frontmatter bei `fetch_url`
+
+`fetch_url` liefert denselben Block, ist aber **opt-in**: `frontmatter: true`.
+Ohne die Option beginnt die Antwort direkt mit dem Inhalt. Der Block zählt
+gegen `max_chars` (siehe [mcp.md](mcp.md#ausgabegrenzen)), wird also nicht
+zusätzlich zum Budget ausgegeben.
 
 ## JSON-Modus (`read --json`)
 
