@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/danieljustus/symaira-browse/internal/config"
 )
 
 // TestMCPListProfiles verifies the --list-profiles data table: every
@@ -116,4 +119,64 @@ func TestMCPDocSnippetsAreValidJSON(t *testing.T) {
 	if blocks < 4 {
 		t.Fatalf("docs/mcp.md must carry at least 4 json snippets (Claude Code, Cursor, OpenCode, Claude Desktop), found %d", blocks)
 	}
+}
+
+// TestResolveMCPEnginePrecedence guards issue #373: `symbrowse mcp` had no
+// --engine option and no config field, so a Safari engine could not be
+// selected persistently for the MCP server.
+func TestResolveMCPEnginePrecedence(t *testing.T) {
+	home := t.TempDir()
+	setTestHome(t, home)
+	_ = os.Unsetenv("SYMBROWSE_ENGINE")
+
+	t.Run("default without configuration", func(t *testing.T) {
+		got, err := resolveMCPEngine(newMCPCommand(), config.DefaultEngine)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != config.DefaultEngine {
+			t.Fatalf("engine = %q, want %q", got, config.DefaultEngine)
+		}
+	})
+
+	t.Run("config selects the engine", func(t *testing.T) {
+		global := filepath.Join(home, ".config", "symbrowse", "config.toml")
+		if err := os.MkdirAll(filepath.Dir(global), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(global, []byte("engine = \"safari-bidi\"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		got, err := resolveMCPEngine(newMCPCommand(), config.DefaultEngine)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != "safari-bidi" {
+			t.Fatalf("engine = %q, want safari-bidi", got)
+		}
+	})
+
+	t.Run("flag wins over config", func(t *testing.T) {
+		command := newMCPCommand()
+		if err := command.Flags().Set("engine", "safari-attach"); err != nil {
+			t.Fatal(err)
+		}
+		got, err := resolveMCPEngine(command, "safari-attach")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != "safari-attach" {
+			t.Fatalf("engine = %q, want safari-attach", got)
+		}
+	})
+
+	t.Run("an unknown engine is rejected", func(t *testing.T) {
+		command := newMCPCommand()
+		if err := command.Flags().Set("engine", "netscape"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := resolveMCPEngine(command, "netscape"); err == nil {
+			t.Fatal("an unknown engine must be rejected")
+		}
+	})
 }

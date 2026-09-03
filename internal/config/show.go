@@ -39,6 +39,7 @@ func showFields(result Result) map[string]Field {
 		"cdp_endpoint":      {Value: cfg.CDPEndpoint, Source: result.Sources["cdp_endpoint"]},
 		"config_dir":        {Value: cfg.ConfigDir, Source: result.Sources["config_dir"]},
 		"daemon_log":        {Value: cfg.DaemonLogPath, Source: result.Sources["daemon_log"]},
+		"engine":            {Value: cfg.Engine, Source: result.Sources["engine"]},
 		"executable_path":   {Value: cfg.ExecutablePath, Source: result.Sources["executable_path"]},
 		"headless":          {Value: strconv.FormatBool(cfg.Headless), Source: result.Sources["headless"]},
 		"idle_timeout":      {Value: strconv.Itoa(cfg.IdleTimeoutSeconds), Source: result.Sources["idle_timeout"]},

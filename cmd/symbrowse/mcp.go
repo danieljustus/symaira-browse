@@ -6,11 +6,42 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/danieljustus/symaira-browse/internal/config"
 	"github.com/danieljustus/symaira-browse/internal/mcp"
 )
 
+// engineFlagUsage documents --engine identically on every command that
+// selects an engine (issue #373).
+const engineFlagUsage = "engine implementation: chrome (default), static (JS-free HTML reader), " +
+	"safari-attach (live Safari session via Apple Events), or safari-bidi " +
+	"(isolated Safari via safaridriver --bidi)"
+
+// resolveMCPEngine applies the engine precedence chain for the MCP server:
+// --engine → SYMBROWSE_ENGINE → config.toml → the default engine (issue
+// #373). The MCP server passes the result to the daemon it starts, so a
+// configured Safari engine survives daemon auto-start and restarts.
+func resolveMCPEngine(cmd *cobra.Command, flagValue string) (string, error) {
+	engineKind := flagValue
+	if !cmd.Flags().Changed("engine") {
+		cfg, err := config.Load()
+		if err != nil {
+			return "", err
+		}
+		if cfg.Engine != "" {
+			engineKind = cfg.Engine
+		}
+	}
+	if engineKind == "" {
+		engineKind = config.DefaultEngine
+	}
+	if err := config.ValidateEngine(engineKind); err != nil {
+		return "", err
+	}
+	return engineKind, nil
+}
+
 func newMCPCommand() *cobra.Command {
-	var session, tools string
+	var session, tools, engineKind string
 	var allowPrivate, listProfiles bool
 	command := &cobra.Command{
 		GroupID: groupIDDebug,
@@ -25,17 +56,25 @@ func newMCPCommand() *cobra.Command {
 			"Security defaults in MCP mode: the daemon is started with the SSRF guard " +
 			"enabled, so private and loopback targets are denied. Pass --allow-private " +
 			"to permit them explicitly. The domain allowlist stays configurable through " +
-			"the daemon flags and config.toml.",
+			"the daemon flags and config.toml.\n\n" +
+			"The browser engine is selected with --engine, or persistently through the " +
+			"engine key in config.toml (the flag wins). The selected engine is passed " +
+			"to the daemon this server starts.",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if listProfiles {
 				return writeProfileList(cmd)
+			}
+			engineKind, err := resolveMCPEngine(cmd, engineKind)
+			if err != nil {
+				return err
 			}
 			server, err := mcp.New(mcp.Options{
 				Version:      version,
 				Session:      session,
 				AllowPrivate: allowPrivate,
 				Profiles:     tools,
+				Engine:       engineKind,
 			})
 			if err != nil {
 				return err
@@ -50,6 +89,7 @@ func newMCPCommand() *cobra.Command {
 	command.Flags().StringVar(&session, "session", "default", "default session for tool calls without a session argument")
 	command.Flags().StringVar(&tools, "tools", "core", "tool profiles to register: core|nav|state|network|debug|flows|all (comma-separated combinations allowed)")
 	command.Flags().BoolVar(&allowPrivate, "allow-private", false, "allow private and loopback targets (SSRF opt-out; MCP mode denies them by default)")
+	command.Flags().StringVar(&engineKind, "engine", config.DefaultEngine, engineFlagUsage)
 	command.Flags().BoolVar(&listProfiles, "list-profiles", false, "describe every tool profile and its tool count, then exit")
 	return command
 }

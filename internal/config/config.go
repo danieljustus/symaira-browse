@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -28,6 +29,7 @@ type Config struct {
 	StateDir                string   `json:"state_dir"`
 	ExecutablePath          string   `json:"executable_path"`
 	CDPEndpoint             string   `json:"cdp_endpoint"`
+	Engine                  string   `json:"engine"`
 	AllowedDomains          []string `json:"allowed_domains"`
 	SSRFEnabled             bool     `json:"ssrf_enabled"`
 	AllowPrivate            bool     `json:"allow_private"`
@@ -72,7 +74,7 @@ type Result struct {
 
 var configFields = []string{
 	"log_level", "log_format", "config_dir", "cache_dir", "state_dir",
-	"executable_path", "cdp_endpoint", "allowed_domains", "ssrf_enabled",
+	"executable_path", "cdp_endpoint", "engine", "allowed_domains", "ssrf_enabled",
 	"allow_private", "headless", "cache_ttl_hours", "idle_timeout",
 	"operation_timeout", "read_timeout", "state_expire_days", "autosave",
 	"autosave_interval", "autosave_key", "upload_dirs", "daemon_log",
@@ -86,6 +88,7 @@ func Defaults() *Config {
 		return &Config{
 			LogLevel:                "warn",
 			LogFormat:               "text",
+			Engine:                  DefaultEngine,
 			AutosavePolicy:          "auto",
 			IdleTimeoutSeconds:      30 * 60,
 			OperationTimeoutSeconds: 25,
@@ -102,6 +105,7 @@ func Defaults() *Config {
 	return &Config{
 		LogLevel:                "warn",
 		LogFormat:               "text",
+		Engine:                  DefaultEngine,
 		ConfigDir:               paths.ConfigDir,
 		CacheDir:                paths.CacheDir,
 		StateDir:                paths.StateDir,
@@ -225,6 +229,7 @@ type fileConfig struct {
 	StateDir                *string   `json:"state_dir"`
 	ExecutablePath          *string   `json:"executable_path"`
 	CDPEndpoint             *string   `json:"cdp_endpoint"`
+	Engine                  *string   `json:"engine"`
 	AllowedDomains          *[]string `json:"allowed_domains"`
 	SSRFEnabled             *bool     `json:"ssrf_enabled"`
 	AllowPrivate            *bool     `json:"allow_private"`
@@ -290,6 +295,9 @@ func applyFileConfig(cfg *Config, patch fileConfig) {
 	}
 	if patch.CDPEndpoint != nil {
 		cfg.CDPEndpoint = *patch.CDPEndpoint
+	}
+	if patch.Engine != nil {
+		cfg.Engine = *patch.Engine
 	}
 	if patch.AllowedDomains != nil {
 		cfg.AllowedDomains = *patch.AllowedDomains
@@ -360,6 +368,7 @@ func applyEnv(cfg *Config, sources map[string]string) error {
 	applyStringEnv(&cfg.StateDir, "state_dir")
 	applyStringEnv(&cfg.ExecutablePath, "executable_path")
 	applyStringEnv(&cfg.CDPEndpoint, "cdp_endpoint")
+	applyStringEnv(&cfg.Engine, "engine")
 	applyStringEnv(&cfg.AutosavePolicy, "autosave")
 	applyStringEnv(&cfg.AutosaveKey, "autosave_key")
 	applyStringEnv(&cfg.DaemonLogPath, "daemon_log")
@@ -468,6 +477,9 @@ func validate(cfg *Config) error {
 	if cfg.AutosavePolicy != "auto" && cfg.AutosavePolicy != "always" && cfg.AutosavePolicy != "never" {
 		return fmt.Errorf("invalid autosave policy %q", cfg.AutosavePolicy)
 	}
+	if err := ValidateEngine(cfg.Engine); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -477,4 +489,25 @@ func applyStringOverride(dst *string, value *string, sources map[string]string, 
 	}
 	*dst = *value
 	sources[field] = "flag"
+}
+
+// DefaultEngine is the engine used when neither a flag, an environment
+// variable, nor config.toml selects one.
+const DefaultEngine = "chrome"
+
+// Engines lists the engine implementations symbrowse can drive. It is the
+// single source of truth for `--engine` validation on every command that
+// selects an engine, including `mcp` (issue #373).
+var Engines = []string{"chrome", "static", "safari-attach", "safari-bidi"}
+
+// ValidateEngine rejects an unknown engine name. An empty name is valid and
+// means "use the default".
+func ValidateEngine(name string) error {
+	if name == "" {
+		return nil
+	}
+	if slices.Contains(Engines, name) {
+		return nil
+	}
+	return fmt.Errorf("invalid engine %q: use one of %s", name, strings.Join(Engines, ", "))
 }

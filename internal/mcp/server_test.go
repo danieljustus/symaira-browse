@@ -505,3 +505,23 @@ func TestMain(m *testing.M) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
 	m.Run()
 }
+
+// TestDaemonArgsForwardEngine guards issue #373: the engine selected for the
+// MCP server must reach the daemon it auto-starts, otherwise every restart
+// silently falls back to the default Chrome engine.
+func TestDaemonArgsForwardEngine(t *testing.T) {
+	server := &Server{options: Options{Engine: "safari-bidi"}}
+	args := server.daemonArgs("hermes")
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--engine safari-bidi") {
+		t.Fatalf("daemonArgs = %v, want --engine safari-bidi", args)
+	}
+	if !strings.Contains(joined, "--ssrf") {
+		t.Fatalf("daemonArgs = %v, want the MCP-mode SSRF default preserved", args)
+	}
+
+	withoutEngine := (&Server{options: Options{}}).daemonArgs("hermes")
+	if strings.Contains(strings.Join(withoutEngine, " "), "--engine") {
+		t.Fatalf("daemonArgs = %v, want no --engine without a configured engine", withoutEngine)
+	}
+}
