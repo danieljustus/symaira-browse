@@ -47,7 +47,7 @@ func newDaemonCommand() *cobra.Command {
 	command.Flags().BoolVar(&headless, "headless", false, "launch Chrome in headless mode (no GUI session; also via SYMBROWSE_HEADLESS=1)")
 	command.PersistentFlags().StringVar(&restore, "restore", "", "restore the named state when the session browser starts")
 	command.PersistentFlags().StringVar(&profile, "profile", "", "reuse an existing Chrome profile (name or path) instead of a private session profile")
-	command.Flags().StringVar(&engineKind, "engine", "chrome", "engine implementation: chrome (default), static (JS-free HTML reader), or safari-attach (live Safari session via Apple Events)")
+	command.Flags().StringVar(&engineKind, "engine", "chrome", "engine implementation: chrome (default), static (JS-free HTML reader), safari-attach (live Safari session via Apple Events), or safari-bidi (isolated Safari via safaridriver --bidi)")
 	command.Flags().StringVar(&cdpEndpoint, "cdp-endpoint", "", "attach to an existing DevTools endpoint (e.g. http://127.0.0.1:9222) instead of launching Chrome; also via SYMBROWSE_CDP_ENDPOINT or config.toml")
 
 	command.AddCommand(newDaemonStatusCommand(&session))
