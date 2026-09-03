@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- MCP tool failures reach clients as fields instead of prose. A failed tool
+  call is still a tool result with `isError: true` whose text block reads
+  `code: message`, but `code`, `retryable`, `requires_confirmation`,
+  `resume_hint`, `hint` and `details` now travel in the result's `_meta` under
+  `symaira.dev/tool_error` — including the 404 recovery candidates the fetch
+  probe pays HTTP round-trips for. Requires corekit v0.17.0
+  (danieljustus/symaira-corekit#219); the daemon error hint, previously
+  dropped at the MCP edge entirely, is carried too.
+
 ## [v0.8.0] - 2026-09-03
 
 ### Added
