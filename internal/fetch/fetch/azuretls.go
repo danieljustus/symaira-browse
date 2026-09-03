@@ -103,10 +103,16 @@ func (c *azureClient) Fetch(ctx context.Context, req Request) (*Response, error)
 		azReq.Body = req.Body
 	}
 
-	if len(req.Headers) > 0 {
-		oh := make(azuretls.OrderedHeaders, 0, len(req.Headers))
+	if len(req.Headers) > 0 || req.UserAgent != "" {
+		oh := make(azuretls.OrderedHeaders, 0, len(req.Headers)+1)
 		for k, v := range req.Headers {
+			if strings.EqualFold(k, "User-Agent") && req.UserAgent != "" {
+				continue
+			}
 			oh = append(oh, []string{k, v})
+		}
+		if req.UserAgent != "" {
+			oh = append(oh, []string{"User-Agent", req.UserAgent})
 		}
 		azReq.OrderedHeaders = oh
 	}
@@ -128,6 +134,19 @@ func (c *azureClient) fetchWithProxy(ctx context.Context, req Request, method st
 	}
 	if len(req.Body) > 0 {
 		azReq.Body = req.Body
+	}
+	if len(req.Headers) > 0 || req.UserAgent != "" {
+		oh := make(azuretls.OrderedHeaders, 0, len(req.Headers)+1)
+		for k, v := range req.Headers {
+			if strings.EqualFold(k, "User-Agent") && req.UserAgent != "" {
+				continue
+			}
+			oh = append(oh, []string{k, v})
+		}
+		if req.UserAgent != "" {
+			oh = append(oh, []string{"User-Agent", req.UserAgent})
+		}
+		azReq.OrderedHeaders = oh
 	}
 
 	start := time.Now()

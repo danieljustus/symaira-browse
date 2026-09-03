@@ -146,6 +146,9 @@ func (c *Cache) Store(data []byte) (string, error) {
 // Load returns the stored content for id. Expired entries are removed and
 // reported as ErrExpired.
 func (c *Cache) Load(id string) ([]byte, error) {
+	if !validCacheID(id) {
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	meta, err := c.loadMeta(id)
@@ -164,6 +167,13 @@ func (c *Cache) Load(id string) ([]byte, error) {
 		return nil, err
 	}
 	return data, nil
+}
+
+func validCacheID(id string) bool {
+	if len(id) != len("out_")+12 || !strings.HasPrefix(id, "out_") {
+		return false
+	}
+	return strings.Trim(id[len("out_"):], "0123456789abcdef") == ""
 }
 
 // List returns all entries, oldest first, with their expiry state. Expired
@@ -271,6 +281,12 @@ func (c *Cache) remove(id string) error {
 // cache write failure is an error: the budget must never silently fall back
 // to returning the full payload.
 func Apply(cache *Cache, data any, maxTokens int) (any, error) {
+	return ApplyWithHint(cache, data, maxTokens, "cli")
+}
+
+// ApplyWithHint is Apply with a caller-specific retrieval hint. MCP callers
+// receive the cache_get tool name instead of a shell command they cannot run.
+func ApplyWithHint(cache *Cache, data any, maxTokens int, surface string) (any, error) {
 	full, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("serialize output for token budget: %w", err)
@@ -289,12 +305,16 @@ func Apply(cache *Cache, data any, maxTokens int) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("token budget exceeded and the output cache is unavailable: %w", err)
 	}
+	hint := fmt.Sprintf("symbrowse cache get %s --range 40-120", id)
+	if surface == "mcp" {
+		hint = fmt.Sprintf("Call the cache_get MCP tool with cache_id=%s and range=40-120", id)
+	}
 	return Marker{
 		Truncated:      true,
 		TokensReturned: returned,
 		TokensTotal:    total,
 		CacheID:        id,
-		Hint:           fmt.Sprintf("symbrowse cache get %s --range 40-120", id),
+		Hint:           hint,
 		Head:           string(head),
 		Foot:           string(foot),
 	}, nil

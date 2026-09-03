@@ -38,11 +38,12 @@ func daemonRequestBudget(ctx context.Context, session, command string, args []by
 	}
 	client := daemon.NewClient(daemon.ClientOptions{SocketPath: path, Session: session})
 	return client.Request(ctx, daemon.Frame{
-		Cmd:       command,
-		Args:      args,
-		Session:   session,
-		RequestID: nextRequestID(),
-		MaxTokens: maxTokens,
+		Cmd:              command,
+		Args:             args,
+		Session:          session,
+		RequestID:        nextRequestID(),
+		MaxTokens:        maxTokens,
+		RetrievalSurface: "cli",
 	})
 }
 

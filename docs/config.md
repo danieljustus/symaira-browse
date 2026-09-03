@@ -28,7 +28,10 @@ way.
 | `SYMBROWSE_SSRF` | `false` for the daemon | env over TOML/default; `--ssrf` wins |
 | `SYMBROWSE_ALLOW_PRIVATE` | `false` | env over TOML/default; `--allow-private` wins |
 | `SYMBROWSE_HEADLESS` | `false` | env over TOML/default; `--headless` wins |
-| `SYMBROWSE_CACHE_TTL_HOURS` | `24` | env over TOML/default |
+| `SYMBROWSE_CACHE_TTL_HOURS` | `24` | env over TOML/default; applies to fetch responses and unified output handles |
+| `SYMBROWSE_FETCH_ROBOTS` | `true` | env over TOML/default; fetch checks robots.txt before the page request |
+| `SYMBROWSE_FETCH_USER_AGENT` | `symbrowse/1.0` | env over TOML/default; the same value is used for robots matching and fetch requests |
+| `SYMBROWSE_FETCH_NO_CACHE` | `false` | env over TOML/default; forces fresh fetches unless a request explicitly overrides it |
 | `SYMBROWSE_IDLE_TIMEOUT` | `1800` seconds; `0` disables idle expiry | env over TOML/default |
 | `SYMBROWSE_OPERATION_TIMEOUT` | `25` seconds | env over TOML/default |
 | `SYMBROWSE_READ_TIMEOUT` | `30` seconds | env over TOML/default |
@@ -44,7 +47,7 @@ way.
 | `SYMBROWSE_SYMGUARD` | unset; discover `symbrain` on `PATH` | env; external risk-decider override |
 | `SYMBROWSE_ENCRYPTION_KEY` | unset | env fallback only; 64 hex characters (32 bytes), never shown by `config show` |
 
-The first 22 settings in the table are represented in the effective `Config`
+The first 26 settings in the table are represented in the effective `Config`
 and appear in `symbrowse config show`. Secret values are intentionally excluded
 from the output even though the encryption-key variable is documented here.
 The two process controls below remain raw environment controls by design:
@@ -63,3 +66,20 @@ These are not user configuration settings:
 - `SYMBROWSE_CHROME_HELPER` starts the internal Chrome test helper.
 - `SYMBROWSE_CONTENT_START` and `SYMBROWSE_CONTENT_END` delimit trusted content
   in the internal test fixture protocol.
+
+## Fetch settings in `config.toml`
+
+The corresponding TOML keys use the same names without the `SYMBROWSE_`
+prefix:
+
+```toml
+cache_ttl_hours = 24
+fetch_robots = true
+fetch_user_agent = "symbrowse/1.0"
+fetch_no_cache = false
+```
+
+The normal precedence chain applies: project TOML overrides global TOML,
+`SYMBROWSE_*` overrides both, and explicit command flags win where a command
+provides one. `fetch_no_cache` disables the fetch response cache by default;
+`store_full_text` output handles remain available for explicit retrieval.

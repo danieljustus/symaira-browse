@@ -228,15 +228,19 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	fetchRuntime, err := daemon.NewFetchRuntime(daemon.FetchRuntimeOptions{
 		AllowedDomains:    allowedDomains,
 		AllowPrivate:      allowPrivate,
-		Robots:            true,
+		Robots:            cfg.FetchRobots,
+		UserAgent:         cfg.FetchUserAgent,
 		CacheDir:          filepath.Join(cfg.CacheDir, "fetch"),
 		CacheTTL:          time.Duration(cfg.CacheTTLHours) * time.Hour,
+		OutputCacheDir:    filepath.Join(cfg.CacheDir, "out"),
+		NoCache:           cfg.FetchNoCache,
 		ContentBoundaries: mode == policy.ModeMCP,
 	})
 	if err != nil {
 		return err
 	}
 	defer func() { _ = fetchRuntime.Close() }()
+	cacheRuntime := daemon.NewCacheRuntime(filepath.Join(cfg.CacheDir, "out"), time.Duration(cfg.CacheTTLHours)*time.Hour)
 	server := daemon.NewServer(daemon.Options{
 		SocketPath:       path,
 		Session:          session,
@@ -249,6 +253,8 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		Engine:           engineKind,
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
+			case "cache.get":
+				return cacheRuntime.Handle(ctx, frame)
 			case "fetch.url", "fetch.batch", "wayback.snapshots":
 				allowed, decision, decider, gateErr := oobRuntime.DecideAndConfirm(ctx, frame.Session, frame.Cmd, frameURL(frame), approvalTimeoutFromConfig(cfg))
 				if gateErr != nil {

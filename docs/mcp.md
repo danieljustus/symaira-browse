@@ -99,7 +99,7 @@ Ablage als `claude_desktop_config.json` (macOS:
 
 | Profil | Enthält | Anwendungsfall |
 |---|---|---|
-| `core` (Default) | `open`, `snapshot`, `click`, `fill`, `type`, `press`, `wait`, `read`, `get`, `find` | Alltag: Seiten öffnen, ansehen, bedienen, lesen |
+| `core` (Default) | `open`, `snapshot`, `click`, `fill`, `type`, `press`, `wait`, `read`, `get`, `find`, `fetch_url`, `fetch_batch`, `cache_get`, `wayback_snapshots` | Alltag: statisch holen, Seiten öffnen, ansehen, bedienen, lesen und gekürzte Ausgaben zurückholen |
 | `nav` | `back`, `forward`, `reload` | Historien-Navigation |
 | `state` | *(leer — kommt mit v0.4.0)* | Sessions, Cookies, Storage, `auth login` |
 | `network` | *(leer — kommt mit v1.0.0)* | Routing, Mocking, HAR, Offline |
@@ -115,6 +115,12 @@ größere Angriffsfläche für prompt-injizierte Seiten.
 
 Jedes Tool nimmt `session` entgegen (optional, Default: die Server-Session).
 Eine Session pro Aufgabe verwenden; Sessions sind voneinander isoliert.
+
+Für eine URL-Aufgabe zuerst `fetch_url` als Tier 0 verwenden. Für mehrere
+unabhängige URLs `fetch_batch`, für historische Treffer
+`wayback_snapshots`. Enthält die Antwort `escalate` oder braucht die Seite
+JavaScript, Browser-Zustand oder Interaktion, auf `read` beziehungsweise den
+interaktiven Ablauf mit `open` und `snapshot` eskalieren.
 
 ## Netzwerk-Sicherheit im MCP-Modus
 
@@ -182,6 +188,13 @@ als First-Class-Tools (issue #258):
 | `fetch_batch` | `fetch_batch` | `fetch.batch` | Array in Eingabereihenfolge, `{url, ok, content}` |
 | `wayback_snapshots` | `wayback_snapshots` | `wayback.snapshots` | Array `{timestamp, url, status, mime_type, digest}` |
 
+Bei `fetch_url` filtert `query` die relevanten Abschnitte; `top_k` begrenzt
+optional die Zahl der zurückgegebenen Abschnitte auf die bestbewerteten Treffer
+(`0` bedeutet alle). `no_cache: true` erzwingt für den jeweiligen Aufruf einen
+frischen Fetch und übersteuert damit die globale `fetch_no_cache`-Einstellung;
+`store_full_text` kann unabhängig davon weiterhin einen `out_*`-Handle für
+`cache_get` erzeugen.
+
 Jede `fetch_url`- und `fetch_batch`-Antwort trägt zusätzlich mehrere additive
 Felder — die SymFetch-Feldnamen darüber bleiben unverändert:
 
@@ -199,6 +212,12 @@ Felder — die SymFetch-Feldnamen darüber bleiben unverändert:
   Antworten; Markdown/Text umschließen den Seitenkörper mit den entsprechenden
   Nonce-Markern. Im MCP-Modus ist die Grenze standardmäßig aktiv; Frontmatter
   und Metadaten bleiben außerhalb.
+
+`cache_get` liest einen `out_*`-Handle zurück und akzeptiert optional `range`
+als 1-basierte Zeilenspanne. Das gilt sowohl für das Token-Budget als auch für
+`store_full_text`; der MCP-Hint nennt deshalb dieses Tool statt eines Shell-
+Kommandos. `symbrowse cache list` und `symbrowse cache clear` verwalten zusätzlich
+den separaten Fetch-Response-Cache.
 
 ## Ausgabegrenzen
 

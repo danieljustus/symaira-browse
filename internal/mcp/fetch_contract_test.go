@@ -43,7 +43,7 @@ func TestFetchToolsListed(t *testing.T) {
 		t.Errorf("fetch_url cmd = %q, want fetch.url", fetchURL.Cmd)
 	}
 	props, _ := fetchURL.Schema["properties"].(map[string]any)
-	for _, want := range []string{"url", "format", "max_chars", "css_selector", "frontmatter", "include_links", "query", "raw", "schema_path"} {
+	for _, want := range []string{"url", "format", "max_chars", "css_selector", "frontmatter", "include_links", "query", "top_k", "raw", "schema_path", "no_cache"} {
 		if _, ok := props[want]; !ok {
 			t.Errorf("fetch_url schema missing property %q", want)
 		}
@@ -73,6 +73,8 @@ func TestFetchURLArgsCarryURL(t *testing.T) {
 		"url":       "https://example.com",
 		"format":    "json",
 		"max_chars": float64(3000),
+		"top_k":     float64(3),
+		"no_cache":  true,
 	})
 	if err != nil {
 		t.Fatalf("fetch_url Args: %v", err)
@@ -89,6 +91,9 @@ func TestFetchURLArgsCarryURL(t *testing.T) {
 	}
 	if m["max_chars"] != 3000 {
 		t.Errorf("max_chars = %v, want 3000", m["max_chars"])
+	}
+	if m["top_k"] != 3 || m["no_cache"] != true {
+		t.Errorf("fetch options = %#v, want top_k=3 and no_cache=true", m)
 	}
 }
 
@@ -147,6 +152,8 @@ func startFetchFakeDaemon(t *testing.T, base, session string) {
 					map[string]any{"url": "https://a.example", "ok": true, "content": "# A"},
 					map[string]any{"url": "https://b.example", "ok": true, "content": "# B"},
 				}, nil, nil
+			case "cache.get":
+				return map[string]any{"cache_id": "out_0123456789ab", "content": "full cached content"}, nil, nil
 			case "wayback.snapshots":
 				return []any{
 					map[string]any{"timestamp": "20020120142510", "url": "http://example.com:80/", "status": "200", "mime_type": "text/html", "digest": "ABC"},
@@ -275,6 +282,21 @@ func TestFetchToolsCallContract(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("wayback_snapshots result missing %q: %s", want, text)
 		}
+	}
+
+	cacheCall := send(map[string]any{
+		"jsonrpc": "2.0", "id": 6, "method": "tools/call",
+		"params": map[string]any{
+			"name":      "cache_get",
+			"arguments": map[string]any{"cache_id": "out_0123456789ab"},
+		},
+	})
+	if cacheCall["error"] != nil {
+		t.Fatalf("cache_get call error: %v", cacheCall["error"])
+	}
+	text = resultText(t, cacheCall)
+	if !strings.Contains(text, "full cached content") {
+		t.Errorf("cache_get result missing full content: %s", text)
 	}
 }
 

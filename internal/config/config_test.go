@@ -73,6 +73,59 @@ func TestWriteShowJSONAndHumanOutput(t *testing.T) {
 	}
 }
 
+func TestFetchSettingsFollowTOMLAndEnvironment(t *testing.T) {
+	home := t.TempDir()
+	project := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(home, "cache"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(home, "state"))
+	t.Setenv("SYMBROWSE_FETCH_ROBOTS", "")
+	t.Setenv("SYMBROWSE_FETCH_USER_AGENT", "env-agent/2.0")
+	t.Setenv("SYMBROWSE_FETCH_NO_CACHE", "")
+	t.Setenv("SYMBROWSE_CACHE_TTL_HOURS", "7")
+	if err := os.MkdirAll(filepath.Join(home, "config", "symbrowse"), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "config", "symbrowse", "config.toml"), []byte("fetch_robots = false\nfetch_user_agent = \"toml-agent/1.0\"\nfetch_no_cache = true\ncache_ttl_hours = 9\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(project)
+
+	result, err := LoadWithOverrides(FlagOverrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Config.FetchRobots || result.Sources["fetch_robots"] != "global" {
+		t.Fatalf("fetch robots = %#v, want global false", result)
+	}
+	if result.Config.FetchUserAgent != "env-agent/2.0" || result.Sources["fetch_user_agent"] != "env" {
+		t.Fatalf("fetch user agent = %#v, want env override", result)
+	}
+	if !result.Config.FetchNoCache || result.Sources["fetch_no_cache"] != "global" {
+		t.Fatalf("fetch no-cache = %#v, want global true", result)
+	}
+	if result.Config.CacheTTLHours != 7 || result.Sources["cache_ttl_hours"] != "env" {
+		t.Fatalf("cache ttl = %#v, want env 7", result)
+	}
+}
+
+func TestShowOutputIncludesFetchSettings(t *testing.T) {
+	result := Result{
+		Config:  Config{CacheTTLHours: 24, FetchRobots: true, FetchUserAgent: "symbrowse/1.0", FetchNoCache: false},
+		Sources: map[string]string{"cache_ttl_hours": "default", "fetch_robots": "default", "fetch_user_agent": "default", "fetch_no_cache": "default"},
+	}
+	fields := ShowOutputFor(result).Fields
+	for _, key := range []string{"cache_ttl_hours", "fetch_robots", "fetch_user_agent", "fetch_no_cache"} {
+		if _, ok := fields[key]; !ok {
+			t.Fatalf("config show is missing %q: %#v", key, fields)
+		}
+	}
+	if fields["fetch_robots"].Value != "true" || fields["fetch_user_agent"].Value != "symbrowse/1.0" || fields["fetch_no_cache"].Value != "false" {
+		t.Fatalf("fetch config fields = %#v", fields)
+	}
+}
+
 type testBuffer struct{ bytes []byte }
 
 func (b *testBuffer) Write(p []byte) (int, error) {

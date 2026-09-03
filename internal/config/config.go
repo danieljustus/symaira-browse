@@ -35,6 +35,9 @@ type Config struct {
 	AllowPrivate            bool     `json:"allow_private"`
 	Headless                bool     `json:"headless"`
 	CacheTTLHours           int      `json:"cache_ttl_hours"`
+	FetchRobots             bool     `json:"fetch_robots"`
+	FetchUserAgent          string   `json:"fetch_user_agent"`
+	FetchNoCache            bool     `json:"fetch_no_cache"`
 	IdleTimeoutSeconds      int      `json:"idle_timeout"`
 	OperationTimeoutSeconds int      `json:"operation_timeout"`
 	ReadTimeoutSeconds      int      `json:"read_timeout"`
@@ -75,7 +78,7 @@ type Result struct {
 var configFields = []string{
 	"log_level", "log_format", "config_dir", "cache_dir", "state_dir",
 	"executable_path", "cdp_endpoint", "engine", "allowed_domains", "ssrf_enabled",
-	"allow_private", "headless", "cache_ttl_hours", "idle_timeout",
+	"allow_private", "headless", "cache_ttl_hours", "fetch_robots", "fetch_user_agent", "fetch_no_cache", "idle_timeout",
 	"operation_timeout", "read_timeout", "state_expire_days", "autosave",
 	"autosave_interval", "autosave_key", "upload_dirs", "daemon_log",
 	"approval_timeout",
@@ -89,6 +92,8 @@ func Defaults() *Config {
 			LogLevel:                "warn",
 			LogFormat:               "text",
 			Engine:                  DefaultEngine,
+			FetchRobots:             true,
+			FetchUserAgent:          "symbrowse/1.0",
 			AutosavePolicy:          "auto",
 			IdleTimeoutSeconds:      30 * 60,
 			OperationTimeoutSeconds: 25,
@@ -110,6 +115,8 @@ func Defaults() *Config {
 		CacheDir:                paths.CacheDir,
 		StateDir:                paths.StateDir,
 		CacheTTLHours:           24,
+		FetchRobots:             true,
+		FetchUserAgent:          "symbrowse/1.0",
 		IdleTimeoutSeconds:      30 * 60,
 		OperationTimeoutSeconds: 25,
 		ReadTimeoutSeconds:      30,
@@ -235,6 +242,9 @@ type fileConfig struct {
 	AllowPrivate            *bool     `json:"allow_private"`
 	Headless                *bool     `json:"headless"`
 	CacheTTLHours           *int      `json:"cache_ttl_hours"`
+	FetchRobots             *bool     `json:"fetch_robots"`
+	FetchUserAgent          *string   `json:"fetch_user_agent"`
+	FetchNoCache            *bool     `json:"fetch_no_cache"`
 	IdleTimeoutSeconds      *int      `json:"idle_timeout"`
 	OperationTimeoutSeconds *int      `json:"operation_timeout"`
 	ReadTimeoutSeconds      *int      `json:"read_timeout"`
@@ -314,6 +324,15 @@ func applyFileConfig(cfg *Config, patch fileConfig) {
 	if patch.CacheTTLHours != nil {
 		cfg.CacheTTLHours = *patch.CacheTTLHours
 	}
+	if patch.FetchRobots != nil {
+		cfg.FetchRobots = *patch.FetchRobots
+	}
+	if patch.FetchUserAgent != nil {
+		cfg.FetchUserAgent = *patch.FetchUserAgent
+	}
+	if patch.FetchNoCache != nil {
+		cfg.FetchNoCache = *patch.FetchNoCache
+	}
 	if patch.IdleTimeoutSeconds != nil {
 		cfg.IdleTimeoutSeconds = *patch.IdleTimeoutSeconds
 	}
@@ -369,6 +388,7 @@ func applyEnv(cfg *Config, sources map[string]string) error {
 	applyStringEnv(&cfg.ExecutablePath, "executable_path")
 	applyStringEnv(&cfg.CDPEndpoint, "cdp_endpoint")
 	applyStringEnv(&cfg.Engine, "engine")
+	applyStringEnv(&cfg.FetchUserAgent, "fetch_user_agent")
 	applyStringEnv(&cfg.AutosavePolicy, "autosave")
 	applyStringEnv(&cfg.AutosaveKey, "autosave_key")
 	applyStringEnv(&cfg.DaemonLogPath, "daemon_log")
@@ -379,6 +399,12 @@ func applyEnv(cfg *Config, sources map[string]string) error {
 		return err
 	}
 	if err = applyBoolEnv(&cfg.Headless, "headless"); err != nil {
+		return err
+	}
+	if err = applyBoolEnv(&cfg.FetchRobots, "fetch_robots"); err != nil {
+		return err
+	}
+	if err = applyBoolEnv(&cfg.FetchNoCache, "fetch_no_cache"); err != nil {
 		return err
 	}
 	if err = applyIntEnv(&cfg.CacheTTLHours, "cache_ttl_hours", func(int) bool { return true }); err != nil {

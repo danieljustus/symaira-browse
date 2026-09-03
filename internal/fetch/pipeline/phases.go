@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -97,7 +95,7 @@ func checkRobots(ctx context.Context, rawURL string, o Options) error {
 	}
 	ua := o.Security.UserAgent
 	if ua == "" {
-		ua = "symfetch"
+		ua = fetch.DefaultUserAgent
 	}
 	allowed, err := o.Security.RobotsChecker.Check(ctx, ua, rawURL)
 	if err != nil {
@@ -111,10 +109,14 @@ func checkRobots(ctx context.Context, rawURL string, o Options) error {
 }
 
 func fetchInitial(ctx context.Context, c fetch.Client, rawURL string, o Options) (*fetch.Response, error) {
+	userAgent := o.Security.UserAgent
+	if userAgent == "" {
+		userAgent = fetch.DefaultUserAgent
+	}
 	resp, err := c.Fetch(ctx, fetch.Request{
 		URL: rawURL, Method: o.Request.Method, Headers: o.Request.Headers,
 		Body: o.Request.Body, AllowPrivate: o.Security.AllowPrivate, Session: o.Session,
-		Allowlist: o.Security.Allowlist,
+		Allowlist: o.Security.Allowlist, UserAgent: userAgent,
 	})
 	if err != nil {
 		return nil, &FetchError{URL: rawURL, Err: err}
@@ -336,16 +338,13 @@ func truncateRunes(s string, budget int) (string, bool) {
 func storeLongOutput(output, rawURL string, o Options) string {
 	output = render.StripBase64Images(output)
 	storeDir := o.StoreDir
-	if storeDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			storeDir = filepath.Join(os.TempDir(), "symfetch", "fulltext")
-		} else {
-			storeDir = filepath.Join(home, ".cache", "symfetch", "fulltext")
-		}
+	if o.StoreCache == nil && storeDir == "" {
+		slog.Debug("truncate-and-store skipped: unified output cache is not configured", "url", rawURL)
+		return output
 	}
 	storedOutput, stored, err := TruncateAndStore(output, StoreOptions{
-		CharLimit: o.CharLimit, StoreDir: storeDir, HeadRatio: 0.8, TailRatio: 0.2, MaxStored: DefaultMaxStored,
+		CharLimit: o.CharLimit, StoreDir: storeDir, Cache: o.StoreCache,
+		HeadRatio: 0.8, TailRatio: 0.2, MaxStored: DefaultMaxStored,
 	})
 	if err != nil {
 		slog.Debug("truncate-and-store failed", "url", rawURL, "error", err)

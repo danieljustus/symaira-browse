@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/danieljustus/symaira-browse/internal/budget"
 	"github.com/danieljustus/symaira-browse/internal/fetch/agentdom"
 	"github.com/danieljustus/symaira-browse/internal/fetch/archive"
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
 	"github.com/danieljustus/symaira-browse/internal/fetch/pipeline"
-	"github.com/danieljustus/symaira-browse/internal/fetch/render"
 	"github.com/danieljustus/symaira-browse/internal/fetch/robots"
 	"github.com/danieljustus/symaira-browse/internal/policy"
 )
@@ -32,6 +32,8 @@ type FetchRuntime struct {
 	userAgent            string
 	cacheDir             string
 	cacheTTL             time.Duration
+	outputCache          *budget.Cache
+	noCache              bool
 	contentBoundaries    bool
 	disableInjectionScan bool
 	injectionPatterns    string
@@ -55,6 +57,12 @@ type FetchRuntimeOptions struct {
 	// the shared cache instance; the pipeline falls back to its default).
 	CacheDir string
 	CacheTTL time.Duration
+	// OutputCacheDir is the unified cache root for budgeted and full-text
+	// retrieval handles. It normally points at <cache-dir>/out.
+	OutputCacheDir string
+	// NoCache disables the fetch response cache while leaving explicit output
+	// handles available for store_full_text retrieval.
+	NoCache bool
 	// DisableInjectionScan disables the default bounded prompt-injection scan.
 	DisableInjectionScan bool
 	// InjectionPatterns replaces the embedded scanner patterns when set.
@@ -81,6 +89,10 @@ func NewFetchRuntime(options FetchRuntimeOptions) (*FetchRuntime, error) {
 	if options.UserAgent == "" {
 		options.UserAgent = "symbrowse/1.0"
 	}
+	var outputCache *budget.Cache
+	if options.OutputCacheDir != "" {
+		outputCache = budget.NewCache(options.OutputCacheDir, options.CacheTTL)
+	}
 	return &FetchRuntime{
 		client:               client,
 		allowlist:            allowlist,
@@ -89,6 +101,8 @@ func NewFetchRuntime(options FetchRuntimeOptions) (*FetchRuntime, error) {
 		userAgent:            options.UserAgent,
 		cacheDir:             options.CacheDir,
 		cacheTTL:             options.CacheTTL,
+		outputCache:          outputCache,
+		noCache:              options.NoCache,
 		contentBoundaries:    options.ContentBoundaries,
 		disableInjectionScan: options.DisableInjectionScan,
 		injectionPatterns:    options.InjectionPatterns,
@@ -182,6 +196,9 @@ type fetchURLArgs struct {
 	StoreFullText     bool   `json:"store_full_text"`
 	WaybackTimestamp  string `json:"wayback_timestamp"`
 	WaybackFallback   bool   `json:"wayback_fallback"`
+	TopK              int    `json:"top_k"`
+	NoCache           *bool  `json:"no_cache"`
+	RetrievalSurface  string `json:"retrieval_surface"`
 	NoInjectionScan   bool   `json:"no_injection_scan"`
 	InjectionPatterns string `json:"injection_patterns"`
 	ContentBoundaries *bool  `json:"content_boundaries"`
@@ -208,6 +225,7 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 		resp, err := pipeline.RunRaw(ctx, r.client, args.URL, fetch.Request{
 			AllowPrivate: r.allowPrivate,
 			Allowlist:    r.allowlist,
+			UserAgent:    r.userAgent,
 		})
 		if err != nil {
 			return nil, nil, fetchError(err)
@@ -245,17 +263,19 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 				return nil, nil, err
 			}
 		}
+		addFetchCacheHint(response, result.Output, args.RetrievalSurface)
 		return response, warnings, nil
 	case pipeline.FormatText:
 		response := withResponseMeta(withEscalation(map[string]any{
 			"url":     result.Doc.URL,
-			"content": render.Text(result.Doc),
+			"content": result.Output,
 		}, result.Meta), result.Meta)
 		if withBoundaries {
 			if err := addFetchBoundary(response, format, result.Meta.FinalURL, false); err != nil {
 				return nil, nil, err
 			}
 		}
+		addFetchCacheHint(response, result.Output, args.RetrievalSurface)
 		return response, warnings, nil
 	default:
 		response := withResponseMeta(withEscalation(map[string]any{
@@ -268,6 +288,7 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 				return nil, nil, err
 			}
 		}
+		addFetchCacheHint(response, result.Output, args.RetrievalSurface)
 		return response, warnings, nil
 	}
 }
@@ -342,8 +363,10 @@ type fetchBatchArgs struct {
 	Frontmatter       bool     `json:"frontmatter"`
 	IncludeLinks      bool     `json:"include_links"`
 	NoInjectionScan   bool     `json:"no_injection_scan"`
+	NoCache           *bool    `json:"no_cache"`
 	InjectionPatterns string   `json:"injection_patterns"`
 	ContentBoundaries *bool    `json:"content_boundaries"`
+	RetrievalSurface  string   `json:"retrieval_surface"`
 }
 
 func (r *FetchRuntime) handleFetchBatch(ctx context.Context, frame Frame) (any, []Warning, error) {
@@ -437,6 +460,7 @@ func (r *FetchRuntime) fetchBatchEntry(ctx context.Context, target string, args 
 			return map[string]any{"url": target, "ok": false, "error": err.Error(), "code": ErrorOperationFailed, "retryable": false}
 		}
 	}
+	addFetchCacheHint(response, result.Output, args.RetrievalSurface)
 	return response
 }
 
@@ -495,10 +519,12 @@ func (r *FetchRuntime) handleWaybackSnapshots(ctx context.Context, frame Frame) 
 func (r *FetchRuntime) pipelineOptions(f pipelineFields, format pipeline.Format) pipeline.Options {
 	opts := pipeline.Options{
 		Format:           format,
+		StoreCache:       r.outputCache,
 		Frontmatter:      f.Frontmatter,
 		CSSSelector:      f.CSSSelector,
 		Query:            f.Query,
 		SchemaPath:       f.SchemaPath,
+		TopK:             f.TopK,
 		StoreFullText:    f.StoreFullText,
 		CharLimit:        f.CharLimit,
 		WaybackFallback:  f.WaybackFallback,
@@ -514,6 +540,11 @@ func (r *FetchRuntime) pipelineOptions(f pipelineFields, format pipeline.Format)
 			IncludeLinks: f.IncludeLinks,
 		},
 	}
+	noCache := r.noCache
+	if f.NoCache != nil {
+		noCache = *f.NoCache
+	}
+	opts.Cache.NoCache = noCache
 	if r.robots {
 		opts.Security.RobotsChecker = robots.NewChecker().WithPrivate(r.allowPrivate)
 	}
@@ -537,6 +568,8 @@ type pipelineFields struct {
 	Query            string
 	SchemaPath       string
 	StoreFullText    bool
+	NoCache          *bool
+	TopK             int
 	WaybackTimestamp string
 	WaybackFallback  bool
 }
@@ -551,6 +584,8 @@ func (a fetchURLArgs) pipelineFields() pipelineFields {
 		Query:            a.Query,
 		SchemaPath:       a.SchemaPath,
 		StoreFullText:    a.StoreFullText,
+		NoCache:          a.NoCache,
+		TopK:             a.TopK,
 		WaybackTimestamp: a.WaybackTimestamp,
 		WaybackFallback:  a.WaybackFallback,
 	}
@@ -563,6 +598,7 @@ func (a fetchBatchArgs) pipelineFields() pipelineFields {
 		Frontmatter:   a.Frontmatter,
 		IncludeLinks:  a.IncludeLinks,
 		StoreFullText: a.StoreFullText,
+		NoCache:       a.NoCache,
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/net/html"
 
+	"github.com/danieljustus/symaira-browse/internal/budget"
 	"github.com/danieljustus/symaira-browse/internal/fetch/agentdom"
 	"github.com/danieljustus/symaira-browse/internal/fetch/cache"
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
@@ -49,9 +50,11 @@ func ParseFormat(s string) (Format, error) {
 
 // Options configures the pipeline run.
 type Options struct {
-	Format           Format
-	Content          ContentOptions
-	Cache            CacheOptions
+	Format  Format
+	Content ContentOptions
+	Cache   CacheOptions
+	// StoreCache is the unified output cache used by truncate-and-store.
+	StoreCache       *budget.Cache
 	Profile          string
 	Session          string
 	Security         SecurityOptions
@@ -62,7 +65,7 @@ type Options struct {
 	Request          RequestOptions
 	StoreFullText    bool   // enable Hermes-style truncate-and-store for long pages
 	CharLimit        int    // per-page char limit for truncate-and-store (default 15000)
-	StoreDir         string // directory for storing full text files (default ~/.cache/symfetch/fulltext)
+	StoreDir         string // legacy direct-file directory; production uses StoreCache
 	WaybackFallback  bool   // enable Wayback Machine fallback on 404/thin-content
 	WaybackTimestamp string // specific Wayback timestamp to fetch (empty = latest)
 	Query            string // optional BM25 query for relevance filtering
