@@ -3,6 +3,7 @@ package chrome
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -578,5 +579,96 @@ func TestSSRFGuardInactiveWithoutOption(t *testing.T) {
 	}
 	if _, err := eng.Navigate(ctx, page, "http://127.0.0.1:8080/"); err != nil {
 		t.Fatalf("Navigate without SSRF guard: %v", err)
+	}
+}
+
+// TestSingletonLockOwnership guards issue #372: symbrowse's managed session
+// directory is persistent, so a SingletonLock left behind by a crashed Chrome
+// made every later run report a profile-reuse limitation that was not true.
+func TestSingletonLockOwnership(t *testing.T) {
+	host, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("no lock is not reuse", func(t *testing.T) {
+		if profileLockedByLiveProcess(t.TempDir()) {
+			t.Fatal("an empty profile directory must not count as reused")
+		}
+	})
+
+	t.Run("stale lock from a dead process is not reuse", func(t *testing.T) {
+		dir := t.TempDir()
+		dead := exec.Command(os.Args[0], "-test.run=TestChromeHelperProcess")
+		dead.Env = append(os.Environ(), "SYMBROWSE_CHROME_HELPER=1")
+		if err := dead.Start(); err != nil {
+			t.Fatal(err)
+		}
+		pid := dead.Process.Pid
+		_ = dead.Process.Kill()
+		_, _ = dead.Process.Wait()
+		writeSingletonLock(t, dir, fmt.Sprintf("%s-%d", host, pid))
+		if profileLockedByLiveProcess(dir) {
+			t.Fatal("a lock owned by an exited process must not count as reused")
+		}
+	})
+
+	t.Run("lock from a live process is reuse", func(t *testing.T) {
+		dir := t.TempDir()
+		live := helperChromeProcess(t)
+		writeSingletonLock(t, dir, fmt.Sprintf("%s-%d", host, live.Process.Pid))
+		if !profileLockedByLiveProcess(dir) {
+			t.Fatal("a lock owned by a running process must count as reused")
+		}
+	})
+
+	t.Run("unparsable lock stays conservative", func(t *testing.T) {
+		dir := t.TempDir()
+		writeSingletonLock(t, dir, "not-a-lock-target-")
+		if !profileLockedByLiveProcess(dir) {
+			t.Fatal("an unparsable lock must be treated as live")
+		}
+	})
+
+	t.Run("foreign host stays conservative", func(t *testing.T) {
+		dir := t.TempDir()
+		writeSingletonLock(t, dir, "some-other-host-1")
+		if !profileLockedByLiveProcess(dir) {
+			t.Fatal("a lock from another host must be treated as live")
+		}
+	})
+}
+
+// TestManagedProfileLimitationWording guards issue #372: a managed session
+// directory must never be described as a reused user profile with the advice
+// to "use a private profile" — the daemon is already using one.
+func TestManagedProfileLimitationWording(t *testing.T) {
+	policy, err := newNetworkPolicy([]string{"example.com"}, false, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	managed := &Engine{options: Options{ManagedProfile: true}, policy: policy, profileReused: true}
+	limitations := managed.Limitations()
+	if len(limitations) != 1 {
+		t.Fatalf("Limitations() = %+v, want one entry", limitations)
+	}
+	if strings.Contains(limitations[0], "use a private profile") {
+		t.Errorf("managed session must not be told to use a private profile: %q", limitations[0])
+	}
+	if !strings.Contains(limitations[0], "session profile") {
+		t.Errorf("Limitations()[0] = %q, want the managed-session wording", limitations[0])
+	}
+
+	user := &Engine{options: Options{}, policy: policy, profileReused: true}
+	userLimitations := user.Limitations()
+	if len(userLimitations) != 1 || !strings.Contains(userLimitations[0], "reusing an existing Chrome profile") {
+		t.Errorf("user profile Limitations() = %+v, want the reuse warning", userLimitations)
+	}
+}
+
+func writeSingletonLock(t *testing.T, dir, target string) {
+	t.Helper()
+	if err := os.Symlink(target, filepath.Join(dir, "SingletonLock")); err != nil {
+		t.Fatal(err)
 	}
 }

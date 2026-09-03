@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"testing"
 	"time"
 
@@ -169,5 +170,111 @@ func TestHandlerErrorResponsePreservesHardStopMetadata(t *testing.T) {
 	}
 	if response.Error.Code != session.CodeSessionUserControl || response.Error.Retryable == nil || *response.Error.Retryable || response.Error.RequiresUserConfirmation == nil || !*response.Error.RequiresUserConfirmation || response.Error.ResumeHint != "confirm takeover" {
 		t.Fatalf("hard-stop response = %#v", response.Error)
+	}
+}
+
+// TestConcurrentStartupYieldsOneOwner guards issue #371: several MCP clients
+// recovering the same session at once must not each bind the socket. Before
+// the fix every starter unconditionally unlinked the existing socket, so two
+// daemons could serve one session with split browser state.
+func TestConcurrentStartupYieldsOneOwner(t *testing.T) {
+	// Unix socket paths are length-limited (104 bytes on macOS), so the long
+	// t.TempDir() name cannot be used here.
+	dir, err := os.MkdirTemp("", "sb-race-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	socketPath := filepath.Join(dir, "race.sock")
+
+	const starters = 6
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	servers := make([]*Server, 0, starters)
+	results := make(chan error, starters)
+	for i := 0; i < starters; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			server := NewServer(Options{
+				SocketPath:  socketPath,
+				Session:     "race",
+				IdleTimeout: -1,
+				Handler: func(context.Context, Frame) (any, []Warning, error) {
+					return map[string]any{"pong": true}, nil, nil
+				},
+			})
+			mu.Lock()
+			servers = append(servers, server)
+			mu.Unlock()
+			results <- server.ListenAndServe(ctx)
+		}()
+	}
+	// Every starter must be shut down before the test returns, whether it won
+	// or lost the race.
+	t.Cleanup(func() {
+		cancel()
+		mu.Lock()
+		running := append([]*Server(nil), servers...)
+		mu.Unlock()
+		for _, server := range running {
+			_ = server.Close()
+		}
+		wg.Wait()
+	})
+
+	// Give the starters time to race, then verify exactly one socket serves.
+	deadline := time.After(10 * time.Second)
+	var losers int
+	for losers == 0 {
+		select {
+		case err := <-results:
+			if !errors.Is(err, ErrDaemonAlreadyRunning) {
+				t.Fatalf("a starter returned %v, want ErrDaemonAlreadyRunning", err)
+			}
+			losers++
+		case <-deadline:
+			t.Fatal("no starter reported ErrDaemonAlreadyRunning; the socket was taken over")
+		}
+	}
+
+	client := NewClient(ClientOptions{SocketPath: socketPath, Session: "race"})
+	response, err := client.RequestWithoutAutostart(context.Background(), Frame{Cmd: "daemon.ping", RequestID: "r1"})
+	if err != nil || !response.Success {
+		t.Fatalf("ping the surviving daemon: response = %#v, err = %v", response, err)
+	}
+
+}
+
+// TestStaleSocketIsReplaced verifies the complement of the single-owner rule:
+// a socket file with nothing behind it must not block a fresh daemon.
+func TestStaleSocketIsReplaced(t *testing.T) {
+	dir, err := os.MkdirTemp("", "sb-stale-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	socketPath := filepath.Join(dir, "stale.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Close the listener but keep the socket file, exactly as an unclean
+	// daemon exit leaves it.
+	listener.(*net.UnixListener).SetUnlinkOnClose(false)
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(socketPath); err != nil {
+		t.Fatalf("stale socket file missing: %v", err)
+	}
+	if err := removeStaleSocket(socketPath); err != nil {
+		t.Fatalf("removeStaleSocket on a dead socket = %v, want nil", err)
+	}
+	if _, err := os.Lstat(socketPath); !os.IsNotExist(err) {
+		t.Fatalf("stale socket was not removed: %v", err)
 	}
 }

@@ -98,6 +98,20 @@ func (s *Server) Registry() *SessionRegistry { return s.registry }
 // Policy returns the network policy this server reports through daemon.status.
 func (s *Server) Policy() PolicyStatus { return s.options.Policy }
 
+// bindLocked clears a provably dead socket and binds a fresh one. It must run
+// under the startup lock so the liveness probe and the bind cannot interleave
+// with another starter (issue #371).
+func (s *Server) bindLocked() (net.Listener, error) {
+	if err := removeStaleSocket(s.options.SocketPath); err != nil {
+		return nil, err
+	}
+	listener, err := net.Listen("unix", s.options.SocketPath)
+	if err != nil {
+		return nil, fmt.Errorf("listen on %s: %w", s.options.SocketPath, err)
+	}
+	return listener, nil
+}
+
 // ListenAndServe binds the socket and serves until ctx is canceled, Close is
 // called, or the configured idle timeout expires.
 func (s *Server) ListenAndServe(ctx context.Context) error {
@@ -112,12 +126,19 @@ func (s *Server) ListenAndServe(ctx context.Context) error {
 	if err := prepareSocketDir(filepathDir(s.options.SocketPath)); err != nil {
 		return err
 	}
-	if err := removeStaleSocket(s.options.SocketPath); err != nil {
+	// Stale-socket handling and bind must be atomic across processes: two
+	// MCP clients recovering the same session concurrently would otherwise
+	// both find the socket free, and the second would unlink and rebind the
+	// first one's socket (issue #371). The lock is released as soon as this
+	// process owns the listener.
+	release, err := acquireStartupLock(startupLockPath(s.options.SocketPath))
+	if err != nil {
 		return err
 	}
-	listener, err := net.Listen("unix", s.options.SocketPath)
+	listener, err := s.bindLocked()
+	release()
 	if err != nil {
-		return fmt.Errorf("listen on %s: %w", s.options.SocketPath, err)
+		return err
 	}
 	if err := os.Chmod(s.options.SocketPath, 0o600); err != nil {
 		_ = listener.Close()
