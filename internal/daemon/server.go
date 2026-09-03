@@ -91,7 +91,9 @@ func (s *Server) SocketPath() string { return s.options.SocketPath }
 // Registry returns the daemon-local session registry.
 func (s *Server) Registry() *SessionRegistry { return s.registry }
 
-<<<<<<< HEAD
+// Policy returns the network policy this server reports through daemon.status.
+func (s *Server) Policy() PolicyStatus { return s.options.Policy }
+
 // bindLocked clears a provably dead socket and binds a fresh one. It must run
 // under the startup lock so the liveness probe and the bind cannot interleave
 // with another starter (issue #371).
@@ -105,10 +107,6 @@ func (s *Server) bindLocked() (net.Listener, error) {
 	}
 	return listener, nil
 }
-=======
-// Policy returns the network policy this server reports through daemon.status.
-func (s *Server) Policy() PolicyStatus { return s.options.Policy }
->>>>>>> origin/main
 
 // ListenAndServe binds the socket and serves until ctx is canceled, Close is
 // called, or the configured idle timeout expires.
