@@ -256,3 +256,79 @@ func TestWaitForDriverReturnsWhenProcessAlreadyExited(t *testing.T) {
 		t.Fatalf("waitForDriver took %s after process exit", elapsed)
 	}
 }
+
+func TestTopLevelContextHandlesSuccessEmptyAndError(t *testing.T) {
+	fake := newFakeBidi(t)
+	fake.on("browsingContext.getTree", func(json.RawMessage) (any, *fakeError) {
+		return map[string]any{"contexts": []any{map[string]any{"context": "page-1"}}}, nil
+	})
+	conn, err := verifiedDial(context.Background(), fake.url(), Options{DriverReadyTimeout: 2 * time.Second})
+	if err != nil {
+		t.Fatalf("verifiedDial: %v", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	got, err := topLevelContext(context.Background(), conn, Options{})
+	if err != nil {
+		t.Fatalf("topLevelContext: %v", err)
+	}
+	if got != "page-1" {
+		t.Fatalf("top-level context = %q, want page-1", got)
+	}
+
+	fake.on("browsingContext.getTree", func(json.RawMessage) (any, *fakeError) {
+		return map[string]any{"contexts": []any{}}, nil
+	})
+	if _, err := topLevelContext(context.Background(), conn, Options{}); err == nil || !strings.Contains(err.Error(), "no browsing context") {
+		t.Fatalf("empty context tree error = %v", err)
+	}
+
+	fake.on("browsingContext.getTree", func(json.RawMessage) (any, *fakeError) {
+		return nil, &fakeError{Code: "unsupported operation", Message: "tree unavailable"}
+	})
+	if _, err := topLevelContext(context.Background(), conn, Options{}); err == nil || !strings.Contains(err.Error(), "read browsing context tree") {
+		t.Fatalf("getTree command error = %v", err)
+	}
+}
+
+func TestContextPageAndCloseLifecycle(t *testing.T) {
+	subject := New()
+	ctx, err := subject.NewContext(context.Background())
+	if err != nil {
+		t.Fatalf("NewContext: %v", err)
+	}
+	if ctx.ID != "safari-bidi" {
+		t.Fatalf("context id = %q, want safari-bidi", ctx.ID)
+	}
+	if _, err := subject.NewPage(context.Background(), ctx, ""); err == nil {
+		t.Fatal("NewPage before launch must fail")
+	}
+
+	subject.context = "page-1"
+	page, err := subject.NewPage(context.Background(), ctx, "")
+	if err != nil {
+		t.Fatalf("NewPage: %v", err)
+	}
+	if page.ID != "page-1" {
+		t.Fatalf("page id = %q, want page-1", page.ID)
+	}
+	if err := subject.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if !subject.closed {
+		t.Fatal("Close did not mark engine closed")
+	}
+}
+
+func TestCommandErrorWithoutMessageAndDropPending(t *testing.T) {
+	err := (&CommandError{Method: "session.status", Code: "unknown error"}).Error()
+	if err != "bidi session.status failed: unknown error" {
+		t.Fatalf("CommandError.Error() = %q", err)
+	}
+
+	conn := &connection{pending: map[uint64]chan bidiReply{7: make(chan bidiReply, 1)}}
+	conn.dropPending(7)
+	if _, found := conn.pending[7]; found {
+		t.Fatal("dropPending left request 7 registered")
+	}
+}
