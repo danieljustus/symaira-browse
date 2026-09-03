@@ -236,3 +236,28 @@ Server-Namen); Clients wählen pro Task den passenden. Das archivierte
 `symfetch`-Formula bleibt im Homebrew-Tap bis zur endgültigen Entfernung
 verfügbar.
 
+
+
+## Engine-Auswahl (`--engine`)
+
+`symbrowse mcp` wählt die Engine wie `symbrowse daemon`:
+
+```sh
+symbrowse mcp --engine safari-bidi
+```
+
+Persistent über `config.toml`:
+
+```toml
+engine = "safari-bidi"
+```
+
+Die Präzedenz ist `--engine` → `SYMBROWSE_ENGINE` → `config.toml` → `chrome`.
+Ein unbekannter Name wird beim Start abgewiesen, statt still auf Chrome
+zurückzufallen.
+
+Der MCP-Server reicht die aufgelöste Engine als `--engine` an den Daemon
+weiter, den er selbst startet. Damit überlebt eine konfigurierte Safari-Engine
+auch den Daemon-Autostart und jeden Neustart. `daemon status --json` meldet die
+laufende Engine im Feld `engine`, `config show` das konfigurierte Feld `engine`
+mit seiner Quelle.

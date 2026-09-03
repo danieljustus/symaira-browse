@@ -27,6 +27,10 @@ type Options struct {
 	// AllowPrivate relaxes the SSRF guard for the daemon this server
 	// starts (the --allow-private opt-in).
 	AllowPrivate bool
+	// Engine selects the browser engine of the daemon this server starts
+	// (issue #373): chrome, static, safari-attach, or safari-bidi. The empty
+	// value leaves the daemon's own engine resolution in charge.
+	Engine string
 	// Profiles selects the tool profiles to register (issue #31):
 	// comma-separated names from core|nav|state|network|debug|flows|all.
 	// The empty value registers the default profile (core).
@@ -249,6 +253,12 @@ func (s *Server) daemonArgs(session string) []string {
 	args := []string{"daemon", "--session", session, "--ssrf"}
 	if s.options.AllowPrivate {
 		args = append(args, "--allow-private")
+	}
+	// The engine is forwarded explicitly (issue #373) so an auto-started
+	// daemon uses the engine this server was configured with, rather than
+	// falling back to the daemon default.
+	if s.options.Engine != "" {
+		args = append(args, "--engine", s.options.Engine)
 	}
 	return args
 }

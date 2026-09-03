@@ -47,7 +47,7 @@ func newDaemonCommand() *cobra.Command {
 	command.Flags().BoolVar(&headless, "headless", false, "launch Chrome in headless mode (no GUI session; also via SYMBROWSE_HEADLESS=1)")
 	command.PersistentFlags().StringVar(&restore, "restore", "", "restore the named state when the session browser starts")
 	command.PersistentFlags().StringVar(&profile, "profile", "", "reuse an existing Chrome profile (name or path) instead of a private session profile")
-	command.Flags().StringVar(&engineKind, "engine", "chrome", "engine implementation: chrome (default), static (JS-free HTML reader), safari-attach (live Safari session via Apple Events), or safari-bidi (isolated Safari via safaridriver --bidi)")
+	command.Flags().StringVar(&engineKind, "engine", config.DefaultEngine, engineFlagUsage)
 	command.Flags().StringVar(&cdpEndpoint, "cdp-endpoint", "", "attach to an existing DevTools endpoint (e.g. http://127.0.0.1:9222) instead of launching Chrome; also via SYMBROWSE_CDP_ENDPOINT or config.toml")
 
 	command.AddCommand(newDaemonStatusCommand(&session))
@@ -114,9 +114,18 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		headless, _ = cmd.Flags().GetBool("headless")
 	}
 	headless = headless || cfg.Headless
-	engineKind := "chrome"
-	if raw := cmd.Flags().Lookup("engine"); raw != nil {
+	// Engine precedence (issue #373): flag → SYMBROWSE_ENGINE → config.toml.
+	// The MCP launcher passes its own resolved engine as --engine, so a
+	// persistently configured engine also applies to MCP-started daemons.
+	engineKind := cfg.Engine
+	if raw := cmd.Flags().Lookup("engine"); raw != nil && cmd.Flags().Changed("engine") {
 		engineKind, _ = cmd.Flags().GetString("engine")
+	}
+	if engineKind == "" {
+		engineKind = config.DefaultEngine
+	}
+	if err := config.ValidateEngine(engineKind); err != nil {
+		return err
 	}
 	// Attach endpoint precedence (issue #296): flag → SYMBROWSE_CDP_ENDPOINT
 	// → config.toml. An attached engine does not launch or own Chrome.
@@ -229,6 +238,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		CacheDir:         filepath.Join(cfg.CacheDir, "out"),
 		CacheTTL:         time.Duration(cfg.CacheTTLHours) * time.Hour,
 		Policy:           networkPolicy,
+		Engine:           engineKind,
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
 			case "fetch.url", "fetch.batch", "wayback.snapshots":

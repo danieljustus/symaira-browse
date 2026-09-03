@@ -43,6 +43,10 @@ type Options struct {
 	ReadTimeout      time.Duration
 	PeerValidator    func(net.Conn) error
 	Policy           PolicyStatus
+	// Engine is the browser engine this daemon drives. It is reported in
+	// daemon.status so a client can verify which engine an already-running
+	// daemon uses before reusing it (issue #373).
+	Engine string
 	// CacheDir is the truncate-and-store output cache root (issue #23).
 	// Frame max_tokens budgets are enforced against it; empty disables
 	// budgets (the daemon fails closed when a budget is requested).
@@ -361,6 +365,7 @@ func (s *Server) statusData() map[string]any {
 		"started_at":    startedAt.UTC().Format(time.RFC3339Nano),
 		"last_activity": time.Unix(0, s.lastRequestNanos.Load()).UTC().Format(time.RFC3339Nano),
 		"policy":        s.options.Policy,
+		"engine":        s.options.Engine,
 	}
 }
 

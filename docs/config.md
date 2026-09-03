@@ -23,6 +23,7 @@ way.
 | `SYMBROWSE_STATE_DIR` | `$XDG_STATE_HOME/symbrowse` or `$HOME/.local/state/symbrowse` | env over TOML/default; owns states, journal and the default daemon log |
 | `SYMBROWSE_EXECUTABLE_PATH` | empty; platform discovery | env over TOML/default |
 | `SYMBROWSE_CDP_ENDPOINT` | empty; launch a private browser | env over TOML/default; `--cdp-endpoint` wins |
+| `SYMBROWSE_ENGINE` | `chrome` | env over TOML/default; `--engine` wins; one of `chrome`, `static`, `safari-attach`, `safari-bidi` |
 | `SYMBROWSE_ALLOWED_DOMAINS` | empty; no domain allowlist | env over TOML/default; `--allowed-domains` wins |
 | `SYMBROWSE_SSRF` | `false` for the daemon | env over TOML/default; `--ssrf` wins |
 | `SYMBROWSE_ALLOW_PRIVATE` | `false` | env over TOML/default; `--allow-private` wins |
