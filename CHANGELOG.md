@@ -17,6 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   session-creation timeout — an already-running Safari holding the automation
   slot, and missing remote-automation permission — and prints the remediation
   for each instead of relaying Apple's message (#355).
+- State-encryption keys are provisioned through SymVault, the macOS Keychain,
+  or an explicit environment fallback instead of relying on manual setup
+  (#346).
 
 ### Changed
 
@@ -29,6 +32,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   action a human cannot perform — and its allowlist/SSRF enforcement reaches
   navigation targets only, which it states through
   `NetworkPolicyReporter.Limitations()` (#355).
+- Upgrade detection now classifies Homebrew installations by installation
+  method, and the affected CLI commands use the unified structured output
+  envelope (#347, #348).
+- Configuration paths follow XDG conventions, `config show` exposes stable
+  runtime settings, and daemon log/state paths share one resolver (#349, #351).
+- Unclassified journal commands use the shared `unknown` policy fallback;
+  renderer payloads are decoded once and custom injection-pattern caches stay
+  bounded to one metadata-aware entry per path (#352, #353, #354).
+
+### Fixed
+
+- Windows daemon configuration tests no longer depend on platform-specific
+  path escaping (#361).
 
 ## [v0.6.1] - 2026-09-01
 
