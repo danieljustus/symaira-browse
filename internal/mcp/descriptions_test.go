@@ -42,6 +42,22 @@ func TestReadOpenSnapshotEscalationBoundary(t *testing.T) {
 	}
 }
 
+func TestServerInstructionsStartAtStaticFetchTier(t *testing.T) {
+	for _, name := range []string{"fetch_url", "fetch_batch", "wayback_snapshots"} {
+		if !strings.Contains(instructions, name) {
+			t.Errorf("server instructions do not mention tier-0 tool %q", name)
+		}
+	}
+	fetchIndex := strings.Index(instructions, "fetch_url")
+	openIndex := strings.Index(instructions, "open(url)")
+	if fetchIndex < 0 || openIndex < 0 || fetchIndex > openIndex {
+		t.Fatalf("instructions must recommend static fetch before browser escalation: %q", instructions)
+	}
+	if !strings.Contains(instructions, "escalate") || !strings.Contains(instructions, "JavaScript") {
+		t.Fatalf("instructions must describe escalation conditions: %q", instructions)
+	}
+}
+
 // TestDefaultProfileContextBudget keeps the rendered default-profile
 // descriptions within a practical context budget (issue #4 AC): the full
 // default (core) profile stays below 8k characters.

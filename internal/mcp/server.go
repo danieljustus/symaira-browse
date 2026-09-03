@@ -92,8 +92,11 @@ enforced by the daemon. Private/loopback targets are denied unless the server
 was started with --allow-private. When a request is blocked, the tool result
 carries a warnings[] array describing the denied URLs.
 
-Start with open(url), inspect with snapshot(), act with click/fill/type/press,
-and finish with read(url) to get the page as markdown in the symfetch output
+Start at Tier 0 with fetch_url(url) for plain static content. Use fetch_batch
+for independent URLs and wayback_snapshots for archive discovery. If the
+fetch result carries an "escalate" hint, or the page needs JavaScript, browser
+state, or interaction, escalate to read(url) or open(url), then inspect with
+snapshot() and act with click/fill/type/press. The output uses the symfetch
 schema.`
 
 // proxyTool wraps one table entry into an mcpserver tool. The handler decodes

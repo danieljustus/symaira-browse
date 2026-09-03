@@ -99,7 +99,7 @@ Ablage als `claude_desktop_config.json` (macOS:
 
 | Profil | Enthält | Anwendungsfall |
 |---|---|---|
-| `core` (Default) | `open`, `snapshot`, `click`, `fill`, `type`, `press`, `wait`, `read`, `get`, `find`, `cache_get` | Alltag: Seiten öffnen, ansehen, bedienen, lesen und gekürzte Ausgaben zurückholen |
+| `core` (Default) | `open`, `snapshot`, `click`, `fill`, `type`, `press`, `wait`, `read`, `get`, `find`, `fetch_url`, `fetch_batch`, `cache_get`, `wayback_snapshots` | Alltag: statisch holen, Seiten öffnen, ansehen, bedienen, lesen und gekürzte Ausgaben zurückholen |
 | `nav` | `back`, `forward`, `reload` | Historien-Navigation |
 | `state` | *(leer — kommt mit v0.4.0)* | Sessions, Cookies, Storage, `auth login` |
 | `network` | *(leer — kommt mit v1.0.0)* | Routing, Mocking, HAR, Offline |
@@ -115,6 +115,12 @@ größere Angriffsfläche für prompt-injizierte Seiten.
 
 Jedes Tool nimmt `session` entgegen (optional, Default: die Server-Session).
 Eine Session pro Aufgabe verwenden; Sessions sind voneinander isoliert.
+
+Für eine URL-Aufgabe zuerst `fetch_url` als Tier 0 verwenden. Für mehrere
+unabhängige URLs `fetch_batch`, für historische Treffer
+`wayback_snapshots`. Enthält die Antwort `escalate` oder braucht die Seite
+JavaScript, Browser-Zustand oder Interaktion, auf `read` beziehungsweise den
+interaktiven Ablauf mit `open` und `snapshot` eskalieren.
 
 ## Netzwerk-Sicherheit im MCP-Modus
 

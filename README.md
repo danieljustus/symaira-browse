@@ -15,7 +15,7 @@
 ## Why symbrowse
 
 - **Agent-operable Chrome sessions** — a real Chrome instance driven over the DevTools Protocol, with durable sessions instead of one-shot page fetches. If JavaScript, redirects, cookies, or interaction are needed, this is the tool.
-- **Plain-HTTP fetch through MCP** — the absorbed `symfetch` static engine exposes `fetch_url`, `fetch_batch` and `wayback_snapshots` as MCP tools; CLI users use `read` and `batch` without a browser session.
+- **Plain-HTTP fetch through MCP** — the absorbed `symfetch` static engine exposes `fetch_url`, `fetch_batch` and `wayback_snapshots` as MCP-only Tier 0 tools. There is no CLI `fetch` command; CLI users can use `read` with a daemon started as `--engine static`, while `batch` remains a generic command batcher.
 - **Stable element references** — deterministic `@ref`s across navigation and re-renders, so an agent's plan doesn't break when the DOM reflows.
 - **Out-of-band handoff** — hand control to a human for 2FA, CAPTCHA, or approval mid-session, then resume agent control without losing state.
 - **Standalone-first** — runs on its own with no compile-time dependency on other Symaira tools; integrations are optional, runtime-only fallbacks.
@@ -53,8 +53,13 @@ make build
 
 `open` loads the page in a real Chrome, `snapshot` renders the interactive
 tree with stable `@ref`s, and `read` returns the page as markdown in the
-SymFetch output schema. Without Chrome, use the JS-free static engine:
+SymFetch output schema. `read` is browser-backed with the default daemon
+engine. For a browserless CLI read, start the session daemon explicitly with
+the JS-free static engine:
 `./symbrowse daemon --session <name> --engine static`.
+
+`batch` is a generic command batcher; it is not the `fetch_batch` URL-fetch
+capability. The latter is available through the MCP Tier 0 tool only.
 
 ### Example session
 
@@ -96,9 +101,10 @@ navigation and re-renders.
 
 `symbrowse` has two modes in one binary:
 
-- **Static fetch** — the MCP tools `fetch_url` / `fetch_batch` /
+- **Static fetch** — the MCP-only Tier 0 tools `fetch_url` / `fetch_batch` /
   `wayback_snapshots` use the absorbed `symfetch` pipeline. On the CLI, use
-  `read` for a page and `batch` for multiple commands; no browser is needed.
+  `read` for a page; it is browser-backed by default and browserless only when
+  the daemon was started with `--engine static`. `batch` only batches commands.
 - **Interactive agent browser** — `open`, `snapshot`, `click`, `fill`,
   `type`, `press`, `wait`, `find`, `get`, `back`/`forward`/`reload` drive a
   real Chrome session with stable refs, cookies/storage state,
@@ -201,8 +207,12 @@ Use "symbrowse [command] --help" for more information about a command.
 `symbrowse mcp` runs a JSON-RPC-2.0 MCP server over stdio. Tools proxy to the
 local daemon; every session is isolated; the domain allowlist and the SSRF
 guard apply in MCP mode. The three SymFetch contracts are exposed as
-first-class tools, so clients can switch from the retired `symfetch` runtime
-without losing fast fetch, batch fetch, or Wayback discovery.
+first-class Tier 0 tools, so clients can switch from the retired `symfetch`
+runtime without losing fast fetch, batch fetch, or Wayback discovery. Start
+with `fetch_url` for a static page, use `fetch_batch` for independent URLs, and
+use `wayback_snapshots` for archive discovery. If a fetch response carries an
+`escalate` hint or the page needs JavaScript, browser state, or interaction,
+continue with `read` or the interactive `open`/`snapshot` flow.
 
 ```sh
 symbrowse mcp                 # default profile (core), SSRF guard on

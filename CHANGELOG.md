@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Truncated fetch output uses the unified `out_*` cache handles and is
   retrievable through the `cache_get` MCP tool; cache list/clear covers both
   output and fetch-response stores (#386).
+- README, tier documentation and MCP initialize instructions now identify
+  `fetch_url`, `fetch_batch` and `wayback_snapshots` as MCP-only Tier 0, with
+  explicit browser escalation guidance; the generic CLI `batch` is no longer
+  described as URL fetch (#387).
 
 ## [v0.7.0] - 2026-09-03
 

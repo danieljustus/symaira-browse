@@ -1,11 +1,13 @@
-# Der Eskalationsvertrag mit `symfetch` (Tiers)
+# Der Eskalationsvertrag mit der statischen Fetch-Pipeline (Tiers)
 
 Ein Agent soll nicht raten müssen, welches Werkzeug er für eine URL
 braucht. Der Vertrag (Issue #35) macht die Wahl
 beobachtbar:
 
-- **Die Fetch-Pipeline (Tier 0)** erkennt SPA-Skeletons und dünnen Inhalt und
-  ergänzt dann eine Eskalations-Empfehlung:
+- **Die statische Fetch-Pipeline (Tier 0)** ist über die MCP-Tools
+  `fetch_url`, `fetch_batch` und `wayback_snapshots` erreichbar. Sie erkennt
+  SPA-Skeletons und dünnen Inhalt und ergänzt dann eine
+  Eskalations-Empfehlung:
 
 ```json
 {
@@ -47,14 +49,14 @@ beobachtbar:
 ```
 
 `js_required: false` heißt: Eine statische Abholung (Tier 0) hätte denselben
-Inhalt geliefert — der Agent kann beim nächsten Mal direkt `symfetch`
+Inhalt geliefert — ein MCP-Agent kann beim nächsten Mal direkt `fetch_url`
 nehmen. `js_required: true` heißt: Ohne Browser geht Inhalt verloren.
 
 ## Entscheidungsbaum für Agenten
 
 ```mermaid
 flowchart TD
-    A[URL liegt vor] --> B{Tier 0: symfetch}
+    A[URL liegt vor] --> B{Tier 0: MCP fetch_url}
     B -->|"escalate: spa_skeleton / thin_content / js_challenge"| C{Tier 1: symbrowse read --engine-hint}
     B -->|"volle Seite erhalten"| Z[fertig: Inhalt verwenden]
     C -->|"js_required: false"| Z
@@ -72,11 +74,16 @@ Kurzfassung:
 
 | Situation | Werkzeug |
 |---|---|
-| Statische Seite, keine Interaktion nötig | `symfetch` (Tier 0) |
+| Statische Seite, keine Interaktion nötig | MCP `fetch_url` (Tier 0) |
 | `escalate`-Hinweis oder unsicher, ob JS nötig | `symbrowse read --engine-hint` (Tier 1) |
 | `js_required: true`, nur Inhalt | `symbrowse read` (Inhalt ist ohnehin gerendert) |
 | Interaktion nötig (Formular, Klicks, Login) | `symbrowse` interaktiv (Tier 2) |
 | Login/2FA/CAPTCHA | Mensch per OOB-Kanal, dann Session weiterverwenden |
+
+Die CLI bietet keinen separaten `fetch`-Befehl. `symbrowse read` läuft mit dem
+Standard-Daemon browserbasiert; ein explizit mit `--engine static` gestarteter
+Daemon ermöglicht dort einen browserlosen CLI-Read, ist aber nicht die
+`fetch_url`-MCP-Schnittstelle.
 
 ## Semantik von `js_required`
 
