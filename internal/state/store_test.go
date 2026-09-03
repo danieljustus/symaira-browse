@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -28,6 +29,26 @@ func newTestStore(t *testing.T, expireIn time.Duration, keys KeyProvider) *Store
 	}
 	t.Cleanup(func() { _ = os.RemoveAll(dir) })
 	return store
+}
+
+// newHermeticKeyResolver returns a production-wired resolver whose host probes
+// are pinned to "nothing configured". The real lookups consult the developer
+// machine's symvault, OS keychain and environment, so a test asserting the
+// no-key-configured case would otherwise pass only on hosts that happen to
+// have no key source installed. Only the test's view of the available sources
+// is controlled here; the production fallback order is untouched.
+func newHermeticKeyResolver(t *testing.T) *KeyResolver {
+	t.Helper()
+	resolver := NewKeyResolver()
+	resolver.LookPath = func(string) (string, error) { return "", exec.ErrNotFound }
+	resolver.RunVault = nil
+	resolver.RunVaultContext = func(context.Context, string, ...string) ([]byte, error) {
+		t.Error("symvault was invoked although it is absent from PATH")
+		return nil, exec.ErrNotFound
+	}
+	resolver.KeychainGet = func(string, string) ([]byte, bool, error) { return nil, false, nil }
+	resolver.Env = func(string) string { return "" }
+	return resolver
 }
 
 func sampleState(name string) *State {
@@ -278,7 +299,7 @@ func TestPlaintextFileSurvivesWithoutVault(t *testing.T) {
 }
 
 func TestKeyResolverOrderAndValidation(t *testing.T) {
-	resolver := NewKeyResolver()
+	resolver := newHermeticKeyResolver(t)
 	key, source, err := resolver.Key()
 	if err != nil {
 		t.Fatal(err)
