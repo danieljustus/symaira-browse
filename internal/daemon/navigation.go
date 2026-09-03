@@ -474,6 +474,10 @@ func (r *NavigationRuntime) chromeOptions(userDataDir string) chrome.Options {
 		ExecutablePath: r.executable,
 		CDPEndpoint:    r.cdpEndpoint,
 		UserDataDir:    userDataDir,
+		// Without --profile the data directory is the managed session
+		// directory, so a profile-reuse limitation must not tell the user to
+		// switch to a private profile (issue #372).
+		ManagedProfile: r.profile == "",
 		AllowedDomains: r.allowedDomains,
 		SSRFEnabled:    r.ssrfEnabled,
 		AllowPrivate:   r.allowPrivate,
