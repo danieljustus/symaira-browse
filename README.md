@@ -106,7 +106,7 @@ navigation and re-renders.
 
 ```text
 $ ./symbrowse version
-symbrowse v0.6.1
+symbrowse v0.7.0
 
 $ ./symbrowse --help
 symbrowse is the standalone command-line entrypoint for Symaira Browse.
