@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fetch compatibility frames now honor the configured domain allowlist, risk
+  decision and action journal; `daemon.status` reports the static fetch SSRF
+  state separately from the browser daemon (#384).
+
 ## [v0.7.0] - 2026-09-03
 
 ### Added

@@ -14,6 +14,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/fetch/pipeline"
 	"github.com/danieljustus/symaira-browse/internal/fetch/render"
 	"github.com/danieljustus/symaira-browse/internal/fetch/robots"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // FetchRuntime exposes the absorbed SymFetch fetch pipeline through the
@@ -25,6 +26,7 @@ import (
 type FetchRuntime struct {
 	mu           sync.Mutex
 	client       fetch.Client
+	allowlist    *policy.Allowlist
 	allowPrivate bool
 	robots       bool
 	userAgent    string
@@ -34,6 +36,9 @@ type FetchRuntime struct {
 
 // FetchRuntimeOptions configures the fetch runtime.
 type FetchRuntimeOptions struct {
+	// AllowedDomains restricts every fetch target and redirect to the same
+	// host allowlist used by browser navigation.
+	AllowedDomains []string
 	// AllowPrivate relaxes the SSRF guard for plain HTTP fetches
 	// (mirrors the daemon --allow-private opt-in).
 	AllowPrivate bool
@@ -56,11 +61,17 @@ func NewFetchRuntime(options FetchRuntimeOptions) (*FetchRuntime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create fetch client: %w", err)
 	}
+	allowlist, err := policy.ParseAllowlist(options.AllowedDomains)
+	if err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("parse fetch domain allowlist: %w", err)
+	}
 	if options.UserAgent == "" {
 		options.UserAgent = "symbrowse/1.0"
 	}
 	return &FetchRuntime{
 		client:       client,
+		allowlist:    allowlist,
 		allowPrivate: options.AllowPrivate,
 		robots:       options.Robots,
 		userAgent:    options.UserAgent,
@@ -130,6 +141,7 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 		// pipeline processing (SymFetch fetch_url raw=true).
 		resp, err := pipeline.RunRaw(ctx, r.client, args.URL, fetch.Request{
 			AllowPrivate: r.allowPrivate,
+			Allowlist:    r.allowlist,
 		})
 		if err != nil {
 			return nil, nil, fetchError(err)
@@ -386,6 +398,7 @@ func (r *FetchRuntime) pipelineOptions(f pipelineFields, format pipeline.Format)
 			AllowPrivate: r.allowPrivate,
 			Robots:       r.robots,
 			UserAgent:    r.userAgent,
+			Allowlist:    r.allowlist,
 		},
 		Content: pipeline.ContentOptions{
 			MaxChars:     f.MaxChars,

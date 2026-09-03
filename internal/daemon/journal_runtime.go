@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -37,12 +38,24 @@ func (r *JournalRuntime) Handle(ctx context.Context, frame Frame) (any, []Warnin
 // HandleWithDecider is Handle with an explicit decider for the journal entry
 // ("policy", "guard" or "human" — issue #52).
 func (r *JournalRuntime) HandleWithDecider(ctx context.Context, frame Frame, decider string) (any, []Warning, error) {
+	return r.HandleFuncWithDecider(ctx, frame, decider, r.nav.Handle)
+}
+
+// HandleFuncWithDecider journals a frame handled by a runtime other than the
+// navigation runtime, such as the plain-HTTP fetch runtime.
+func (r *JournalRuntime) HandleFuncWithDecider(ctx context.Context, frame Frame, decider string, handler Handler) (any, []Warning, error) {
+	if handler == nil {
+		return nil, nil, errors.New("journal handler is nil")
+	}
 	if r.journal == nil {
-		return r.nav.Handle(ctx, frame)
+		return handler(ctx, frame)
 	}
 	started := time.Now()
 	urlBefore := r.currentURL(ctx, frame.Session)
-	data, warnings, err := r.nav.Handle(ctx, frame)
+	if urlBefore == "" {
+		urlBefore = frameJournalURL(frame)
+	}
+	data, warnings, err := handler(ctx, frame)
 	duration := time.Since(started).Milliseconds()
 
 	entry := journal.Entry{
@@ -60,6 +73,9 @@ func (r *JournalRuntime) HandleWithDecider(ctx context.Context, frame Frame, dec
 		entry.Result = "ok"
 	}
 	urlAfter := r.currentURL(ctx, frame.Session)
+	if urlAfter == "" {
+		urlAfter = frameJournalURL(frame)
+	}
 	if urlAfter != "" {
 		entry.URLAfter = urlAfter
 	}
@@ -68,6 +84,23 @@ func (r *JournalRuntime) HandleWithDecider(ctx context.Context, frame Frame, dec
 		warnings = append(warnings, Warning{Kind: "journal", Severity: "warning", Message: fmt.Sprintf("journal append failed: %v", appendErr)})
 	}
 	return data, warnings, err
+}
+
+func frameJournalURL(frame Frame) string {
+	var request struct {
+		URL  string   `json:"url"`
+		URLs []string `json:"urls"`
+	}
+	if err := json.Unmarshal(frame.Args, &request); err != nil {
+		return ""
+	}
+	if request.URL != "" {
+		return request.URL
+	}
+	if len(request.URLs) > 0 {
+		return request.URLs[0]
+	}
+	return ""
 }
 
 // currentURL reads the page origin without starting a browser session.

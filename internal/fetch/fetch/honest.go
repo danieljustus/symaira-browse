@@ -49,6 +49,9 @@ func newHonestClient(o *clientOptions) (*honestClient, error) {
 		if len(via) >= 10 {
 			return fmt.Errorf("too many redirects")
 		}
+		if err := CheckAllowlist(req.URL.String(), allowlistFromContext(req.Context())); err != nil {
+			return err
+		}
 		if err := CheckSSRF(req.URL.String()); err != nil {
 			return err
 		}
@@ -57,6 +60,9 @@ func newHonestClient(o *clientOptions) (*honestClient, error) {
 	unsafeRedirect := func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
 			return fmt.Errorf("too many redirects")
+		}
+		if err := CheckAllowlist(req.URL.String(), allowlistFromContext(req.Context())); err != nil {
+			return err
 		}
 		return nil
 	}
@@ -73,6 +79,9 @@ func newHonestClient(o *clientOptions) (*honestClient, error) {
 }
 
 func (c *honestClient) Fetch(ctx context.Context, req Request) (*Response, error) {
+	if err := CheckAllowlist(req.URL, req.Allowlist); err != nil {
+		return nil, err
+	}
 	if !req.AllowPrivate {
 		if err := CheckSSRF(req.URL); err != nil {
 			return nil, err
@@ -114,7 +123,7 @@ func (c *honestClient) Fetch(ctx context.Context, req Request) (*Response, error
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	httpReq = httpReq.WithContext(timeoutCtx)
+	httpReq = httpReq.WithContext(withAllowlistContext(timeoutCtx, req.Allowlist))
 
 	hc := c.hcUnsafe
 	if req.Proxy != "" {
@@ -162,6 +171,9 @@ func (c *honestClient) getProxyClient(proxyURL string, allowPrivate bool) *http.
 			if len(via) >= 10 {
 				return fmt.Errorf("too many redirects")
 			}
+			if err := CheckAllowlist(req.URL.String(), allowlistFromContext(req.Context())); err != nil {
+				return err
+			}
 			return nil
 		}
 	} else {
@@ -171,6 +183,9 @@ func (c *honestClient) getProxyClient(proxyURL string, allowPrivate bool) *http.
 		redirectFn = func(req *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("too many redirects")
+			}
+			if err := CheckAllowlist(req.URL.String(), allowlistFromContext(req.Context())); err != nil {
+				return err
 			}
 			if err := CheckSSRF(req.URL.String()); err != nil {
 				return err
@@ -214,6 +229,12 @@ func (c *honestClient) doFetchWithRetry(ctx context.Context, req Request, hc *ht
 		elapsed := c.opts.clock.Now().Sub(start)
 
 		if err == nil {
+			if resp.Request != nil {
+				if err := CheckAllowlist(resp.Request.URL.String(), req.Allowlist); err != nil {
+					_ = resp.Body.Close()
+					return nil, err
+				}
+			}
 			if IsTransientError(resp.StatusCode, nil) && c.opts.enableRetry && attempt < maxRetries {
 				retryAfter := ParseRetryAfter(resp.Header.Get("Retry-After"))
 				delay := c.opts.backoffConfig.BackoffDelay(attempt)

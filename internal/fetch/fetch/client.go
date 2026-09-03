@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"math/rand"
 	"time"
+
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // Profile controls TLS/HTTP fingerprint impersonation behavior.
@@ -80,11 +82,12 @@ type Request struct {
 	Headers map[string]string // additional/override headers
 	Body    []byte
 
-	Timeout      time.Duration // 0 = use client default (30s)
-	Proxy        string        // http(s)://, socks5://; overrides client-level proxy
-	Session      string        // named cookie jar; "" = ephemeral
-	MaxBody      int64         // max body bytes; 0 = use client default (10 MiB)
-	AllowPrivate bool          // allow RFC1918/loopback targets (SSRF override)
+	Timeout      time.Duration     // 0 = use client default (30s)
+	Proxy        string            // http(s)://, socks5://; overrides client-level proxy
+	Session      string            // named cookie jar; "" = ephemeral
+	MaxBody      int64             // max body bytes; 0 = use client default (10 MiB)
+	AllowPrivate bool              // allow RFC1918/loopback targets (SSRF override)
+	Allowlist    *policy.Allowlist // optional domain allowlist for this request
 }
 
 // Response is the result of a fetch.

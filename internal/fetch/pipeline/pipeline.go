@@ -17,6 +17,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/fetch/relevance"
 	"github.com/danieljustus/symaira-browse/internal/fetch/render"
 	"github.com/danieljustus/symaira-browse/internal/fetch/robots"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // Format is the output format for the rendered result.
@@ -98,6 +99,7 @@ type SecurityOptions struct {
 	Robots        bool
 	RobotsChecker *robots.Checker
 	UserAgent     string
+	Allowlist     *policy.Allowlist
 }
 
 func (o *Options) setDefaults() {
@@ -142,6 +144,9 @@ type Result struct {
 // fetch → materialize → filter → score → classify → agentdom → render.
 func Run(ctx context.Context, c fetch.Client, eng Engine, rawURL string, o Options) (*Result, error) {
 	o.setDefaults()
+	if err := fetch.CheckAllowlist(rawURL, o.Security.Allowlist); err != nil {
+		return nil, err
+	}
 	if !o.Security.AllowPrivate {
 		if err := fetch.CheckSSRF(rawURL); err != nil {
 			return nil, err

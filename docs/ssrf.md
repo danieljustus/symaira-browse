@@ -72,3 +72,9 @@ der DNS-Auflösung blockiert; `--allow-private` bleibt der explizite Opt-out.
 Die Aktivierungsdefaults unterscheiden sich weiterhin: Der statische Fetch ist
 standardmäßig geschützt, während der reguläre `symbrowse daemon` den Guard erst
 mit `--ssrf` aktiviert. Im MCP-Modus ist der Guard standardmäßig aktiv.
+
+`daemon.status` weist diese beiden Zustände getrennt aus: `policy.ssrf_enabled`
+beschreibt den Browser-Daemon, `policy.fetch_ssrf_enabled` den statischen
+Fetch-Pfad. Der zweite Wert ist `true`, solange `--allow-private` nicht aktiv
+ist — der Fetch prüft private Ziele unabhängig davon, ob der reguläre
+Browser-Guard mit `--ssrf` aktiviert wurde.

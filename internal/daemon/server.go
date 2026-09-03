@@ -29,7 +29,11 @@ type Handler func(context.Context, Frame) (any, []Warning, error)
 type PolicyStatus struct {
 	AllowedDomains []string `json:"allowed_domains,omitempty"`
 	SSRFEnabled    bool     `json:"ssrf_enabled"`
-	AllowPrivate   bool     `json:"allow_private"`
+	// FetchSSRFEnabled reports the static fetch guard separately because
+	// fetch is protected whenever private targets are not explicitly allowed,
+	// even when the regular browser daemon was started without --ssrf.
+	FetchSSRFEnabled bool `json:"fetch_ssrf_enabled"`
+	AllowPrivate     bool `json:"allow_private"`
 }
 
 // Options configures a Server. Zero durations use the production defaults.

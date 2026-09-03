@@ -57,6 +57,10 @@ func loadCachedResult(rawURL string, o Options, cacher *cache.Cache) (*Result, *
 	if cacher == nil {
 		return nil, nil
 	}
+	if err := fetch.CheckAllowlist(rawURL, o.Security.Allowlist); err != nil {
+		slog.Debug("cache hit blocked by domain allowlist", "url", rawURL)
+		return nil, nil
+	}
 	profile := o.Profile
 	if profile == "" {
 		profile = "chrome"
@@ -68,6 +72,12 @@ func loadCachedResult(rawURL string, o Options, cacher *cache.Cache) (*Result, *
 	if !o.Security.AllowPrivate && meta.FinalURL != "" && meta.FinalURL != rawURL {
 		if err := fetch.CheckSSRF(meta.FinalURL); err != nil {
 			slog.Debug("cache hit blocked by SSRF (redirect target)", "url", rawURL, "finalURL", meta.FinalURL)
+			return nil, nil
+		}
+	}
+	if meta.FinalURL != "" {
+		if err := fetch.CheckAllowlist(meta.FinalURL, o.Security.Allowlist); err != nil {
+			slog.Debug("cache hit blocked by domain allowlist (redirect target)", "url", rawURL, "finalURL", meta.FinalURL)
 			return nil, nil
 		}
 	}
@@ -104,6 +114,7 @@ func fetchInitial(ctx context.Context, c fetch.Client, rawURL string, o Options)
 	resp, err := c.Fetch(ctx, fetch.Request{
 		URL: rawURL, Method: o.Request.Method, Headers: o.Request.Headers,
 		Body: o.Request.Body, AllowPrivate: o.Security.AllowPrivate, Session: o.Session,
+		Allowlist: o.Security.Allowlist,
 	})
 	if err != nil {
 		return nil, &FetchError{URL: rawURL, Err: err}

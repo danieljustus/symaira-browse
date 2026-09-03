@@ -47,6 +47,10 @@ func Probe(ctx context.Context, c fetch.Client, rawURL string, o Options) *Recov
 				return nil
 			}
 		}
+		if err := fetch.CheckAllowlist(ancestorStr, o.Security.Allowlist); err != nil {
+			slog.Debug("ancestor blocked by domain allowlist", "url", ancestorStr)
+			return nil
+		}
 
 		if o.Security.Robots && o.Security.RobotsChecker != nil {
 			ua := o.Security.UserAgent
@@ -95,6 +99,9 @@ func Probe(ctx context.Context, c fetch.Client, rawURL string, o Options) *Recov
 		if err := fetch.CheckSSRF(rootStr); err != nil {
 			return nil
 		}
+	}
+	if err := fetch.CheckAllowlist(rootStr, o.Security.Allowlist); err != nil {
+		return nil
 	}
 
 	if o.Security.Robots && o.Security.RobotsChecker != nil {
@@ -350,6 +357,10 @@ func findCandidatesFromSitemaps(ctx context.Context, c fetch.Client, u *url.URL,
 				continue
 			}
 		}
+		if err := fetch.CheckAllowlist(smURL, o.Security.Allowlist); err != nil {
+			slog.Debug("sitemap blocked by domain allowlist", "url", smURL)
+			continue
+		}
 		if o.Security.Robots {
 			allowed, err := o.Security.RobotsChecker.Check(ctx, ua, smURL)
 			if err != nil {
@@ -378,6 +389,7 @@ func fetchSitemap(ctx context.Context, c fetch.Client, smURL string, o Options) 
 		AllowPrivate: o.Security.AllowPrivate,
 		Session:      o.Session,
 		MaxBody:      maxSitemapBytes,
+		Allowlist:    o.Security.Allowlist,
 	})
 	if err != nil {
 		slog.Debug("sitemap fetch error", "url", smURL, "error", err)
