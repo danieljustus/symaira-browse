@@ -148,8 +148,8 @@ func TestHostOf(t *testing.T) {
 	tests := map[string]string{
 		"https://example.com/path":                "example.com",
 		"http://user:pass@sub.example.com:8080/x": "sub.example.com",
-		"example.com":                             "example.com",
-		"":                                        "",
+		"example.com": "example.com",
+		"":            "",
 	}
 	for input, want := range tests {
 		if got := hostOf(input); got != want {
