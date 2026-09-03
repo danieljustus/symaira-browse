@@ -389,3 +389,31 @@ func TestServiceRetriesAfterFailedLaunch(t *testing.T) {
 		t.Fatalf("successful engine Close calls = %d, want 1", got)
 	}
 }
+
+// The safari-bidi engine drives an isolated Safari that carries none of the
+// human's logins, so unlike safari-attach it is not restricted by runtime
+// mode. Its capability set is fixed by what Safari's BiDi implements (#355).
+func TestSafariBidiCapabilitiesAreModeIndependent(t *testing.T) {
+	for _, mode := range []policy.Mode{policy.ModeMCP, policy.ModeTTY} {
+		runtime := NewNavigationRuntime(nil, "", NavigationRuntimeOptions{Engine: "safari-bidi", Mode: mode})
+		result, err := runtime.handleEngineInfoFrame(Frame{})
+		if err != nil {
+			t.Fatalf("mode %v: engine info: %v", mode, err)
+		}
+		caps, ok := result.(engine.Capabilities)
+		if !ok {
+			t.Fatalf("mode %v: result type %T", mode, result)
+		}
+		if caps.Kind != "safari-bidi" {
+			t.Fatalf("mode %v: kind = %q", mode, caps.Kind)
+		}
+		if caps.LaunchMode != "launch" {
+			t.Fatalf("mode %v: launch mode = %q, want launch", mode, caps.LaunchMode)
+		}
+		for _, name := range caps.Interfaces {
+			if name == "InteractionEngine" {
+				t.Fatalf("mode %v: safari-bidi must not claim InteractionEngine", mode)
+			}
+		}
+	}
+}

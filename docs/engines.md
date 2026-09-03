@@ -29,6 +29,7 @@ als „von dieser Engine nicht unterstützt" scheitern.
 | `chrome` | CDP über WebSocket | vollständig; Referenzimplementierung |
 | `static` | HTTP ohne Browser | bewusst reduziert (Tier 0) |
 | `safari-attach` | Apple Events (`do JavaScript`) | Lesen vollständig; Navigation policy-guarded; Bedienen hinter Opt-in (issue #297) |
+| `safari-bidi` | WebDriver BiDi über WebSocket (`safaridriver --bidi`) | Lesen in isolierter Sitzung; **kein** Bedienen, **keine** Events, **keine** Subresource-Policy — Safari implementiert die nötigen Module nicht (issue #355) |
 
 Die CDP-Engine ist nicht auf Google Chrome festgelegt. Die Discovery in
 [`internal/engine/doctor`](../internal/engine/doctor) findet Chrome, Chromium
@@ -105,6 +106,137 @@ Zwei weitere Fallen, beide in der Messung aufgetreten:
   Lade-Ereignis; es muss auf den URL-Wechsel gepollt werden, nicht auf
   `readyState`.
 
+
+## Safari über WebDriver BiDi
+
+`safaridriver --bidi` öffnet eine **isolierte** Automationssitzung: die Tabs,
+Cookies und Logins des Menschen sind nicht darin. `safari-bidi` ersetzt
+`safari-attach` deshalb nicht, sondern steht daneben — der eine Weg führt zur
+eingeloggten Sitzung, der andere zu einer sauberen.
+
+### Zwei Voraussetzungen, die Apple nicht meldet
+
+Die Sitzungserstellung scheitert nach 30 Sekunden mit *einem* Text für
+*mehrere* Ursachen:
+
+```text
+Could not create a session: The session timed out while connecting to a Safari
+instance. … Request creation of a new automation session
+```
+
+Die Unterscheidung steht ausschließlich im Unified Log, nie in der
+WebDriver-Antwort:
+
+```text
+[com.apple.Safari:Automation] Rejecting session (…): Safari was not launched
+for automation.
+```
+
+Das ist der Fall, in dem **Safari bereits normal läuft**: `safaridriver` hängt
+sich an diese Instanz statt eine eigene zu starten, und Safari lehnt ab.
+Gemessen am 2026-09-03: mit laufendem Safari scheitert die Sitzung, nach
+`Cmd-Q` gelingt dieselbe Anfrage. Die zweite Ursache ist die fehlende
+Automationsfreigabe (`sudo safaridriver --enable`). `doctor` erkennt beide und
+nennt die jeweilige Abhilfe, statt Apples Timeout weiterzureichen.
+
+### Zwei Fallen im Transport
+
+- **Die Capability `webSocketUrl: true` genügt nicht.** Safari akzeptiert sie,
+  spiegelt sie als Boolean zurück, setzt `safari:experimentalWebSocketUrl` auf
+  `false` und öffnet **keinen** Socket. Erst
+  `safari:experimentalWebSocketUrl: true` liefert eine echte `ws://`-URL.
+- **Safari wählt den BiDi-Port selbst und prüft nicht, ob er frei ist.** Der
+  `--bidi`-Parameter bestimmt ihn nicht; gemessen wurden für drei aufeinander
+  folgende Sitzungen 8087, 8081 und 8094. In einer Messung zeigte die gemeldete
+  URL auf Port 8081, den ein fremder SSH-Tunnel hielt. Die Engine verifiziert
+  jeden Socket deshalb mit `session.status`, bevor sie ein Kommando sendet, und
+  akzeptiert ausschließlich Loopback-Adressen.
+
+### Gemessene Fähigkeiten
+
+Gemessen am 2026-09-03 gegen die Fixtures aus
+[`internal/testserver`](../internal/testserver), Safari 27.0 (26A5425a),
+macOS 27.0, mit der Enumeration in
+[`probe_surface_test.go`](../internal/engine/safaribidi/probe_surface_test.go).
+Kein geschätztes Ergebnis.
+
+| BiDi-Modul | Ergebnis |
+|---|---|
+| `session.*` (status, subscribe, unsubscribe) | ✅ Kommandos vorhanden |
+| `browsingContext` navigate, getTree, create, close, activate, reload, traverseHistory, setViewport | ✅ |
+| `script.*` (evaluate, callFunction, getRealms, addPreloadScript, disown) | ✅ |
+| `browsingContext.captureScreenshot`, `locateNodes`, `print` | ❌ *was not found* |
+| **`input.*`** (performActions, releaseActions, setFiles) | ❌ *'input' domain was not found* |
+| **`network.*`** (addIntercept, continueRequest) | ❌ *'network' domain was not found* |
+| `emulation.*`, `permissions.*`, `webExtension.*`, `bluetooth.*` | ❌ Domain fehlt |
+| `storage.*` (getCookies, deleteCookies) | ⚠️ vorhanden, antwortet `InternalError` |
+| **Event-Zustellung** (`browsingContext.load`, `log.entryAdded`, `network.*`) | ❌ `session.subscribe` meldet Erfolg und liefert **nichts** |
+
+| Fähigkeit | Fixture | Ergebnis |
+|---|---|---|
+| Navigation mit echter Ladebarriere (`wait: "complete"`) | `/static` | ✅ |
+| Gerenderte, hydrierte DOM lesen | `/spa` | ✅ (Unterschied zu `static`) |
+| Verschachtelte iframes als eigene Browsing Contexts | `/iframe` | ✅ Kind und Enkel adressierbar |
+| Titel, URL, Text, Attribute, Box, Styles | `/static`, `/form` | ✅ über `script.evaluate` |
+| Klick mit echtem Hit-Testing | `/overlay` | ❌ kein `input`-Modul |
+| Datei-Upload | `/form` | ❌ kein `input`-Modul |
+| Screenshot | beliebig | ❌ Kommando fehlt |
+| Console/Errors | `/spa` | ❌ keine Events |
+| HTTP-Status, Network-Idle | beliebig | ❌ kein `network`-Modul |
+| Netzwerk-Policy auf Subresources | — | ❌ kein `network`-Modul; nur Navigationsziele |
+
+### Der Befund, der issue #355 umgeschrieben hat
+
+Issue #355 begründete diese Engine mit einer Tabelle: BiDi sollte genau die
+❌-Zeilen von `safari-attach` schließen — echtes Pointer-Input statt
+`click()`, ein Navigations-Lifecycle, `log.entryAdded`, eine Netzwerkschicht
+für Allowlist und SSRF, `input.setFiles`. Die Messung widerlegt **fünf der
+sechs** Zeilen: Safari 27.0 liefert weder das `input`- noch das
+`network`-Modul, und Events werden trotz erfolgreichem `subscribe` nicht
+zugestellt. Adressierbare iframes bleiben als einzige Zeile bestehen.
+
+Die Konsequenz für den Klick auf `/overlay` ist die wichtigste. Ohne
+`input`-Modul bliebe nur ein JavaScript-`click()` — also genau der Weg, der
+das Hit-Testing umgeht und in `safari-attach` **Erfolg für eine Aktion meldet,
+die ein Mensch nicht ausführen kann**. `safari-bidi` implementiert deshalb
+`InteractionEngine` **nicht** und meldet die Fähigkeit als nicht unterstützt,
+statt sie unwahr zu erfüllen.
+
+Ebenso ist die Netzwerk-Policy nicht weiter als in `safari-attach`: Allowlist
+und SSRF-Guard prüfen Navigationsziele, Subresources bleiben ungeprüft. Die
+Engine sagt das beim Start über `NetworkPolicyReporter.Limitations()`, statt
+eine Durchsetzung zu suggerieren, die es nicht gibt.
+
+### Fähigkeitsmatrix der Engine
+
+`safari-bidi` implementiert `InspectionEngine`, `NavigationStateProvider`,
+`NetworkPolicyReporter`, `FrameManager` und `TabManager`. Alles andere meldet
+es als nicht unterstützt. `AXTree` und `Screenshot` gehören zum
+Pflicht-Interface: `AXTree` wird aus der **gerenderten** DOM synthetisiert (wie
+in `static`, aber nach Skriptausführung), `Screenshot` scheitert typisiert.
+
+### Risikoklasse
+
+Unter `safari-attach`, über `static`: die Sitzung ist isoliert und trägt keine
+Logins, deshalb braucht arbiträres `Evaluate` hier kein Opt-in. Sie startet
+aber einen echten Browser mit echtem Netzwerkzugang, was `static` nicht tut.
+
+### Wann diese Messung neu zu machen ist
+
+[`probe_surface_test.go`](../internal/engine/safaribidi/probe_surface_test.go)
+enumeriert die Kommando-Oberfläche und die Event-Zustellung gegen ein echtes
+Safari:
+
+```text
+SYMBROWSE_SAFARI_BIDI=1 go test ./internal/engine/safaribidi -run ProbeSurface -v
+```
+
+Wandert ein Kommando von ABSENT nach PRESENT, darf die Engine die zugehörige
+Fähigkeit melden — vorher nicht. Die Live-Tests in `live_test.go` schlagen
+absichtlich fehl, wenn Safari plötzlich einen HTTP-Status liefert: eine
+stillschweigende Verbesserung hinter einer unveränderten Matrix wäre genau die
+Art Abweichung, die dieses Dokument verhindern soll.
+
 ## Entscheidung
 
 1. Ein Safari-Backend wird gebaut, aber als eigene Engine `safari-attach`, die
@@ -136,10 +268,9 @@ Zwei weitere Fallen, beide in der Messung aufgetreten:
   fehlende Funktion. Safari 27.0 auf macOS 27.0 lieferte bei der Messung am
   2026-09-02 für die laufende Automationssitzung `list_tabs: []`; die Sitzung
   ist daher auch inhaltlich nicht der eingeloggte Safari des Menschen.
-- **`safaridriver --bidi` als Backend:** Dieser Modus bleibt kein pauschales
-  Nicht-Ziel. Er wird als eigenständige, standardisierte Engine in #355
-  untersucht; seine isolierte Sitzung und seine WebDriver-BiDi-Fähigkeiten
-  werden getrennt von `safari-attach` bewertet.
+- **`safaridriver --bidi` als Backend:** kein Nicht-Ziel mehr — als Engine
+  `safari-bidi` gebaut (#355). Ihr Umfang ist durch die Messung oben bestimmt
+  und deutlich kleiner als bei der Planung angenommen.
 - **Plain WebDriver als Backend:** Auch die ursprüngliche WebDriver-Variante
   öffnet eine isolierte Sitzung ohne die Logins des Menschen und liefert damit
   nicht den Grundnutzen, für den Safari in symbrowse interessant ist.

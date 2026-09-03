@@ -19,6 +19,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/engine"
 	"github.com/danieljustus/symaira-browse/internal/engine/chrome"
 	"github.com/danieljustus/symaira-browse/internal/engine/safari"
+	"github.com/danieljustus/symaira-browse/internal/engine/safaribidi"
 	"github.com/danieljustus/symaira-browse/internal/engine/static"
 	"github.com/danieljustus/symaira-browse/internal/state"
 )
@@ -177,6 +178,9 @@ func run(options Options, goos string, environ func(string) string, lookPath fun
 	report.Checks = append(report.Checks, checkEngineCapabilities(options.Engine))
 	if options.Engine == "safari-attach" {
 		report.Checks = append(report.Checks, checkSafariPrerequisites())
+	}
+	if options.Engine == "safari-bidi" {
+		report.Checks = append(report.Checks, checkSafariBidiPrerequisites())
 	}
 	if discoveryErr != nil {
 		report.Checks = append(report.Checks, Check{
@@ -393,6 +397,8 @@ func checkEngineCapabilities(kind string) Check {
 		caps = static.New().Capabilities()
 	case "safari-attach":
 		caps = safari.New().Capabilities()
+	case "safari-bidi":
+		caps = safaribidi.New().Capabilities()
 	default:
 		caps = chrome.New(chrome.Options{}).Capabilities()
 	}

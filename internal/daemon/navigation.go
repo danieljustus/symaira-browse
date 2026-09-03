@@ -17,6 +17,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/engine/chrome"
 	"github.com/danieljustus/symaira-browse/internal/engine/doctor"
 	"github.com/danieljustus/symaira-browse/internal/engine/safari"
+	"github.com/danieljustus/symaira-browse/internal/engine/safaribidi"
 	"github.com/danieljustus/symaira-browse/internal/engine/static"
 	"github.com/danieljustus/symaira-browse/internal/policy"
 	"github.com/danieljustus/symaira-browse/internal/profiles"
@@ -423,6 +424,9 @@ func (r *NavigationRuntime) handleEngineInfoFrame(frame Frame) (any, error) {
 	if r.engineKind == "static" {
 		return static.NewWithGuard(r.staticGuard).Capabilities(), nil
 	}
+	if r.engineKind == "safari-bidi" {
+		return newSafariBidiEngine(r.urlGuard).Capabilities(), nil
+	}
 	if r.engineKind == "safari-attach" {
 		s := safari.New()
 		s.Allowlist = r.urlGuard.allowlist
@@ -449,6 +453,8 @@ func (r *NavigationRuntime) newEngine(userDataDir string, guard navigationGuard)
 	switch r.engineKind {
 	case "static":
 		return static.NewWithGuard(r.staticGuard)
+	case "safari-bidi":
+		return newSafariBidiEngine(guard)
 	case "safari-attach":
 		s := safari.New()
 		s.Allowlist = guard.allowlist
@@ -507,7 +513,7 @@ func (r *NavigationRuntime) service(ctx context.Context, session string) (*engin
 			r.mu.Unlock()
 			return nil, err
 		}
-		if r.executable == "" && r.engineKind != "static" && r.engineKind != "safari-attach" {
+		if r.executable == "" && r.engineKind != "static" && r.engineKind != "safari-attach" && r.engineKind != "safari-bidi" {
 			// Fall back to the same platform discovery doctor reports on, so a
 			// standard Chrome install works without SYMBROWSE_EXECUTABLE_PATH.
 			path, err := resolveBrowserExecutable(os.Getenv, exec.LookPath)
@@ -694,4 +700,17 @@ func decodeArgs(frame Frame, target any) error {
 		return fmt.Errorf("decode %s arguments: %w", frame.Cmd, err)
 	}
 	return nil
+}
+
+// newSafariBidiEngine builds the safari-bidi engine with the daemon's URL
+// policies (issue #355). The session is isolated and carries none of the
+// human's logins, so unlike safari-attach it needs no interaction opt-in; the
+// policies still gate navigation targets, which is as far as they reach
+// because Safari implements no BiDi network module.
+func newSafariBidiEngine(guard navigationGuard) *safaribidi.Engine {
+	engine := safaribidi.New()
+	engine.Allowlist = guard.allowlist
+	engine.SSRFGuard = guard.ssrf
+	engine.PolicyError = guard.err
+	return engine
 }

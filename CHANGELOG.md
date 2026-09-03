@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Added
+
+- `safari-bidi` engine: an isolated Safari driven over W3C WebDriver BiDi via
+  `safaridriver --bidi`. It implements inspection, navigation state, frame and
+  tab management, and navigation-target policy enforcement; every other
+  optional interface is reported as unsupported (#355).
+- `doctor` detects the two causes behind Safari's single, undiagnosable
+  session-creation timeout — an already-running Safari holding the automation
+  slot, and missing remote-automation permission — and prints the remediation
+  for each instead of relaying Apple's message (#355).
+
+### Changed
+
+- `docs/engines.md` records the measured WebDriver BiDi capability matrix for
+  Safari 27.0. The measurement disproves five of the six capability gains
+  issue #355 anticipated: Safari implements no `input` and no `network` module,
+  and `session.subscribe` reports success while delivering no events. As a
+  result `safari-bidi` deliberately does not implement `InteractionEngine` —
+  a JavaScript `click()` would bypass hit-testing and report success for an
+  action a human cannot perform — and its allowlist/SSRF enforcement reaches
+  navigation targets only, which it states through
+  `NetworkPolicyReporter.Limitations()` (#355).
 
 ## [v0.6.1] - 2026-09-01
 
