@@ -102,12 +102,13 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	if configErr != nil {
 		return configErr
 	}
-	allowedDomainsFlag, _ := cmd.Flags().GetString("allowed-domains")
-	allowedDomains := resolveAllowedDomainsWithConfig(allowedDomainsFlag, cfg)
-	ssrfFlag, _ := cmd.Flags().GetBool("ssrf")
-	ssrfEnabled := resolveBoolPolicyWithConfig(ssrfFlag, func(cfg *config.Config) bool { return cfg.SSRFEnabled }, cfg)
-	allowPrivateFlag, _ := cmd.Flags().GetBool("allow-private")
-	allowPrivate := resolveBoolPolicyWithConfig(allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate }, cfg)
+	// The effective network policy is resolved once and then shared by the
+	// engine runtime and daemon.status. Resolving it twice let status report
+	// defaults while the runtime enforced the real policy (issue #370).
+	networkPolicy := resolveDaemonPolicy(cmd, cfg)
+	allowedDomains := networkPolicy.AllowedDomains
+	ssrfEnabled := networkPolicy.SSRFEnabled
+	allowPrivate := networkPolicy.AllowPrivate
 	headless := false
 	if raw := cmd.Flags().Lookup("headless"); raw != nil {
 		headless, _ = cmd.Flags().GetBool("headless")
@@ -227,6 +228,7 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		OperationTimeout: operation,
 		CacheDir:         filepath.Join(cfg.CacheDir, "out"),
 		CacheTTL:         time.Duration(cfg.CacheTTLHours) * time.Hour,
+		Policy:           networkPolicy,
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
 			case "fetch.url", "fetch.batch", "wayback.snapshots":
@@ -296,6 +298,21 @@ func resolveAllowedDomainsWithConfig(flagValue string, cfg *config.Config) []str
 		return nil
 	}
 	return cfg.AllowedDomains
+}
+
+// resolveDaemonPolicy resolves the effective network policy of a daemon run
+// from flags, environment, and config. It is the single source of truth for
+// both the engine runtime and the daemon.status payload so the reported
+// policy can never drift from the enforced one (issue #370).
+func resolveDaemonPolicy(cmd *cobra.Command, cfg *config.Config) daemon.PolicyStatus {
+	allowedDomainsFlag, _ := cmd.Flags().GetString("allowed-domains")
+	ssrfFlag, _ := cmd.Flags().GetBool("ssrf")
+	allowPrivateFlag, _ := cmd.Flags().GetBool("allow-private")
+	return daemon.PolicyStatus{
+		AllowedDomains: resolveAllowedDomainsWithConfig(allowedDomainsFlag, cfg),
+		SSRFEnabled:    resolveBoolPolicyWithConfig(ssrfFlag, func(cfg *config.Config) bool { return cfg.SSRFEnabled }, cfg),
+		AllowPrivate:   resolveBoolPolicyWithConfig(allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate }, cfg),
+	}
 }
 
 // resolveBoolPolicy applies the same precedence chain for boolean policy

@@ -192,8 +192,9 @@ func TestConcurrentStartupYieldsOneOwner(t *testing.T) {
 	defer cancel()
 
 	var wg sync.WaitGroup
+	var mu sync.Mutex
+	servers := make([]*Server, 0, starters)
 	results := make(chan error, starters)
-	servers := make(chan *Server, starters)
 	for i := 0; i < starters; i++ {
 		wg.Add(1)
 		go func() {
@@ -206,26 +207,38 @@ func TestConcurrentStartupYieldsOneOwner(t *testing.T) {
 					return map[string]any{"pong": true}, nil, nil
 				},
 			})
-			servers <- server
+			mu.Lock()
+			servers = append(servers, server)
+			mu.Unlock()
 			results <- server.ListenAndServe(ctx)
 		}()
 	}
+	// Every starter must be shut down before the test returns, whether it won
+	// or lost the race.
+	t.Cleanup(func() {
+		cancel()
+		mu.Lock()
+		running := append([]*Server(nil), servers...)
+		mu.Unlock()
+		for _, server := range running {
+			_ = server.Close()
+		}
+		wg.Wait()
+	})
 
 	// Give the starters time to race, then verify exactly one socket serves.
-	deadline := time.Now().Add(5 * time.Second)
+	deadline := time.After(10 * time.Second)
 	var losers int
-	for losers == 0 && time.Now().After(deadline) == false {
+	for losers == 0 {
 		select {
 		case err := <-results:
 			if !errors.Is(err, ErrDaemonAlreadyRunning) {
 				t.Fatalf("a starter returned %v, want ErrDaemonAlreadyRunning", err)
 			}
 			losers++
-		case <-time.After(50 * time.Millisecond):
+		case <-deadline:
+			t.Fatal("no starter reported ErrDaemonAlreadyRunning; the socket was taken over")
 		}
-	}
-	if losers == 0 {
-		t.Fatal("no starter reported ErrDaemonAlreadyRunning; the socket was taken over")
 	}
 
 	client := NewClient(ClientOptions{SocketPath: socketPath, Session: "race"})
@@ -234,12 +247,6 @@ func TestConcurrentStartupYieldsOneOwner(t *testing.T) {
 		t.Fatalf("ping the surviving daemon: response = %#v, err = %v", response, err)
 	}
 
-	cancel()
-	close(servers)
-	for server := range servers {
-		_ = server.Close()
-	}
-	wg.Wait()
 }
 
 // TestStaleSocketIsReplaced verifies the complement of the single-owner rule:

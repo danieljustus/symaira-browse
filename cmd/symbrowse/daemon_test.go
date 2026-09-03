@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -8,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/danieljustus/symaira-browse/internal/config"
+	"github.com/danieljustus/symaira-browse/internal/daemon"
 )
 
 // setTestHome redirects os.UserHomeDir to dir on every platform. Go reads
@@ -130,4 +132,58 @@ func TestResolveBoolPolicyPrecedence(t *testing.T) {
 			t.Fatal("expected false without any configuration")
 		}
 	})
+}
+
+// TestResolveDaemonPolicyReflectsFlags guards issue #370: daemon.status must
+// report the policy the daemon actually enforces. Before the fix the server
+// options carried a zero PolicyStatus, so `daemon status --json` answered
+// "ssrf_enabled": false while the SSRF guard was demonstrably active.
+func TestResolveDaemonPolicyReflectsFlags(t *testing.T) {
+	setTestHome(t, t.TempDir())
+	_ = os.Unsetenv("SYMBROWSE_SSRF")
+	_ = os.Unsetenv("SYMBROWSE_ALLOW_PRIVATE")
+	_ = os.Unsetenv("SYMBROWSE_ALLOWED_DOMAINS")
+
+	command := newDaemonCommand()
+	if err := command.Flags().Set("ssrf", "true"); err != nil {
+		t.Fatal(err)
+	}
+	if err := command.Flags().Set("allowed-domains", "example.com"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	policy := resolveDaemonPolicy(command, cfg)
+	if !policy.SSRFEnabled {
+		t.Fatal("ssrf_enabled must be true when the daemon runs with --ssrf")
+	}
+	if policy.AllowPrivate {
+		t.Fatal("allow_private must stay false without --allow-private")
+	}
+	if !reflect.DeepEqual(policy.AllowedDomains, []string{"example.com"}) {
+		t.Fatalf("allowed domains = %v, want [example.com]", policy.AllowedDomains)
+	}
+}
+
+// TestDaemonStatusReportsConfiguredPolicy verifies the status payload carries
+// the server's policy end to end (issue #370).
+func TestDaemonStatusReportsConfiguredPolicy(t *testing.T) {
+	want := daemon.PolicyStatus{AllowedDomains: []string{"example.com"}, SSRFEnabled: true}
+	server := daemon.NewServer(daemon.Options{SocketPath: filepath.Join(t.TempDir(), "s.sock"), Policy: want})
+	raw, err := json.Marshal(map[string]any{"policy": server.Policy()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got struct {
+		Policy daemon.PolicyStatus `json:"policy"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if !got.Policy.SSRFEnabled || !reflect.DeepEqual(got.Policy.AllowedDomains, want.AllowedDomains) {
+		t.Fatalf("status policy = %#v, want %#v", got.Policy, want)
+	}
 }
