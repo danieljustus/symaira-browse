@@ -8,6 +8,12 @@ import (
 	"syscall"
 )
 
+// socketOwnershipSupported reports whether this platform can decide session
+// socket ownership: it needs both a cross-process startup lock and a Unix
+// socket whose dial errors distinguish "nothing is listening" from other
+// failures (issue #371).
+const socketOwnershipSupported = true
+
 // acquireStartupLock takes an exclusive advisory lock on path. Concurrent
 // daemon starts for one session serialize on it, so socket ownership is
 // decided by exactly one process at a time (issue #371).

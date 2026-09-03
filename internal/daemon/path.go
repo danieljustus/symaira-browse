@@ -102,7 +102,10 @@ func removeStaleSocket(path string) error {
 	if info.Mode()&os.ModeSocket == 0 {
 		return fmt.Errorf("socket path exists and is not a Unix socket")
 	}
-	if socketIsLive(path) {
+	// Where ownership cannot be decided (see socketOwnershipSupported), a
+	// leftover socket file must still be replaceable — refusing here would
+	// wedge startup permanently instead of preventing a takeover.
+	if socketOwnershipSupported && socketIsLive(path) {
 		return ErrDaemonAlreadyRunning
 	}
 	if err := os.Remove(path); err != nil {
@@ -112,6 +115,7 @@ func removeStaleSocket(path string) error {
 }
 
 // socketIsLive reports whether a daemon currently accepts connections on path.
+// It is only meaningful where socketOwnershipSupported is true.
 // A refused or unreachable socket is stale; any other dial error is treated as
 // live so an unclear state never causes a takeover.
 func socketIsLive(path string) bool {
