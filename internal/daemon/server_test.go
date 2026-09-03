@@ -178,6 +178,9 @@ func TestHandlerErrorResponsePreservesHardStopMetadata(t *testing.T) {
 // the fix every starter unconditionally unlinked the existing socket, so two
 // daemons could serve one session with split browser state.
 func TestConcurrentStartupYieldsOneOwner(t *testing.T) {
+	if !socketOwnershipSupported {
+		t.Skip("socket ownership is not decidable on this platform; startup keeps the historical replace behavior")
+	}
 	// Unix socket paths are length-limited (104 bytes on macOS), so the long
 	// t.TempDir() name cannot be used here.
 	dir, err := os.MkdirTemp("", "sb-race-")
@@ -252,6 +255,11 @@ func TestConcurrentStartupYieldsOneOwner(t *testing.T) {
 // TestStaleSocketIsReplaced verifies the complement of the single-owner rule:
 // a socket file with nothing behind it must not block a fresh daemon.
 func TestStaleSocketIsReplaced(t *testing.T) {
+	if !socketOwnershipSupported {
+		// Without a liveness probe there is nothing platform-specific left to
+		// assert here: the socket file is always replaced.
+		t.Skip("socket ownership is not decidable on this platform")
+	}
 	dir, err := os.MkdirTemp("", "sb-stale-")
 	if err != nil {
 		t.Fatal(err)
