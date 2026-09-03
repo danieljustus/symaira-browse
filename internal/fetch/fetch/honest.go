@@ -13,7 +13,10 @@ import (
 	"time"
 )
 
-const honestUA = "symfetch/0.1 (+https://github.com/danieljustus/symaira-fetch)"
+// DefaultUserAgent is the honest transport's default identification string.
+const DefaultUserAgent = "symfetch/0.1 (+https://github.com/danieljustus/symaira-fetch)"
+
+const honestUA = DefaultUserAgent
 
 // honestClient uses stdlib net/http with a plain user-agent.
 type honestClient struct {
@@ -113,12 +116,19 @@ func (c *honestClient) Fetch(ctx context.Context, req Request) (*Response, error
 		return nil, fmt.Errorf("build request: %w", err)
 	}
 
-	httpReq.Header.Set("User-Agent", honestUA)
+	userAgent := req.UserAgent
+	if userAgent == "" {
+		userAgent = honestUA
+	}
+	httpReq.Header.Set("User-Agent", userAgent)
 	httpReq.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 	httpReq.Header.Set("Accept-Language", "en-US,en;q=0.5")
 
 	for k, v := range req.Headers {
 		httpReq.Header.Set(k, v)
+	}
+	if req.UserAgent != "" {
+		httpReq.Header.Set("User-Agent", req.UserAgent)
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)

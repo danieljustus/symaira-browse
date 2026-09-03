@@ -43,7 +43,7 @@ func TestFetchToolsListed(t *testing.T) {
 		t.Errorf("fetch_url cmd = %q, want fetch.url", fetchURL.Cmd)
 	}
 	props, _ := fetchURL.Schema["properties"].(map[string]any)
-	for _, want := range []string{"url", "format", "max_chars", "css_selector", "frontmatter", "include_links", "query", "raw", "schema_path"} {
+	for _, want := range []string{"url", "format", "max_chars", "css_selector", "frontmatter", "include_links", "query", "top_k", "raw", "schema_path", "no_cache"} {
 		if _, ok := props[want]; !ok {
 			t.Errorf("fetch_url schema missing property %q", want)
 		}
@@ -73,6 +73,8 @@ func TestFetchURLArgsCarryURL(t *testing.T) {
 		"url":       "https://example.com",
 		"format":    "json",
 		"max_chars": float64(3000),
+		"top_k":     float64(3),
+		"no_cache":  true,
 	})
 	if err != nil {
 		t.Fatalf("fetch_url Args: %v", err)
@@ -89,6 +91,9 @@ func TestFetchURLArgsCarryURL(t *testing.T) {
 	}
 	if m["max_chars"] != 3000 {
 		t.Errorf("max_chars = %v, want 3000", m["max_chars"])
+	}
+	if m["top_k"] != 3 || m["no_cache"] != true {
+		t.Errorf("fetch options = %#v, want top_k=3 and no_cache=true", m)
 	}
 }
 

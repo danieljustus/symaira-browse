@@ -85,6 +85,13 @@ Standard-Daemon browserbasiert; ein explizit mit `--engine static` gestarteter
 Daemon ermöglicht dort einen browserlosen CLI-Read, ist aber nicht die
 `fetch_url`-MCP-Schnittstelle.
 
+Die statische Fetch-Stufe prüft `robots.txt` standardmäßig mit
+`fetch_user_agent`. Der echte Browserpfad (`open`/`read` mit Chrome) führt
+keine Fetch-Robots-Prüfung aus; seine Domain-Allowlist und der SSRF-Guard
+bleiben unabhängig davon aktiv. Diese Asymmetrie ist bewusst und über
+`fetch_robots` konfigurierbar, statt Robots-Regeln stillschweigend auf
+interaktive Browsernavigation zu übertragen.
+
 ## Semantik von `js_required`
 
 Die Entscheidung fällt durch einen Seitenvergleich: `read --engine-hint`

@@ -86,7 +86,7 @@ func (c *Checker) Check(ctx context.Context, userAgent, rawURL string) (bool, er
 	}
 
 	domain := u.Scheme + "://" + u.Host
-	groups, err := c.groupsForDomain(ctx, domain)
+	groups, err := c.groupsForDomain(ctx, domain, userAgent)
 	if err != nil {
 		var blocked *policy.BlockedPrivateError
 		if errors.As(err, &blocked) {
@@ -106,7 +106,7 @@ func (c *Checker) Check(ctx context.Context, userAgent, rawURL string) (bool, er
 	return isAllowed(groups, userAgent, path), nil
 }
 
-func (c *Checker) groupsForDomain(ctx context.Context, domain string) ([]group, error) {
+func (c *Checker) groupsForDomain(ctx context.Context, domain string, userAgents ...string) ([]group, error) {
 	c.mu.RLock()
 	entry, ok := c.cache[domain]
 	c.mu.RUnlock()
@@ -125,6 +125,9 @@ func (c *Checker) groupsForDomain(ctx context.Context, domain string) ([]group, 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, robotsURL, nil)
 	if err != nil {
 		return nil, err
+	}
+	if len(userAgents) > 0 && userAgents[0] != "" {
+		req.Header.Set("User-Agent", userAgents[0])
 	}
 
 	// codeql[go/request-forgery] False positive: dynamic domain fetch is by design for a web fetcher, and SSRF is prevented by CheckSSRF.
@@ -279,7 +282,7 @@ func (c *Checker) Sitemaps(ctx context.Context, userAgent, rawURL string) ([]str
 		return nil, nil
 	}
 	domain := u.Scheme + "://" + u.Host
-	groups, err := c.groupsForDomain(ctx, domain)
+	groups, err := c.groupsForDomain(ctx, domain, userAgent)
 	if err != nil {
 		var blocked *policy.BlockedPrivateError
 		if errors.As(err, &blocked) {

@@ -95,7 +95,7 @@ func checkRobots(ctx context.Context, rawURL string, o Options) error {
 	}
 	ua := o.Security.UserAgent
 	if ua == "" {
-		ua = "symfetch"
+		ua = fetch.DefaultUserAgent
 	}
 	allowed, err := o.Security.RobotsChecker.Check(ctx, ua, rawURL)
 	if err != nil {
@@ -109,10 +109,14 @@ func checkRobots(ctx context.Context, rawURL string, o Options) error {
 }
 
 func fetchInitial(ctx context.Context, c fetch.Client, rawURL string, o Options) (*fetch.Response, error) {
+	userAgent := o.Security.UserAgent
+	if userAgent == "" {
+		userAgent = fetch.DefaultUserAgent
+	}
 	resp, err := c.Fetch(ctx, fetch.Request{
 		URL: rawURL, Method: o.Request.Method, Headers: o.Request.Headers,
 		Body: o.Request.Body, AllowPrivate: o.Security.AllowPrivate, Session: o.Session,
-		Allowlist: o.Security.Allowlist,
+		Allowlist: o.Security.Allowlist, UserAgent: userAgent,
 	})
 	if err != nil {
 		return nil, &FetchError{URL: rawURL, Err: err}

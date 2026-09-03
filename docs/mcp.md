@@ -188,6 +188,13 @@ als First-Class-Tools (issue #258):
 | `fetch_batch` | `fetch_batch` | `fetch.batch` | Array in Eingabereihenfolge, `{url, ok, content}` |
 | `wayback_snapshots` | `wayback_snapshots` | `wayback.snapshots` | Array `{timestamp, url, status, mime_type, digest}` |
 
+Bei `fetch_url` filtert `query` die relevanten Abschnitte; `top_k` begrenzt
+optional die Zahl der zurückgegebenen Abschnitte auf die bestbewerteten Treffer
+(`0` bedeutet alle). `no_cache: true` erzwingt für den jeweiligen Aufruf einen
+frischen Fetch und übersteuert damit die globale `fetch_no_cache`-Einstellung;
+`store_full_text` kann unabhängig davon weiterhin einen `out_*`-Handle für
+`cache_get` erzeugen.
+
 Jede `fetch_url`- und `fetch_batch`-Antwort trägt zusätzlich mehrere additive
 Felder — die SymFetch-Feldnamen darüber bleiben unverändert:
 

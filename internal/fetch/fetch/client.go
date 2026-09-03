@@ -81,6 +81,9 @@ type Request struct {
 	Method  string            // defaults to GET
 	Headers map[string]string // additional/override headers
 	Body    []byte
+	// UserAgent overrides the transport default for this request. The fetch
+	// pipeline uses the same value for robots matching.
+	UserAgent string
 
 	Timeout      time.Duration     // 0 = use client default (30s)
 	Proxy        string            // http(s)://, socks5://; overrides client-level proxy

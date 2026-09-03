@@ -429,9 +429,11 @@ var tools = []ProxyTool{
 			"frontmatter":        boolProp("Prepend YAML frontmatter with metadata (title, url, fetched_at, lang, tokens)"),
 			"include_links":      boolProp("Append a Links section with all hrefs (default false)"),
 			"query":              stringProp("BM25 query for relevance filtering. Returns only sections matching the query, preserving headings and structure."),
+			"top_k":              integerProp("Return only the top K relevant sections when query is set (0 = all)"),
 			"raw":                boolProp("Return raw decoded response body without semantic processing"),
 			"schema_path":        stringProp("JSON-LD query path. Typed selectors (e.g. '@Recipe:name') filter by @type then traverse a dot-path."),
 			"store_full_text":    boolProp("Enable truncate-and-store for long pages (default false)"),
+			"no_cache":           boolProp("Force a fresh fetch instead of using the response cache"),
 			"wayback_timestamp":  stringProp("Specific Wayback timestamp to fetch (empty = latest)"),
 			"wayback_fallback":   boolProp("Fall back to the Wayback Machine on 404/thin content"),
 			"no_injection_scan":  boolProp("Disable the bounded prompt-injection scan (logged; default false)"),
@@ -454,6 +456,7 @@ var tools = []ProxyTool{
 			"char_limit":         integerProp("Per-page character limit for truncate-and-store (default 15000)"),
 			"concurrency":        integerProp("Maximum parallel fetches (default 4, max 8)"),
 			"store_full_text":    boolProp("Enable truncate-and-store for each page (default false)"),
+			"no_cache":           boolProp("Force fresh fetches instead of using the response cache"),
 			"frontmatter":        boolProp("Prepend YAML frontmatter to each result"),
 			"include_links":      boolProp("Append a Links section to each result"),
 			"no_injection_scan":  boolProp("Disable the bounded prompt-injection scan (logged; default false)"),
@@ -551,12 +554,12 @@ func buildFetchArgs(input map[string]any, overrides ...map[string]any) (any, err
 			args[key] = v
 		}
 	}
-	for _, key := range []string{"max_chars", "char_limit", "concurrency"} {
+	for _, key := range []string{"max_chars", "char_limit", "concurrency", "top_k"} {
 		if v, ok := input[key].(float64); ok {
 			args[key] = int(v)
 		}
 	}
-	for _, key := range []string{"frontmatter", "include_links", "raw", "store_full_text", "wayback_fallback", "no_injection_scan", "content_boundaries"} {
+	for _, key := range []string{"frontmatter", "include_links", "raw", "store_full_text", "no_cache", "wayback_fallback", "no_injection_scan", "content_boundaries"} {
 		if v, ok := input[key].(bool); ok {
 			args[key] = v
 		}

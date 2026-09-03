@@ -228,10 +228,12 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	fetchRuntime, err := daemon.NewFetchRuntime(daemon.FetchRuntimeOptions{
 		AllowedDomains:    allowedDomains,
 		AllowPrivate:      allowPrivate,
-		Robots:            true,
+		Robots:            cfg.FetchRobots,
+		UserAgent:         cfg.FetchUserAgent,
 		CacheDir:          filepath.Join(cfg.CacheDir, "fetch"),
 		CacheTTL:          time.Duration(cfg.CacheTTLHours) * time.Hour,
 		OutputCacheDir:    filepath.Join(cfg.CacheDir, "out"),
+		NoCache:           cfg.FetchNoCache,
 		ContentBoundaries: mode == policy.ModeMCP,
 	})
 	if err != nil {
