@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.0] - 2026-09-03
+
 ### Added
 
 - `safari-bidi` engine: an isolated Safari driven over W3C WebDriver BiDi via
@@ -305,7 +307,8 @@ Initial release of `symbrowse`, the agent-operable browser automation CLI.
   badges, go install quickstart, issue forms and PR template, Apache-2.0
   LICENSE (#106, #124, #140, #139, #120)
 
-[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.7.0...HEAD
+[v0.7.0]: https://github.com/danieljustus/symaira-browse/compare/v0.6.1...v0.7.0
 [v0.6.1]: https://github.com/danieljustus/symaira-browse/compare/v0.6.0...v0.6.1
 [v0.6.0]: https://github.com/danieljustus/symaira-browse/compare/v0.5.0...v0.6.0
 [v0.5.0]: https://github.com/danieljustus/symaira-browse/compare/v0.4.0...v0.5.0
