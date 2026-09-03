@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -28,7 +29,10 @@ type processedPage struct {
 	bestNode    *html.Node
 	output      string
 	spaSkeleton bool
-	thin        bool
+	// docTruncated records that the document-level character budget cut the
+	// content short, so the response can report it truthfully.
+	docTruncated bool
+	thin         bool
 }
 
 func newCache(o Options) *cache.Cache {
@@ -119,7 +123,11 @@ func handleHTTPError(ctx context.Context, c fetch.Client, eng Engine, rawURL str
 			return fbResult, nil
 		}
 	}
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+	// Probe only where a replacement URL is a plausible fix. The probe costs
+	// real HTTP round-trips against the same host, so running it for an auth
+	// refusal or a rate limit would spend requests on an answer that cannot
+	// help — and would push a throttled host further.
+	if resp.StatusCode == 404 || resp.StatusCode == 410 {
 		fe.Recovery = Probe(ctx, c, rawURL, o)
 	}
 	return nil, fe
@@ -144,7 +152,8 @@ func processPage(ctx context.Context, eng Engine, rawURL string, resp *fetch.Res
 		bestNode = semantic.BestBlock(tree.Root, o.Content.CharThreshold)
 	}
 	doc := &agentdom.Document{URL: rawURL, FinalURL: resp.FinalURL, Title: tree.Title, Lang: tree.Lang}
-	agentdom.NewBuilder(o.Content.MaxChars).Build(bestNode, doc)
+	builder := agentdom.NewBuilder(o.Content.MaxChars)
+	builder.Build(bestNode, doc)
 	for _, island := range rawIslands {
 		doc.Islands = append(doc.Islands, agentdom.DataIsland{Source: island.Source, JSON: island.JSON})
 	}
@@ -161,8 +170,9 @@ func processPage(ctx context.Context, eng Engine, rawURL string, resp *fetch.Res
 	}
 	return &processedPage{
 		resp: resp, tree: tree, doc: doc, bestNode: bestNode, output: output,
-		spaSkeleton: spaSkeleton,
-		thin:        isThinContent(bestNode, o.Content.CharThreshold, spaSkeleton),
+		spaSkeleton:  spaSkeleton,
+		docTruncated: builder.Truncated(),
+		thin:         isThinContent(bestNode, o.Content.CharThreshold, spaSkeleton),
 	}, nil
 }
 
@@ -197,6 +207,119 @@ func renderPage(doc *agentdom.Document, bestNode *html.Node, body []byte, o Opti
 		}
 		return output, nil
 	}
+}
+
+// EscalationCommandPrefix is the CLI invocation an escalation hint suggests,
+// up to the URL. It is exported so the command-line package can assert the
+// suggested command actually resolves to a registered command — a hint that
+// does not run is worse than no hint.
+const EscalationCommandPrefix = "symbrowse read "
+
+// EscalationMCPTool is the MCP tool an escalation hint names, the equivalent
+// of EscalationCommandPrefix for clients driving the MCP surface.
+const EscalationMCPTool = "read"
+
+// escalationHint builds the tier-0 -> tier-1 hint for a page whose real
+// content a plain HTTP fetch could not retrieve. Command is the CLI
+// invocation and MCPTool the equivalent MCP tool, so a client on either
+// surface can act on it (docs/tiers.md).
+func escalationHint(reason, rawURL string) *agentdom.EscalationHint {
+	return &agentdom.EscalationHint{
+		Tool:    "symbrowse",
+		MCPTool: EscalationMCPTool,
+		Reason:  reason,
+		Command: EscalationCommandPrefix + rawURL,
+	}
+}
+
+// truncationMarker terminates a body cut short by the character budget, so a
+// reader can tell a partial page from a complete one even without the
+// metadata.
+const truncationMarker = "\n\n… [truncated: character budget reached]"
+
+// HasMetaHeader reports whether a markdown response carries the metadata
+// header. The header is emitted only when there is something the caller has
+// to act on — an escalation hint, a truncated body, or a page the pipeline
+// believes is client-rendered — so a page a plain fetch retrieved in full
+// renders without it.
+func HasMetaHeader(meta agentdom.Meta) bool {
+	return meta.Escalate != nil || meta.Truncated || meta.LikelyClientRendered
+}
+
+// composeWithinBudget builds the final payload for the requested format and
+// keeps it inside the character budget. For markdown the metadata header is
+// part of what the caller receives, so it is composed here and counts against
+// the budget rather than being bolted on afterwards.
+func composeWithinBudget(page *processedPage, o Options, meta agentdom.Meta) (string, agentdom.Meta) {
+	body := page.output
+	maxChars := o.Content.MaxChars
+
+	// JSON and raw HTML are never cut here: JSON is budgeted at the document
+	// level by agentdom.Builder, and slicing a serialized document would hand
+	// the caller invalid JSON.
+	if o.Format == FormatJSON || o.Format == FormatHTML || maxChars <= 0 {
+		meta.Truncated = page.docTruncated
+		meta.CharCount = utf8.RuneCountInString(body)
+		meta.EstTokens = meta.CharCount / 4
+		return body, meta
+	}
+
+	budget := maxChars
+	frontmatter := ""
+	if o.Format == FormatMarkdown {
+		// Reserve room for the prefixes at their worst case — the header with
+		// the truncation warning, and the frontmatter with the pre-cap token
+		// estimate — so composing them afterwards cannot push the payload past
+		// the budget.
+		worst := meta
+		worst.Truncated = true
+		worst.CharCount = utf8.RuneCountInString(body)
+		worst.EstTokens = worst.CharCount / 4
+		if o.Frontmatter {
+			frontmatter = render.GenerateFrontmatter(worst, page.doc)
+			budget -= utf8.RuneCountInString(frontmatter)
+		}
+		if HasMetaHeader(worst) {
+			budget -= utf8.RuneCountInString(render.FormatMarkdownWithMeta(worst, ""))
+		}
+	}
+
+	body, cut := truncateRunes(body, budget)
+	meta.Truncated = cut || page.docTruncated
+	meta.CharCount = utf8.RuneCountInString(body)
+	meta.EstTokens = meta.CharCount / 4
+	if o.Format == FormatMarkdown {
+		if HasMetaHeader(meta) {
+			body = render.FormatMarkdownWithMeta(meta, body)
+		}
+		if o.Frontmatter {
+			// The frontmatter describes the document that was actually
+			// returned, so it is regenerated from the post-cap metadata.
+			body = render.GenerateFrontmatter(meta, page.doc) + body
+		}
+	}
+	return body, meta
+}
+
+// truncateRunes cuts s to at most budget runes, leaving an explicit marker so
+// a partial body is never mistaken for a complete one.
+func truncateRunes(s string, budget int) (string, bool) {
+	if budget < 0 {
+		budget = 0
+	}
+	if utf8.RuneCountInString(s) <= budget {
+		return s, false
+	}
+	room := budget - utf8.RuneCountInString(truncationMarker)
+	if room < 0 {
+		room = 0
+	}
+	cut := 0
+	for count := 0; count < room && cut < len(s); count++ {
+		_, size := utf8.DecodeRuneInString(s[cut:])
+		cut += size
+	}
+	return strings.TrimRight(s[:cut], " \n\t") + truncationMarker, true
 }
 
 func storeLongOutput(output, rawURL string, o Options) string {
@@ -239,18 +362,28 @@ func tryThinFallback(ctx context.Context, c fetch.Client, eng Engine, rawURL str
 }
 
 func finalizePage(page *processedPage, rawURL string, o Options, cacher *cache.Cache) *Result {
-	charCount := utf8.RuneCountInString(page.output)
 	meta := agentdom.Meta{
 		FinalURL: page.resp.FinalURL, StatusCode: page.resp.StatusCode, Title: page.tree.Title,
-		Lang: page.tree.Lang, CharCount: charCount, EstTokens: charCount / 4,
-		Truncated: charCount >= o.Content.MaxChars, Protocol: page.resp.Protocol,
+		Lang: page.tree.Lang, Protocol: page.resp.Protocol,
 		LikelyClientRendered: page.thin,
 	}
 	if page.spaSkeleton {
-		meta.Escalate = &agentdom.EscalationHint{Tool: "symbrowse", Reason: "spa_skeleton", Command: "symbrowse " + rawURL}
+		meta.Escalate = escalationHint("spa_skeleton", rawURL)
 	} else if page.thin {
-		meta.Escalate = &agentdom.EscalationHint{Tool: "symbrowse", Reason: "thin_content", Command: "symbrowse " + rawURL}
+		meta.Escalate = escalationHint("thin_content", rawURL)
 	}
+	// The JSON contract carries the hint on the document; every other format
+	// reads it from Meta. Both point at the same hint (docs/tiers.md).
+	if page.doc != nil {
+		page.doc.Escalate = meta.Escalate
+	}
+
+	// Enforce the character budget on the rendered text. The markdown
+	// renderer converts the source DOM node directly, so it never passed
+	// through the document-level budget agentdom.Builder applies; without
+	// this cap max_chars would stay advisory for exactly the format most
+	// callers use.
+	page.output, meta = composeWithinBudget(page, o, meta)
 	result := &Result{Doc: page.doc, Output: page.output, Meta: meta}
 	if cacher != nil {
 		cacheResult(cacher, rawURL, o, page.output, cache.Meta{

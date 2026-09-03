@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/danieljustus/symaira-browse/internal/fetch/agentdom"
 	"github.com/danieljustus/symaira-browse/internal/fetch/archive"
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
 	"github.com/danieljustus/symaira-browse/internal/fetch/pipeline"
@@ -131,7 +132,7 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 			AllowPrivate: r.allowPrivate,
 		})
 		if err != nil {
-			return nil, nil, NewError(ErrorOperationFailed, err.Error())
+			return nil, nil, fetchError(err)
 		}
 		return map[string]any{
 			"url":          args.URL,
@@ -144,27 +145,85 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 
 	result, err := pipeline.Run(ctx, r.client, pipeline.StaticEngine{}, args.URL, r.pipelineOptions(args.pipelineFields(), format))
 	if err != nil {
-		return nil, nil, NewError(ErrorOperationFailed, err.Error())
+		return nil, nil, fetchError(err)
 	}
 
 	switch format {
 	case pipeline.FormatJSON:
-		// Contract-true: the agentdom.Document serializes to exactly the
-		// SymFetch fetch_url json schema (url, final_url, title, lang,
-		// content, interactive).
-		return result.Doc, nil, nil
+		// The SymFetch fetch_url json schema (url, final_url, title, lang,
+		// content, interactive) plus the escalate hint the pipeline attached
+		// to the document, and the response metadata every format reports.
+		return withResponseMeta(documentMap(result.Doc), result.Meta), nil, nil
 	case pipeline.FormatText:
-		return map[string]any{
+		return withResponseMeta(withEscalation(map[string]any{
 			"url":     result.Doc.URL,
 			"content": render.Text(result.Doc),
-		}, nil, nil
+		}, result.Meta), result.Meta), nil, nil
 	default:
-		return map[string]any{
+		return withResponseMeta(withEscalation(map[string]any{
 			"url":      result.Doc.URL,
 			"title":    result.Doc.Title,
 			"markdown": result.Output,
-		}, nil, nil
+		}, result.Meta), result.Meta), nil, nil
 	}
+}
+
+// responseMeta is the metadata every fetch response carries alongside the
+// content: enough for an agent to tell a complete page from a partial one
+// without parsing the rendered body. The field names match the ones
+// symbrowse read reports (docs/output-schema.md).
+type responseMeta struct {
+	StatusCode int    `json:"status_code"`
+	FinalURL   string `json:"final_url,omitempty"`
+	Lang       string `json:"lang,omitempty"`
+	CharCount  int    `json:"char_count"`
+	EstTokens  int    `json:"est_tokens"`
+	Truncated  bool   `json:"truncated"`
+	// LikelyClientRendered marks a page whose visible content a plain HTTP
+	// fetch probably could not retrieve in full.
+	LikelyClientRendered bool `json:"likely_client_rendered"`
+}
+
+// withResponseMeta attaches the response metadata to a frame response.
+func withResponseMeta(response map[string]any, meta agentdom.Meta) map[string]any {
+	response["meta"] = responseMeta{
+		StatusCode:           meta.StatusCode,
+		FinalURL:             meta.FinalURL,
+		Lang:                 meta.Lang,
+		CharCount:            meta.CharCount,
+		EstTokens:            meta.EstTokens,
+		Truncated:            meta.Truncated,
+		LikelyClientRendered: meta.LikelyClientRendered,
+	}
+	return response
+}
+
+// documentMap renders the agentdom document as a plain map so the JSON
+// response can carry the shared response metadata beside the document's own
+// fields without changing the document type itself.
+func documentMap(doc *agentdom.Document) map[string]any {
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		slog.Debug("marshal fetch document", "error", err)
+		return map[string]any{}
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		slog.Debug("decode fetch document", "error", err)
+		return map[string]any{}
+	}
+	return fields
+}
+
+// withEscalation attaches the tier-0 -> tier-1 hint to a frame response as a
+// structured sibling, so an agent does not have to parse it out of the
+// rendered text. Responses for pages a plain fetch retrieved in full are
+// unchanged (docs/tiers.md).
+func withEscalation(response map[string]any, meta agentdom.Meta) map[string]any {
+	if meta.Escalate != nil {
+		response["escalate"] = meta.Escalate
+	}
+	return response
 }
 
 // fetchBatchArgs is the fetch.batch frame payload (SymFetch fetch_batch
@@ -242,13 +301,25 @@ func (r *FetchRuntime) handleFetchBatch(ctx context.Context, frame Frame) (any, 
 func (r *FetchRuntime) fetchBatchEntry(ctx context.Context, target string, args fetchBatchArgs, format pipeline.Format) map[string]any {
 	result, err := pipeline.Run(ctx, r.client, pipeline.StaticEngine{}, target, r.pipelineOptions(args.pipelineFields(), format))
 	if err != nil {
-		return map[string]any{"url": target, "ok": false, "error": err.Error()}
+		entryErr := fetchError(err)
+		entry := map[string]any{
+			"url":       target,
+			"ok":        false,
+			"error":     entryErr.Message,
+			"code":      entryErr.Code,
+			"retryable": entryErr.Retryable != nil && *entryErr.Retryable,
+		}
+		if entryErr.Details != nil {
+			entry["details"] = entryErr.Details
+		}
+		return entry
 	}
 	content := result.Output
-	if format == pipeline.FormatJSON {
+	switch format {
+	case pipeline.FormatJSON:
 		content = string(mustJSON(result.Doc))
 	}
-	return map[string]any{"url": target, "ok": true, "content": content}
+	return withResponseMeta(withEscalation(map[string]any{"url": target, "ok": true, "content": content}, result.Meta), result.Meta)
 }
 
 // waybackSnapshotsArgs is the wayback.snapshots frame payload (SymFetch
@@ -282,7 +353,7 @@ func (r *FetchRuntime) handleWaybackSnapshots(ctx context.Context, frame Frame) 
 		MatchType: args.MatchType,
 	})
 	if err != nil {
-		return nil, nil, NewError(ErrorOperationFailed, err.Error())
+		return nil, nil, fetchError(err)
 	}
 
 	// Contract-true field mapping (SymFetch wayback_snapshots response):

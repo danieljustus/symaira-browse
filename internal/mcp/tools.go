@@ -98,7 +98,10 @@ const fetchEscalationNote = "For plain static content a normal HTTP fetch is che
 
 // mcpBudgetedCommands are the output-heavy daemon commands that get a
 // stricter default token budget in MCP mode: snapshot, read, get html,
-// console, network requests.
+// console, network requests and the plain-HTTP fetches. fetch.url and
+// fetch.batch belong here for the same reason the browser reads do — a
+// single call can return a whole page, and fetch.batch multiplies that by
+// up to 20 URLs.
 var mcpBudgetedCommands = map[string]bool{
 	"snapshot":         true,
 	"read":             true,
@@ -108,6 +111,8 @@ var mcpBudgetedCommands = map[string]bool{
 	"network.requests": true,
 	"a11y":             true,
 	"network.har":      true,
+	"fetch.url":        true,
+	"fetch.batch":      true,
 }
 
 // mcpDefaultMaxTokens is the stricter MCP-mode budget (issue #23); TTY mode

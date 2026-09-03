@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 // fetchTestServer returns an httptest server serving a small fixture page.
@@ -235,5 +236,295 @@ func TestFetchURLRejectsMissingURL(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected error for missing url")
+	}
+}
+
+// spaSkeletonServer serves a client-rendered shell: a large hydration payload,
+// an empty framework root, and no visible text. A plain HTTP fetch cannot
+// retrieve the real content, so the pipeline must emit an escalation hint.
+func spaSkeletonServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	filler := strings.Repeat(`{"k":"vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"},`, 400)
+	body := `<!doctype html><html lang="en"><head><title>Delayed hydration SPA</title></head><body>` +
+		`<div id="__next"></div>` +
+		`<script id="__NEXT_DATA__" type="application/json">{"props":[` + filler + `{"z":1}]}</script>` +
+		`</body></html>`
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(body))
+	}))
+}
+
+// TestFetchURLEscalationHintJSON verifies the tier-0 -> tier-1 escalation
+// contract (docs/tiers.md): a client-rendered shell reports escalate so an
+// agent knows a plain fetch missed the content.
+func TestFetchURLEscalationHintJSON(t *testing.T) {
+	server := spaSkeletonServer(t)
+	defer server.Close()
+	runtime := newTestFetchRuntime(t)
+
+	data, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd:  "fetch.url",
+		Args: marshalArgsForTest(map[string]any{"url": server.URL, "format": "json"}),
+	})
+	if err != nil {
+		t.Fatalf("fetch.url: %v", err)
+	}
+	raw, _ := json.Marshal(data)
+	var doc struct {
+		Escalate *struct {
+			Tool    string `json:"tool"`
+			MCPTool string `json:"mcp_tool"`
+			Reason  string `json:"reason"`
+			Command string `json:"command"`
+		} `json:"escalate"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("unmarshal doc: %v (%s)", err, raw)
+	}
+	if doc.Escalate == nil {
+		t.Fatalf("json response carries no escalate hint: %s", raw)
+	}
+	if doc.Escalate.Reason != "spa_skeleton" {
+		t.Errorf("reason = %q, want spa_skeleton", doc.Escalate.Reason)
+	}
+	if doc.Escalate.MCPTool != "read" {
+		t.Errorf("mcp_tool = %q, want read", doc.Escalate.MCPTool)
+	}
+	if want := "symbrowse read " + server.URL; doc.Escalate.Command != want {
+		t.Errorf("command = %q, want %q", doc.Escalate.Command, want)
+	}
+}
+
+// TestFetchURLEscalationHintMarkdown verifies the same hint reaches the
+// markdown path, both as a structured sibling and inside the rendered header.
+func TestFetchURLEscalationHintMarkdown(t *testing.T) {
+	server := spaSkeletonServer(t)
+	defer server.Close()
+	runtime := newTestFetchRuntime(t)
+
+	data, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd:  "fetch.url",
+		Args: marshalArgsForTest(map[string]any{"url": server.URL, "format": "markdown"}),
+	})
+	if err != nil {
+		t.Fatalf("fetch.url: %v", err)
+	}
+	// Round-trip through JSON: that is what the daemon socket does, so the
+	// test sees the same shape a client does.
+	raw, _ := json.Marshal(data)
+	var response struct {
+		Markdown string `json:"markdown"`
+		Escalate *struct {
+			Reason  string `json:"reason"`
+			MCPTool string `json:"mcp_tool"`
+			Command string `json:"command"`
+		} `json:"escalate"`
+	}
+	if err := json.Unmarshal(raw, &response); err != nil {
+		t.Fatalf("unmarshal response: %v (%s)", err, raw)
+	}
+	if response.Escalate == nil {
+		t.Fatalf("markdown response carries no escalate sibling: %s", raw)
+	}
+	if response.Escalate.Reason != "spa_skeleton" {
+		t.Errorf("reason = %q, want spa_skeleton", response.Escalate.Reason)
+	}
+	if response.Escalate.MCPTool != "read" {
+		t.Errorf("mcp_tool = %q, want read", response.Escalate.MCPTool)
+	}
+	if !strings.Contains(response.Markdown, "spa_skeleton") {
+		t.Errorf("markdown header lacks the escalation reason: %q", response.Markdown)
+	}
+	if want := "symbrowse read " + server.URL; !strings.Contains(response.Markdown, want) {
+		t.Errorf("markdown header lacks the escalation command %q: %q", want, response.Markdown)
+	}
+}
+
+// TestFetchURLNoEscalationOnContentPage verifies the hint stays absent for an
+// ordinary server-rendered page: escalate is a signal, not decoration.
+func TestFetchURLNoEscalationOnContentPage(t *testing.T) {
+	server := fetchTestServer(t)
+	defer server.Close()
+	runtime := newTestFetchRuntime(t)
+
+	data, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd:  "fetch.url",
+		Args: marshalArgsForTest(map[string]any{"url": server.URL, "format": "markdown"}),
+	})
+	if err != nil {
+		t.Fatalf("fetch.url: %v", err)
+	}
+	raw, _ := json.Marshal(data)
+	var response map[string]any
+	if err := json.Unmarshal(raw, &response); err != nil {
+		t.Fatalf("unmarshal response: %v (%s)", err, raw)
+	}
+	if _, ok := response["escalate"]; ok {
+		t.Errorf("content page reported an escalation hint: %s", raw)
+	}
+}
+
+// TestFetchURLMarkdownUnchangedWithoutSignals verifies an ordinary page still
+// renders without a metadata header: the header is a signal for escalation,
+// truncation or a client-rendered page, not boilerplate on every response.
+func TestFetchURLMarkdownUnchangedWithoutSignals(t *testing.T) {
+	server := fetchTestServer(t)
+	defer server.Close()
+	runtime := newTestFetchRuntime(t)
+
+	data, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd:  "fetch.url",
+		Args: marshalArgsForTest(map[string]any{"url": server.URL, "format": "markdown"}),
+	})
+	if err != nil {
+		t.Fatalf("fetch.url: %v", err)
+	}
+	m, _ := data.(map[string]any)
+	md, _ := m["markdown"].(string)
+	if strings.HasPrefix(md, "> ") {
+		t.Errorf("content page rendered a metadata header: %q", md)
+	}
+}
+
+// longArticleServer serves a page far larger than any sane character budget.
+func longArticleServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	paragraph := "<p>" + strings.Repeat("Lorem ipsum dolor sit amet consectetur. ", 30) + "</p>\n"
+	body := `<!doctype html><html lang="en"><head><title>Long</title></head><body><article>` +
+		strings.Repeat(paragraph, 60) + `</article></body></html>`
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(body))
+	}))
+}
+
+// TestFetchURLEnforcesMaxChars verifies max_chars is an enforced output cap,
+// not advisory: the markdown renderer must not exceed the budget the caller
+// asked for.
+func TestFetchURLEnforcesMaxChars(t *testing.T) {
+	server := longArticleServer(t)
+	defer server.Close()
+	runtime := newTestFetchRuntime(t)
+
+	const budget = 4000
+	data, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd:  "fetch.url",
+		Args: marshalArgsForTest(map[string]any{"url": server.URL, "format": "markdown", "max_chars": budget}),
+	})
+	if err != nil {
+		t.Fatalf("fetch.url: %v", err)
+	}
+	m, _ := data.(map[string]any)
+	md, _ := m["markdown"].(string)
+	if got := utf8.RuneCountInString(md); got > budget {
+		t.Errorf("markdown is %d runes, exceeds the max_chars budget of %d", got, budget)
+	}
+}
+
+// TestFetchURLReportsTruncation verifies a capped response says so, so an
+// agent knows it is looking at a partial page rather than the whole one.
+func TestFetchURLReportsTruncation(t *testing.T) {
+	server := longArticleServer(t)
+	defer server.Close()
+	runtime := newTestFetchRuntime(t)
+
+	data, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd:  "fetch.url",
+		Args: marshalArgsForTest(map[string]any{"url": server.URL, "format": "markdown", "max_chars": 4000}),
+	})
+	if err != nil {
+		t.Fatalf("fetch.url: %v", err)
+	}
+	raw, _ := json.Marshal(data)
+	var response struct {
+		Markdown string `json:"markdown"`
+		Meta     *struct {
+			Truncated  bool `json:"truncated"`
+			StatusCode int  `json:"status_code"`
+			CharCount  int  `json:"char_count"`
+			EstTokens  int  `json:"est_tokens"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(raw, &response); err != nil {
+		t.Fatalf("unmarshal response: %v (%s)", err, raw)
+	}
+	if response.Meta == nil {
+		t.Fatalf("response carries no meta: %s", raw)
+	}
+	if !response.Meta.Truncated {
+		t.Errorf("truncated response reports truncated=false: %s", raw)
+	}
+	if response.Meta.StatusCode != 200 {
+		t.Errorf("status_code = %d, want 200", response.Meta.StatusCode)
+	}
+	if response.Meta.EstTokens <= 0 {
+		t.Errorf("est_tokens = %d, want a positive estimate", response.Meta.EstTokens)
+	}
+	if !strings.Contains(response.Markdown, "truncated") {
+		t.Errorf("truncated markdown does not say so in its header: %q", response.Markdown)
+	}
+}
+
+// TestFetchURLUntruncatedReportsFalse verifies a page that fits is not
+// mislabelled as truncated.
+func TestFetchURLUntruncatedReportsFalse(t *testing.T) {
+	server := fetchTestServer(t)
+	defer server.Close()
+	runtime := newTestFetchRuntime(t)
+
+	data, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd:  "fetch.url",
+		Args: marshalArgsForTest(map[string]any{"url": server.URL, "format": "markdown"}),
+	})
+	if err != nil {
+		t.Fatalf("fetch.url: %v", err)
+	}
+	raw, _ := json.Marshal(data)
+	var response struct {
+		Meta *struct {
+			Truncated bool `json:"truncated"`
+		} `json:"meta"`
+	}
+	if err := json.Unmarshal(raw, &response); err != nil {
+		t.Fatalf("unmarshal response: %v (%s)", err, raw)
+	}
+	if response.Meta == nil {
+		t.Fatalf("response carries no meta: %s", raw)
+	}
+	if response.Meta.Truncated {
+		t.Errorf("a page that fits the budget reports truncated=true: %s", raw)
+	}
+}
+
+// TestFetchBatchEnforcesMaxCharsPerEntry verifies the cap applies per entry,
+// so a 20-URL batch cannot multiply its way past the budget.
+func TestFetchBatchEnforcesMaxCharsPerEntry(t *testing.T) {
+	server := longArticleServer(t)
+	defer server.Close()
+	runtime := newTestFetchRuntime(t)
+
+	const budget = 3000
+	data, _, err := runtime.Handle(context.Background(), Frame{
+		Cmd: "fetch.batch",
+		Args: marshalArgsForTest(map[string]any{
+			"urls":      []string{server.URL + "/a", server.URL + "/b"},
+			"format":    "markdown",
+			"max_chars": budget,
+		}),
+	})
+	if err != nil {
+		t.Fatalf("fetch.batch: %v", err)
+	}
+	entries, ok := data.([]any)
+	if !ok {
+		t.Fatalf("expected array, got %T", data)
+	}
+	for i, entry := range entries {
+		m, _ := entry.(map[string]any)
+		content, _ := m["content"].(string)
+		if got := utf8.RuneCountInString(content); got > budget {
+			t.Errorf("entry %d is %d runes, exceeds the per-page budget of %d", i, got, budget)
+		}
 	}
 }

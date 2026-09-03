@@ -182,6 +182,29 @@ als First-Class-Tools (issue #258):
 | `fetch_batch` | `fetch_batch` | `fetch.batch` | Array in Eingabereihenfolge, `{url, ok, content}` |
 | `wayback_snapshots` | `wayback_snapshots` | `wayback.snapshots` | Array `{timestamp, url, status, mime_type, digest}` |
 
+Jede `fetch_url`- und `fetch_batch`-Antwort trägt zusätzlich zwei additive
+Felder — die SymFetch-Feldnamen darüber bleiben unverändert:
+
+- `meta` — `{status_code, final_url, lang, char_count, est_tokens, truncated,
+  likely_client_rendered}`. Dieselben Feldnamen wie bei `read`
+  ([output-schema.md](output-schema.md)). `truncated: true` heißt: Die Antwort
+  ist gekürzt, es fehlt Inhalt.
+- `escalate` — die Eskalations-Empfehlung, wenn eine statische Abholung den
+  Inhalt nicht vollständig bekommen hat ([tiers.md](tiers.md)). Fehlt, wenn
+  Tier 0 gereicht hat.
+
+## Ausgabegrenzen
+
+`max_chars` (Default 20 000) ist eine **durchgesetzte** Obergrenze für die
+gerenderte Ausgabe, nicht nur ein Hinweis: Überlanger Inhalt wird gekürzt,
+mit Marker im Text und `meta.truncated: true`. Der Metadaten-Kopf des
+Markdowns zählt gegen dasselbe Budget. Bei `format: json` greift das Budget
+auf Dokumentebene, damit die Antwort gültiges JSON bleibt.
+
+Im MCP-Modus gilt zusätzlich das Token-Budget (Default 4 000 Tokens,
+`mcpDefaultMaxTokens`) wie für `snapshot` und `read` — pro Aufruf über
+`max_tokens` übersteuerbar.
+
 Alle drei laufen über die **Non-Browser-Fetch-Pipeline** (honest HTTP +
 StaticEngine): Sie brauchen keine Chrome-Sitzung und keinen Daemon-Browser.
 SSRF-Guard gilt wie für alle MCP-Tools (private/loopback sind deny, außer

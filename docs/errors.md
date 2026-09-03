@@ -57,6 +57,37 @@ Konvention (`internal/exitcodes`); die Zuordnung `code → exit code` steht in
 | `unavailable` | Benötigter Dienst oder Ressource nicht verfügbar | 1 generic | unavailable |
 | `internal` | Unerwarteter interner Fehler (Fallback) | 7 software | internal |
 
+## Fehlerklassen der Fetch-Pipeline
+
+`fetch_url` / `fetch_batch` bilden Pipeline-Fehler auf das Enum ab, statt alles
+als `operation_failed` zu melden — ein Agent muss eine abgelehnte Adresse von
+einem falschen Selektor von einem langsamen Host unterscheiden können, um zu
+entscheiden, ob ein erneuter Versuch überhaupt helfen kann:
+
+| Ursache | Code | `retryable` |
+|---|---|---|
+| Privates/Loopback-Ziel (SSRF-Guard) | `peer_denied` | false |
+| Von `robots.txt` verboten | `peer_denied` | false |
+| HTTP 401/403 | `peer_denied` | false |
+| CSS-Selektor ohne Treffer | `malformed_request` | false |
+| `schema_path` ohne Treffer | `malformed_request` | false |
+| Timeout, HTTP 408/429 | `operation_timeout` | true |
+| HTTP 5xx, Netzwerk-/DNS-Fehler | `operation_failed` | true |
+| HTTP 4xx (z. B. 404) | `operation_failed` | false |
+| Parse-/Render-Fehler | `operation_failed` | false |
+
+Bei 404/410 trägt `details.recovery` die Kandidaten des Recovery-Probes:
+`nearest_ancestor`, `ancestor_status` und `candidates[{url, title, source,
+score}]`. Der Probe läuft **nur** für diese beiden Codes — er kostet echte
+HTTP-Anfragen gegen denselben Host, und bei einer Auth-Ablehnung oder einem
+Rate-Limit wäre eine Ersatz-URL ohnehin nicht die Antwort.
+
+**Grenze am MCP-Rand:** Der MCP-Server überträgt einen fehlgeschlagenen
+Tool-Aufruf als reine Fehlerzeichenkette. `resume_hint` und die
+Recovery-Kandidaten werden deshalb in die Meldung hineingerendert; `code`,
+`retryable` und `details` als getrennte Felder erreichen nur Clients am
+Daemon-Socket, nicht MCP-Clients.
+
 ## Regeln
 
 1. Jeder Fehlerpfad liefert einen Code aus diesem Enum (`output.IsValid`).
