@@ -147,6 +147,8 @@ func startFetchFakeDaemon(t *testing.T, base, session string) {
 					map[string]any{"url": "https://a.example", "ok": true, "content": "# A"},
 					map[string]any{"url": "https://b.example", "ok": true, "content": "# B"},
 				}, nil, nil
+			case "cache.get":
+				return map[string]any{"cache_id": "out_0123456789ab", "content": "full cached content"}, nil, nil
 			case "wayback.snapshots":
 				return []any{
 					map[string]any{"timestamp": "20020120142510", "url": "http://example.com:80/", "status": "200", "mime_type": "text/html", "digest": "ABC"},
@@ -275,6 +277,21 @@ func TestFetchToolsCallContract(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("wayback_snapshots result missing %q: %s", want, text)
 		}
+	}
+
+	cacheCall := send(map[string]any{
+		"jsonrpc": "2.0", "id": 6, "method": "tools/call",
+		"params": map[string]any{
+			"name":      "cache_get",
+			"arguments": map[string]any{"cache_id": "out_0123456789ab"},
+		},
+	})
+	if cacheCall["error"] != nil {
+		t.Fatalf("cache_get call error: %v", cacheCall["error"])
+	}
+	text = resultText(t, cacheCall)
+	if !strings.Contains(text, "full cached content") {
+		t.Errorf("cache_get result missing full content: %s", text)
 	}
 }
 

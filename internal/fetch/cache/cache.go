@@ -108,13 +108,13 @@ func ensureCacheDir(dir string) {
 	}
 }
 
-// DefaultDir returns ~/.cache/symfetch.
+// DefaultDir returns ~/.cache/symbrowse/fetch.
 func DefaultDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return filepath.Join(os.TempDir(), "symfetch")
+		return filepath.Join(os.TempDir(), "symbrowse", "fetch")
 	}
-	return filepath.Join(home, ".cache", "symfetch")
+	return filepath.Join(home, ".cache", "symbrowse", "fetch")
 }
 
 // cacheKeyVersion is bumped when the key scheme changes to invalidate

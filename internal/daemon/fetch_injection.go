@@ -114,3 +114,16 @@ func addFetchBoundary(response map[string]any, format pipeline.Format, origin st
 	}
 	return nil
 }
+
+func addFetchCacheHint(response map[string]any, output, surface string) {
+	cacheID := pipeline.CacheIDFromOutput(output)
+	if cacheID == "" {
+		return
+	}
+	response["cache_id"] = cacheID
+	if surface == "mcp" {
+		response["cache_hint"] = fmt.Sprintf("Call the cache_get MCP tool with cache_id=%s", cacheID)
+		return
+	}
+	response["cache_hint"] = fmt.Sprintf("symbrowse cache get %s", cacheID)
+}

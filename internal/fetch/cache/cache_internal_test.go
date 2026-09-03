@@ -352,7 +352,7 @@ func TestDefaultDir_UserHomeDirFallback(t *testing.T) {
 	t.Setenv("USERPROFILE", "")
 
 	got := DefaultDir()
-	want := filepath.Join(os.TempDir(), "symfetch")
+	want := filepath.Join(os.TempDir(), "symbrowse", "fetch")
 	if got != want {
 		t.Errorf("DefaultDir() = %q, want %q", got, want)
 	}

@@ -102,6 +102,7 @@ var Classification = map[string]RiskClass{
 	"storage.list":      ClassRead,
 	"trace.replay":      ClassRead,
 	"watch":             ClassRead,
+	"cache.get":         ClassRead,
 	"fetch.url":         ClassRead,
 	"fetch.batch":       ClassRead,
 	"wayback.snapshots": ClassRead,

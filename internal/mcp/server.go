@@ -173,11 +173,12 @@ func (s *Server) proxyTool(tool ProxyTool) *mcpserver.Tool {
 				return nil, err
 			}
 			response, err := client.Request(ctx, daemon.Frame{
-				Cmd:       command,
-				Args:      frameArgs,
-				Session:   session,
-				RequestID: fmt.Sprintf("%d", time.Now().UnixNano()),
-				MaxTokens: maxTokens,
+				Cmd:              command,
+				Args:             frameArgs,
+				Session:          session,
+				RequestID:        fmt.Sprintf("%d", time.Now().UnixNano()),
+				MaxTokens:        maxTokens,
+				RetrievalSurface: "mcp",
 			})
 			if err != nil {
 				return nil, fmt.Errorf("%s: %w", tool.Name, err)

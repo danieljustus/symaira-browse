@@ -60,6 +60,14 @@ In strukturierten Antworten bleibt es ein separates Feld, während Markdown
 und Text den Seitenkörper zwischen `start` und `end` setzen. Frontmatter und
 der Metadaten-Kopf bleiben außerhalb der Grenze.
 
+## Cache-Handles
+
+`cache_id`-Werte mit dem Präfix `out_` verweisen auf vollständig gespeicherte
+Antworten. `cache_get` liefert sie für MCP-Clients zurück; die CLI-Variante ist
+`symbrowse cache get <id> [--range a-b]`. `store_full_text` verwendet denselben
+Identifier und schreibt nicht mehr unter den archivierten `~/.cache/symfetch`-
+Pfad.
+
 ## JSON-Modus (`read --json`)
 
 ```json

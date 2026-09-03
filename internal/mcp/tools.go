@@ -482,6 +482,27 @@ var tools = []ProxyTool{
 		},
 	},
 	{
+		Name:        "cache_get",
+		Description: "Retrieve full content stored behind a truncated output. " + guidance("a fetch or other output returned a cache handle", "you do not have a cache_id", "the full cached content or the requested line range", "use the returned content as the complete source"),
+		Profile:     ProfileCore,
+		Schema: objectSchema(map[string]any{
+			"cache_id": stringProp("unified output cache id, for example out_0123456789ab"),
+			"range":    stringProp("optional 1-indexed inclusive line range a-b"),
+		}, "cache_id"),
+		Cmd: "cache.get",
+		Args: func(input map[string]any) (any, error) {
+			cacheID, err := requiredString(input, "cache_id")
+			if err != nil {
+				return nil, err
+			}
+			args := map[string]any{"cache_id": cacheID}
+			if spec, ok := input["range"].(string); ok {
+				args["range"] = spec
+			}
+			return args, nil
+		},
+	},
+	{
 		Name:        "wayback_snapshots",
 		Description: "List available Wayback Machine snapshots for a URL. Returns timestamps, HTTP status codes, and MIME types for each captured version. " + guidance("you need to know whether and when a page was archived, or find a historical version", "you need the current live page (use fetch_url)", "an array of snapshots with timestamp, url, status, mime_type, digest", "fetch the archived URL directly if a snapshot fits"),
 		Profile:     ProfileCore,
@@ -519,7 +540,7 @@ var tools = []ProxyTool{
 // buildFetchArgs maps the shared fetch_url/fetch_batch tool inputs onto the
 // daemon frame argument shape (both contracts share the pipeline fields).
 func buildFetchArgs(input map[string]any, overrides ...map[string]any) (any, error) {
-	args := map[string]any{}
+	args := map[string]any{"retrieval_surface": "mcp"}
 	for _, ov := range overrides {
 		for k, v := range ov {
 			args[k] = v

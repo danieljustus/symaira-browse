@@ -291,7 +291,7 @@ func (s *Server) handleLine(line []byte) Response {
 			// never exceed the budget. On truncation the full payload goes
 			// to the output cache and the response carries head+foot plus
 			// the cache handle. Fail closed when the cache is unavailable.
-			budgeted, budgetErr := applyTokenBudget(s.options.CacheDir, s.options.CacheTTL, data, *frame.MaxTokens)
+			budgeted, budgetErr := applyTokenBudget(s.options.CacheDir, s.options.CacheTTL, data, *frame.MaxTokens, frame.RetrievalSurface)
 			if budgetErr != nil {
 				return ErrorResponse(ErrorOperationFailed, budgetErr.Error())
 			}
@@ -306,12 +306,12 @@ func (s *Server) handleLine(line []byte) Response {
 // applyTokenBudget truncates data to maxTokens via internal/budget. A nil or
 // empty cache directory disables the feature only for non-budgeted frames;
 // budgeted frames fail closed.
-func applyTokenBudget(cacheDir string, ttl time.Duration, data any, maxTokens int) (any, error) {
+func applyTokenBudget(cacheDir string, ttl time.Duration, data any, maxTokens int, surface string) (any, error) {
 	if cacheDir == "" {
 		return nil, errors.New("token budget requested but no output cache directory is configured")
 	}
 	cache := budget.NewCache(cacheDir, ttl)
-	return budget.Apply(cache, data, maxTokens)
+	return budget.ApplyWithHint(cache, data, maxTokens, surface)
 }
 
 type handlerResult struct {

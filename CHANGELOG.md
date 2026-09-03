@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fetch output is scanned for prompt-injection signals and carries unforgeable
   content boundaries in MCP mode; batch warnings stay attached to their URL
   (#385).
+- Truncated fetch output uses the unified `out_*` cache handles and is
+  retrievable through the `cache_get` MCP tool; cache list/clear covers both
+  output and fetch-response stores (#386).
 
 ## [v0.7.0] - 2026-09-03
 

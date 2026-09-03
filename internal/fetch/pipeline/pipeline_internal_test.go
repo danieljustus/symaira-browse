@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/net/html"
 
+	"github.com/danieljustus/symaira-browse/internal/budget"
 	"github.com/danieljustus/symaira-browse/internal/fetch/agentdom"
 	"github.com/danieljustus/symaira-browse/internal/fetch/cache"
 	"github.com/danieljustus/symaira-browse/internal/fetch/dom"
@@ -375,7 +376,7 @@ func TestRun_CachePutFailureLogged(t *testing.T) {
 
 func serveInternalServer(t *testing.T, h http.Handler) *httptest.Server {
 	t.Helper()
-	// Tests that omit Cache.Dir resolve to the real ~/.cache/symfetch. Point
+	// Tests that omit Cache.Dir resolve to the default symbrowse fetch cache. Point
 	// HOME at a temp dir so runs are hermetic and cannot collide with the
 	// developer's real cache entries.
 	t.Setenv("HOME", t.TempDir())
@@ -415,7 +416,7 @@ func TestRun_NoCache(t *testing.T) {
 }
 
 func TestRun_DefaultCacheDir(t *testing.T) {
-	// DefaultDir resolves to ~/.cache/symfetch. Point HOME at a temp dir so
+	// DefaultDir resolves to ~/.cache/symbrowse/fetch. Point HOME at a temp dir so
 	// the test is hermetic and cannot collide with real cache entries.
 	t.Setenv("HOME", t.TempDir())
 
@@ -1639,7 +1640,7 @@ func TestRun_StoreFullText(t *testing.T) {
 	}
 }
 
-func TestRun_StoreFullText_DefaultStoreDir(t *testing.T) {
+func TestRun_StoreFullText_UnifiedCache(t *testing.T) {
 	longBody := []byte(`<html><body><article>` + strings.Repeat("<p>"+strings.Repeat("word ", 50)+"</p>", 200) + `</article></body></html>`)
 	tree, err := dom.Parse(longBody)
 	if err != nil {
@@ -1656,6 +1657,7 @@ func TestRun_StoreFullText_DefaultStoreDir(t *testing.T) {
 		},
 	}
 	eng := &fakeEngine{tree: tree}
+	outputCacheDir := t.TempDir()
 
 	res, err := Run(context.Background(), c, eng, "https://example.com/long", Options{
 		Format: FormatMarkdown,
@@ -1668,12 +1670,20 @@ func TestRun_StoreFullText_DefaultStoreDir(t *testing.T) {
 		},
 		StoreFullText: true,
 		CharLimit:     2000,
+		StoreCache:    budget.NewCache(outputCacheDir, time.Hour),
 	})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	if !strings.Contains(res.Output, "Full text stored:") {
 		t.Errorf("expected 'Full text stored:' footer, got:\n%s", res.Output[:min(200, len(res.Output))])
+	}
+	cacheID := CacheIDFromOutput(res.Output)
+	if cacheID == "" {
+		t.Fatalf("expected a unified cache id in output: %q", res.Output[:min(200, len(res.Output))])
+	}
+	if _, err := budget.NewCache(outputCacheDir, time.Hour).Load(cacheID); err != nil {
+		t.Fatalf("load unified full text %q: %v", cacheID, err)
 	}
 }
 

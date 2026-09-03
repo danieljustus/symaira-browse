@@ -99,7 +99,7 @@ Ablage als `claude_desktop_config.json` (macOS:
 
 | Profil | Enthält | Anwendungsfall |
 |---|---|---|
-| `core` (Default) | `open`, `snapshot`, `click`, `fill`, `type`, `press`, `wait`, `read`, `get`, `find` | Alltag: Seiten öffnen, ansehen, bedienen, lesen |
+| `core` (Default) | `open`, `snapshot`, `click`, `fill`, `type`, `press`, `wait`, `read`, `get`, `find`, `cache_get` | Alltag: Seiten öffnen, ansehen, bedienen, lesen und gekürzte Ausgaben zurückholen |
 | `nav` | `back`, `forward`, `reload` | Historien-Navigation |
 | `state` | *(leer — kommt mit v0.4.0)* | Sessions, Cookies, Storage, `auth login` |
 | `network` | *(leer — kommt mit v1.0.0)* | Routing, Mocking, HAR, Offline |
@@ -199,6 +199,12 @@ Felder — die SymFetch-Feldnamen darüber bleiben unverändert:
   Antworten; Markdown/Text umschließen den Seitenkörper mit den entsprechenden
   Nonce-Markern. Im MCP-Modus ist die Grenze standardmäßig aktiv; Frontmatter
   und Metadaten bleiben außerhalb.
+
+`cache_get` liest einen `out_*`-Handle zurück und akzeptiert optional `range`
+als 1-basierte Zeilenspanne. Das gilt sowohl für das Token-Budget als auch für
+`store_full_text`; der MCP-Hint nennt deshalb dieses Tool statt eines Shell-
+Kommandos. `symbrowse cache list` und `symbrowse cache clear` verwalten zusätzlich
+den separaten Fetch-Response-Cache.
 
 ## Ausgabegrenzen
 

@@ -37,7 +37,7 @@ func TestMain(m *testing.M) {
 func serveFile(t *testing.T, name string) *httptest.Server {
 	t.Helper()
 	// Tests that use the default cache dir would otherwise collide with the
-	// developer's real ~/.cache/symfetch entries (same URL scheme/port reuse).
+	// developer's real ~/.cache/symbrowse/fetch entries (same URL scheme/port reuse).
 	// Point HOME at a temp dir so every test run gets a clean cache.
 	t.Setenv("HOME", t.TempDir())
 	data, err := os.ReadFile(filepath.Join("testdata", name))

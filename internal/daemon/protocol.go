@@ -16,6 +16,9 @@ type Frame struct {
 	// serialized data exceeds the budget the daemon returns head+foot plus
 	// a cache handle instead of the full payload.
 	MaxTokens *int `json:"max_tokens,omitempty"`
+	// RetrievalSurface lets the daemon phrase cache hints for the caller that
+	// receives the response (cli or mcp).
+	RetrievalSurface string `json:"retrieval_surface,omitempty"`
 }
 
 // Error is the stable structured error payload returned by the daemon.
