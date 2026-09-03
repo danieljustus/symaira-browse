@@ -267,6 +267,13 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	if errors.Is(err, daemon.ErrIdleTimeout) || errors.Is(err, context.Canceled) {
 		return nil
 	}
+	if errors.Is(err, daemon.ErrDaemonAlreadyRunning) {
+		// Another daemon won the startup race for this session and owns the
+		// socket. Exiting quietly lets the caller connect to the winner
+		// instead of leaving two daemons with split browser state (#371).
+		slog.Info("daemon already running for this session; connecting clients will use the existing one", "session", session, "socket", path)
+		return nil
+	}
 	return err
 }
 
