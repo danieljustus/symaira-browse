@@ -3,6 +3,8 @@ SHELL := /bin/sh
 BINARY := symbrowse
 VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo 0.1.1)
 GO ?= go
+# Match the toolchain CI formats with, so gofmt output cannot differ by host.
+GO_VERSION := $(shell awk '$$1 == "go" { print $$2; exit }' go.mod)
 CGO_ENABLED ?= 0
 GOFLAGS ?=
 LDFLAGS ?= -s -w -X main.version=$(VERSION)
@@ -27,9 +29,14 @@ lint:
 	fi
 
 fmt-check:
-	@files="$$(find . -type f -name '*.go' -not -path './vendor/*' -print)"; \
+	@files="$$(git ls-files '*.go' ':!:vendor/*')"; \
 	if [ -n "$$files" ]; then \
-		unformatted="$$(gofmt -l $$files)"; \
+		gofmt_bin="$$(GOTOOLCHAIN=go$(GO_VERSION) $(GO) env GOROOT 2>/dev/null)/bin/gofmt"; \
+		if [ ! -x "$$gofmt_bin" ]; then \
+			printf '%s\n' 'gofmt for Go $(GO_VERSION) unavailable; falling back to the gofmt in PATH'; \
+			gofmt_bin=gofmt; \
+		fi; \
+		unformatted="$$("$$gofmt_bin" -l $$files)"; \
 		if [ -n "$$unformatted" ]; then \
 			printf '%s\n' 'The following Go files are not formatted:'; \
 			printf '%s\n' "$$unformatted"; \
