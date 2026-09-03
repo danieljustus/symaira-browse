@@ -315,3 +315,15 @@ func TestEscalationMCPToolIsRegistered(t *testing.T) {
 	t.Errorf("escalation hint names MCP tool %q, which the core profile does not expose: %v",
 		pipeline.EscalationMCPTool, names)
 }
+
+// TestFetchToolsAreBudgeted verifies the plain-HTTP fetch tools get the
+// MCP-mode token budget like the other output-heavy tools. Without it a
+// single fetch_url call can return a whole page into the model context, and
+// fetch_batch multiplies that by up to 20 URLs.
+func TestFetchToolsAreBudgeted(t *testing.T) {
+	for _, cmd := range []string{"fetch.url", "fetch.batch"} {
+		if !mcpBudgetedCommands[cmd] {
+			t.Errorf("daemon command %q is not token-budgeted in MCP mode", cmd)
+		}
+	}
+}

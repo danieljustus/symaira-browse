@@ -37,6 +37,10 @@ func (b *Builder) Build(n *html.Node, doc *Document) {
 	doc.Interactive = b.interactive
 }
 
+// Truncated reports whether the character budget cut the document short. The
+// caller needs this to tell an agent it is looking at a partial page.
+func (b *Builder) Truncated() bool { return b.truncated }
+
 func (b *Builder) walk(n *html.Node) {
 	if b.truncated {
 		return

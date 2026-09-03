@@ -150,23 +150,69 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 
 	switch format {
 	case pipeline.FormatJSON:
-		// Contract-true: the agentdom.Document serializes to exactly the
-		// SymFetch fetch_url json schema (url, final_url, title, lang,
-		// content, interactive), plus the optional escalate hint the
-		// pipeline attached to the document.
-		return result.Doc, nil, nil
+		// The SymFetch fetch_url json schema (url, final_url, title, lang,
+		// content, interactive) plus the escalate hint the pipeline attached
+		// to the document, and the response metadata every format reports.
+		return withResponseMeta(documentMap(result.Doc), result.Meta), nil, nil
 	case pipeline.FormatText:
-		return withEscalation(map[string]any{
+		return withResponseMeta(withEscalation(map[string]any{
 			"url":     result.Doc.URL,
 			"content": render.Text(result.Doc),
-		}, result.Meta), nil, nil
+		}, result.Meta), result.Meta), nil, nil
 	default:
-		return withEscalation(map[string]any{
+		return withResponseMeta(withEscalation(map[string]any{
 			"url":      result.Doc.URL,
 			"title":    result.Doc.Title,
-			"markdown": markdownWithSignals(result.Meta, result.Output),
-		}, result.Meta), nil, nil
+			"markdown": result.Output,
+		}, result.Meta), result.Meta), nil, nil
 	}
+}
+
+// responseMeta is the metadata every fetch response carries alongside the
+// content: enough for an agent to tell a complete page from a partial one
+// without parsing the rendered body. The field names match the ones
+// symbrowse read reports (docs/output-schema.md).
+type responseMeta struct {
+	StatusCode int    `json:"status_code"`
+	FinalURL   string `json:"final_url,omitempty"`
+	Lang       string `json:"lang,omitempty"`
+	CharCount  int    `json:"char_count"`
+	EstTokens  int    `json:"est_tokens"`
+	Truncated  bool   `json:"truncated"`
+	// LikelyClientRendered marks a page whose visible content a plain HTTP
+	// fetch probably could not retrieve in full.
+	LikelyClientRendered bool `json:"likely_client_rendered"`
+}
+
+// withResponseMeta attaches the response metadata to a frame response.
+func withResponseMeta(response map[string]any, meta agentdom.Meta) map[string]any {
+	response["meta"] = responseMeta{
+		StatusCode:           meta.StatusCode,
+		FinalURL:             meta.FinalURL,
+		Lang:                 meta.Lang,
+		CharCount:            meta.CharCount,
+		EstTokens:            meta.EstTokens,
+		Truncated:            meta.Truncated,
+		LikelyClientRendered: meta.LikelyClientRendered,
+	}
+	return response
+}
+
+// documentMap renders the agentdom document as a plain map so the JSON
+// response can carry the shared response metadata beside the document's own
+// fields without changing the document type itself.
+func documentMap(doc *agentdom.Document) map[string]any {
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		slog.Debug("marshal fetch document", "error", err)
+		return map[string]any{}
+	}
+	var fields map[string]any
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		slog.Debug("decode fetch document", "error", err)
+		return map[string]any{}
+	}
+	return fields
 }
 
 // withEscalation attaches the tier-0 -> tier-1 hint to a frame response as a
@@ -178,18 +224,6 @@ func withEscalation(response map[string]any, meta agentdom.Meta) map[string]any 
 		response["escalate"] = meta.Escalate
 	}
 	return response
-}
-
-// markdownWithSignals prepends the metadata header only when the response
-// carries something the caller has to act on: an escalation hint, a
-// truncated body, or a page the pipeline believes is client-rendered. A page
-// that a plain fetch retrieved in full renders exactly as before, so the
-// header stays a signal rather than boilerplate on every response.
-func markdownWithSignals(meta agentdom.Meta, output string) string {
-	if meta.Escalate == nil && !meta.Truncated && !meta.LikelyClientRendered {
-		return output
-	}
-	return render.FormatMarkdownWithMeta(meta, output)
 }
 
 // fetchBatchArgs is the fetch.batch frame payload (SymFetch fetch_batch
@@ -273,10 +307,8 @@ func (r *FetchRuntime) fetchBatchEntry(ctx context.Context, target string, args 
 	switch format {
 	case pipeline.FormatJSON:
 		content = string(mustJSON(result.Doc))
-	case pipeline.FormatMarkdown:
-		content = markdownWithSignals(result.Meta, content)
 	}
-	return withEscalation(map[string]any{"url": target, "ok": true, "content": content}, result.Meta)
+	return withResponseMeta(withEscalation(map[string]any{"url": target, "ok": true, "content": content}, result.Meta), result.Meta)
 }
 
 // waybackSnapshotsArgs is the wayback.snapshots frame payload (SymFetch
