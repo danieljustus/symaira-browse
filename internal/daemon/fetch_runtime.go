@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/danieljustus/symaira-browse/internal/fetch/agentdom"
 	"github.com/danieljustus/symaira-browse/internal/fetch/archive"
 	"github.com/danieljustus/symaira-browse/internal/fetch/fetch"
 	"github.com/danieljustus/symaira-browse/internal/fetch/pipeline"
@@ -151,20 +152,44 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 	case pipeline.FormatJSON:
 		// Contract-true: the agentdom.Document serializes to exactly the
 		// SymFetch fetch_url json schema (url, final_url, title, lang,
-		// content, interactive).
+		// content, interactive), plus the optional escalate hint the
+		// pipeline attached to the document.
 		return result.Doc, nil, nil
 	case pipeline.FormatText:
-		return map[string]any{
+		return withEscalation(map[string]any{
 			"url":     result.Doc.URL,
 			"content": render.Text(result.Doc),
-		}, nil, nil
+		}, result.Meta), nil, nil
 	default:
-		return map[string]any{
+		return withEscalation(map[string]any{
 			"url":      result.Doc.URL,
 			"title":    result.Doc.Title,
-			"markdown": result.Output,
-		}, nil, nil
+			"markdown": markdownWithSignals(result.Meta, result.Output),
+		}, result.Meta), nil, nil
 	}
+}
+
+// withEscalation attaches the tier-0 -> tier-1 hint to a frame response as a
+// structured sibling, so an agent does not have to parse it out of the
+// rendered text. Responses for pages a plain fetch retrieved in full are
+// unchanged (docs/tiers.md).
+func withEscalation(response map[string]any, meta agentdom.Meta) map[string]any {
+	if meta.Escalate != nil {
+		response["escalate"] = meta.Escalate
+	}
+	return response
+}
+
+// markdownWithSignals prepends the metadata header only when the response
+// carries something the caller has to act on: an escalation hint, a
+// truncated body, or a page the pipeline believes is client-rendered. A page
+// that a plain fetch retrieved in full renders exactly as before, so the
+// header stays a signal rather than boilerplate on every response.
+func markdownWithSignals(meta agentdom.Meta, output string) string {
+	if meta.Escalate == nil && !meta.Truncated && !meta.LikelyClientRendered {
+		return output
+	}
+	return render.FormatMarkdownWithMeta(meta, output)
 }
 
 // fetchBatchArgs is the fetch.batch frame payload (SymFetch fetch_batch
@@ -245,10 +270,13 @@ func (r *FetchRuntime) fetchBatchEntry(ctx context.Context, target string, args 
 		return map[string]any{"url": target, "ok": false, "error": err.Error()}
 	}
 	content := result.Output
-	if format == pipeline.FormatJSON {
+	switch format {
+	case pipeline.FormatJSON:
 		content = string(mustJSON(result.Doc))
+	case pipeline.FormatMarkdown:
+		content = markdownWithSignals(result.Meta, content)
 	}
-	return map[string]any{"url": target, "ok": true, "content": content}
+	return withEscalation(map[string]any{"url": target, "ok": true, "content": content}, result.Meta)
 }
 
 // waybackSnapshotsArgs is the wayback.snapshots frame payload (SymFetch

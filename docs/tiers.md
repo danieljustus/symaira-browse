@@ -4,9 +4,28 @@ Ein Agent soll nicht raten müssen, welches Werkzeug er für eine URL
 braucht. Der Vertrag (Issue #35) macht die Wahl
 beobachtbar:
 
-- **`symfetch`** erkennt SPA-Skeletons und dünnen Inhalt und ergänzt dann
-  `{"escalate": {"tool": "symbrowse", "reason": …, "command": "symbrowse read <url>"}}`
-  (Gegenstück X-1 im `symaira-fetch`-Repo).
+- **Die Fetch-Pipeline (Tier 0)** erkennt SPA-Skeletons und dünnen Inhalt und
+  ergänzt dann eine Eskalations-Empfehlung:
+
+```json
+{
+  "escalate": {
+    "tool": "symbrowse",
+    "mcp_tool": "read",
+    "reason": "spa_skeleton",
+    "command": "symbrowse read https://example.com/spa"
+  }
+}
+```
+
+  `command` ist der CLI-Aufruf, `mcp_tool` der Toolname für MCP-Clients —
+  beide benennen dieselbe Eskalation, ein Client nimmt die Variante seiner
+  Oberfläche. `reason` ist `spa_skeleton` oder `thin_content`.
+
+  Wo der Hinweis auftaucht: bei `format: json` als Feld des Dokuments, bei
+  `format: markdown` und `format: text` als Geschwisterfeld der Antwort und
+  zusätzlich im Metadaten-Kopf des gerenderten Markdowns. Seiten, die eine
+  statische Abholung vollständig geliefert hat, tragen kein `escalate`.
 - **`symbrowse read <url>`** liefert dasselbe Ausgabeschema wie `symfetch`
   (YAML-Frontmatter `title`, `url`, `fetched_at`, `lang`, `schema_type`;
   Markdown-Körper; dieselben JSON-Feldnamen; dieselbe

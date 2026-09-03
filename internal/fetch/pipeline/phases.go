@@ -199,6 +199,29 @@ func renderPage(doc *agentdom.Document, bestNode *html.Node, body []byte, o Opti
 	}
 }
 
+// EscalationCommandPrefix is the CLI invocation an escalation hint suggests,
+// up to the URL. It is exported so the command-line package can assert the
+// suggested command actually resolves to a registered command — a hint that
+// does not run is worse than no hint.
+const EscalationCommandPrefix = "symbrowse read "
+
+// EscalationMCPTool is the MCP tool an escalation hint names, the equivalent
+// of EscalationCommandPrefix for clients driving the MCP surface.
+const EscalationMCPTool = "read"
+
+// escalationHint builds the tier-0 -> tier-1 hint for a page whose real
+// content a plain HTTP fetch could not retrieve. Command is the CLI
+// invocation and MCPTool the equivalent MCP tool, so a client on either
+// surface can act on it (docs/tiers.md).
+func escalationHint(reason, rawURL string) *agentdom.EscalationHint {
+	return &agentdom.EscalationHint{
+		Tool:    "symbrowse",
+		MCPTool: EscalationMCPTool,
+		Reason:  reason,
+		Command: EscalationCommandPrefix + rawURL,
+	}
+}
+
 func storeLongOutput(output, rawURL string, o Options) string {
 	output = render.StripBase64Images(output)
 	storeDir := o.StoreDir
@@ -247,9 +270,14 @@ func finalizePage(page *processedPage, rawURL string, o Options, cacher *cache.C
 		LikelyClientRendered: page.thin,
 	}
 	if page.spaSkeleton {
-		meta.Escalate = &agentdom.EscalationHint{Tool: "symbrowse", Reason: "spa_skeleton", Command: "symbrowse " + rawURL}
+		meta.Escalate = escalationHint("spa_skeleton", rawURL)
 	} else if page.thin {
-		meta.Escalate = &agentdom.EscalationHint{Tool: "symbrowse", Reason: "thin_content", Command: "symbrowse " + rawURL}
+		meta.Escalate = escalationHint("thin_content", rawURL)
+	}
+	// The JSON contract carries the hint on the document; every other format
+	// reads it from Meta. Both point at the same hint (docs/tiers.md).
+	if page.doc != nil {
+		page.doc.Escalate = meta.Escalate
 	}
 	result := &Result{Doc: page.doc, Output: page.output, Meta: meta}
 	if cacher != nil {

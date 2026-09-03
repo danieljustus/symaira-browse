@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/daemon"
+	"github.com/danieljustus/symaira-browse/internal/fetch/pipeline"
 )
 
 // TestFetchToolsListed verifies the three SymFetch compatibility tools are
@@ -295,4 +296,22 @@ func resultText(t *testing.T, response map[string]any) string {
 		builder.Write(raw)
 	}
 	return builder.String()
+}
+
+// TestEscalationMCPToolIsRegistered verifies the MCP tool named by a tier-0
+// escalation hint is actually exposed on the tool surface. The hint tells an
+// agent which tool to call next; naming a tool that is not registered would
+// leave an MCP client with no way to act on it (docs/tiers.md).
+func TestEscalationMCPToolIsRegistered(t *testing.T) {
+	names, err := SelectTools(string(ProfileCore))
+	if err != nil {
+		t.Fatalf("SelectTools(core): %v", err)
+	}
+	for _, name := range names {
+		if name == pipeline.EscalationMCPTool {
+			return
+		}
+	}
+	t.Errorf("escalation hint names MCP tool %q, which the core profile does not expose: %v",
+		pipeline.EscalationMCPTool, names)
 }

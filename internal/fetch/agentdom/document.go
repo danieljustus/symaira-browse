@@ -31,6 +31,10 @@ type Document struct {
 	Content     []Element    `json:"content"`     // scored main content, document order
 	Interactive []Element    `json:"interactive"` // flat list of @eN-tagged elements
 	Islands     []DataIsland `json:"islands,omitempty"`
+	// Escalate mirrors Meta.Escalate so the JSON contract carries the
+	// tier-0 -> tier-1 hint too (docs/tiers.md). It is omitted for pages a
+	// plain HTTP fetch retrieved in full.
+	Escalate *EscalationHint `json:"escalate,omitempty"`
 }
 
 // EscalationHint is a non-blocking hint emitted when the fetched page is
@@ -38,8 +42,13 @@ type Document struct {
 // challenge page) whose real content a plain HTTP fetch cannot retrieve.
 // Consumers MAY use the suggested tool/command to re-fetch the page with a
 // JS-capable browser; the fetch itself never fails because of this hint.
+//
+// Command is the CLI invocation, MCPTool the tool name an MCP client calls
+// instead. Both name the same escalation; a client uses whichever matches the
+// surface it is driving.
 type EscalationHint struct {
 	Tool    string `json:"tool"`
+	MCPTool string `json:"mcp_tool,omitempty"`
 	Reason  string `json:"reason"`
 	Command string `json:"command"`
 }
