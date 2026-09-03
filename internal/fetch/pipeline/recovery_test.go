@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -59,5 +60,39 @@ func TestLevenshteinBoundsOversizedInput(t *testing.T) {
 	}
 	if got := fuzzyScore("target", large, ""); got != 0 {
 		t.Fatalf("fuzzyScore oversized input = %f, want 0", got)
+	}
+}
+
+// TestFindCandidatesResolvesHrefForms verifies candidate URLs are resolved
+// rather than concatenated. An absolute href used to be pushed into the
+// base's path, producing a URL that leads nowhere — and because the hints
+// were never delivered, nothing noticed.
+func TestFindCandidatesResolvesHrefForms(t *testing.T) {
+	const ancestor = "https://example.com/docs/"
+	body := `<!doctype html><html><body>
+		<a href="https://example.com/docs/getting-started">Absolute</a>
+		<a href="/docs/getting-started-relative">Root relative</a>
+		<a href="getting-started-doc">Path relative</a>
+		<a href="getting-started-query?v=2">With query</a>
+	</body></html>`
+
+	candidates := findCandidatesFromAncestor(
+		&fetch.Response{Body: []byte(body)}, ancestor, "getting-started")
+
+	if len(candidates) == 0 {
+		t.Fatal("no candidates extracted")
+	}
+	for _, candidate := range candidates {
+		parsed, err := url.Parse(candidate.URL)
+		if err != nil {
+			t.Errorf("candidate %q is not a valid URL: %v", candidate.URL, err)
+			continue
+		}
+		if parsed.Host != "example.com" {
+			t.Errorf("candidate %q has host %q, want example.com", candidate.URL, parsed.Host)
+		}
+		if strings.Contains(parsed.Path, "https:") || strings.Contains(parsed.Path, "//") {
+			t.Errorf("candidate %q has a concatenated path %q", candidate.URL, parsed.Path)
+		}
 	}
 }

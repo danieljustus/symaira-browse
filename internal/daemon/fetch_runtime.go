@@ -132,7 +132,7 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 			AllowPrivate: r.allowPrivate,
 		})
 		if err != nil {
-			return nil, nil, NewError(ErrorOperationFailed, err.Error())
+			return nil, nil, fetchError(err)
 		}
 		return map[string]any{
 			"url":          args.URL,
@@ -145,7 +145,7 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 
 	result, err := pipeline.Run(ctx, r.client, pipeline.StaticEngine{}, args.URL, r.pipelineOptions(args.pipelineFields(), format))
 	if err != nil {
-		return nil, nil, NewError(ErrorOperationFailed, err.Error())
+		return nil, nil, fetchError(err)
 	}
 
 	switch format {
@@ -301,7 +301,18 @@ func (r *FetchRuntime) handleFetchBatch(ctx context.Context, frame Frame) (any, 
 func (r *FetchRuntime) fetchBatchEntry(ctx context.Context, target string, args fetchBatchArgs, format pipeline.Format) map[string]any {
 	result, err := pipeline.Run(ctx, r.client, pipeline.StaticEngine{}, target, r.pipelineOptions(args.pipelineFields(), format))
 	if err != nil {
-		return map[string]any{"url": target, "ok": false, "error": err.Error()}
+		entryErr := fetchError(err)
+		entry := map[string]any{
+			"url":       target,
+			"ok":        false,
+			"error":     entryErr.Message,
+			"code":      entryErr.Code,
+			"retryable": entryErr.Retryable != nil && *entryErr.Retryable,
+		}
+		if entryErr.Details != nil {
+			entry["details"] = entryErr.Details
+		}
+		return entry
 	}
 	content := result.Output
 	switch format {
@@ -342,7 +353,7 @@ func (r *FetchRuntime) handleWaybackSnapshots(ctx context.Context, frame Frame) 
 		MatchType: args.MatchType,
 	})
 	if err != nil {
-		return nil, nil, NewError(ErrorOperationFailed, err.Error())
+		return nil, nil, fetchError(err)
 	}
 
 	// Contract-true field mapping (SymFetch wayback_snapshots response):

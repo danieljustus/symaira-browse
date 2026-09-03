@@ -123,7 +123,11 @@ func handleHTTPError(ctx context.Context, c fetch.Client, eng Engine, rawURL str
 			return fbResult, nil
 		}
 	}
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
+	// Probe only where a replacement URL is a plausible fix. The probe costs
+	// real HTTP round-trips against the same host, so running it for an auth
+	// refusal or a rate limit would spend requests on an answer that cannot
+	// help — and would push a throttled host further.
+	if resp.StatusCode == 404 || resp.StatusCode == 410 {
 		fe.Recovery = Probe(ctx, c, rawURL, o)
 	}
 	return nil, fe

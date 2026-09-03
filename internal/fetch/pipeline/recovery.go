@@ -163,7 +163,14 @@ func findCandidatesFromAncestor(resp *fetch.Response, ancestorStr, failedSegment
 		if !exists || !isSafeHref(href) {
 			return
 		}
-		resolved := base.ResolveReference(&url.URL{Path: href})
+		// Parse the href before resolving it. Putting the raw string into
+		// URL.Path treats an absolute href as a path segment, which
+		// concatenates it onto the base and yields a URL that goes nowhere.
+		ref, err := url.Parse(href)
+		if err != nil {
+			return
+		}
+		resolved := base.ResolveReference(ref)
 		if resolved == nil || !isHTTPScheme(resolved.Scheme) {
 			return
 		}
