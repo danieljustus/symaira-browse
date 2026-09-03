@@ -182,7 +182,7 @@ als First-Class-Tools (issue #258):
 | `fetch_batch` | `fetch_batch` | `fetch.batch` | Array in Eingabereihenfolge, `{url, ok, content}` |
 | `wayback_snapshots` | `wayback_snapshots` | `wayback.snapshots` | Array `{timestamp, url, status, mime_type, digest}` |
 
-Jede `fetch_url`- und `fetch_batch`-Antwort trägt zusätzlich zwei additive
+Jede `fetch_url`- und `fetch_batch`-Antwort trägt zusätzlich mehrere additive
 Felder — die SymFetch-Feldnamen darüber bleiben unverändert:
 
 - `meta` — `{status_code, final_url, lang, char_count, est_tokens, truncated,
@@ -192,6 +192,13 @@ Felder — die SymFetch-Feldnamen darüber bleiben unverändert:
 - `escalate` — die Eskalations-Empfehlung, wenn eine statische Abholung den
   Inhalt nicht vollständig bekommen hat ([tiers.md](tiers.md)). Fehlt, wenn
   Tier 0 gereicht hat.
+- `warnings` — bei `fetch_url` die Warnungen des HTML-Injection-Scans; bei
+  `fetch_batch` liegen sie pro URL-Eintrag vor. Der Seiteninhalt wird dabei nie
+  still verändert.
+- `content_boundaries` — ein separates Boundary-Objekt für strukturierte
+  Antworten; Markdown/Text umschließen den Seitenkörper mit den entsprechenden
+  Nonce-Markern. Im MCP-Modus ist die Grenze standardmäßig aktiv; Frontmatter
+  und Metadaten bleiben außerhalb.
 
 ## Ausgabegrenzen
 

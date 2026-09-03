@@ -70,6 +70,9 @@ func newAzureClient(p Profile, o *clientOptions) (*azureClient, error) {
 }
 
 func (c *azureClient) Fetch(ctx context.Context, req Request) (*Response, error) {
+	if err := CheckAllowlist(req.URL, req.Allowlist); err != nil {
+		return nil, err
+	}
 	if !req.AllowPrivate {
 		if err := CheckSSRF(req.URL); err != nil {
 			return nil, err
@@ -138,7 +141,11 @@ func (c *azureClient) fetchWithProxy(ctx context.Context, req Request, method st
 		return nil, &ErrTooLarge{URL: req.URL, Limit: maxBody}
 	}
 
-	return processResponse(req.URL, azResp, elapsed, "HTTP/2.0"), nil
+	resp := processResponse(req.URL, azResp, elapsed, "HTTP/2.0")
+	if err := CheckAllowlist(resp.FinalURL, req.Allowlist); err != nil {
+		return nil, err
+	}
+	return resp, nil
 }
 
 func (c *azureClient) getProxySession(proxyURL string) *azuretls.Session {
@@ -205,6 +212,9 @@ func (c *azureClient) doFetchWithRetry(ctx context.Context, req Request, azReq *
 			proto := detectProto(azResp)
 			resp := processResponse(req.URL, azResp, elapsed, proto)
 
+			if err := CheckAllowlist(resp.FinalURL, req.Allowlist); err != nil {
+				return nil, err
+			}
 			if !req.AllowPrivate && resp.FinalURL != req.URL {
 				if ssrfErr := CheckSSRF(resp.FinalURL); ssrfErr != nil {
 					return nil, ssrfErr

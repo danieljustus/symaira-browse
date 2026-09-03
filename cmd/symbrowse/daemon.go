@@ -45,6 +45,8 @@ func newDaemonCommand() *cobra.Command {
 	command.Flags().BoolVar(&ssrf, "ssrf", false, "enable the SSRF guard: RFC1918, loopback, link-local, .local, and IPv6-ULA targets are denied (default on in MCP mode)")
 	command.Flags().BoolVar(&allowPrivate, "allow-private", false, "allow private and loopback targets when the SSRF guard is active")
 	command.Flags().BoolVar(&headless, "headless", false, "launch Chrome in headless mode (no GUI session; also via SYMBROWSE_HEADLESS=1)")
+	command.Flags().Bool("mcp-mode", false, "internal: apply MCP daemon defaults")
+	_ = command.Flags().MarkHidden("mcp-mode")
 	command.PersistentFlags().StringVar(&restore, "restore", "", "restore the named state when the session browser starts")
 	command.PersistentFlags().StringVar(&profile, "profile", "", "reuse an existing Chrome profile (name or path) instead of a private session profile")
 	command.Flags().StringVar(&engineKind, "engine", config.DefaultEngine, engineFlagUsage)
@@ -109,6 +111,10 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	allowedDomains := networkPolicy.AllowedDomains
 	ssrfEnabled := networkPolicy.SSRFEnabled
 	allowPrivate := networkPolicy.AllowPrivate
+	mode := policyMode()
+	if mcpMode, _ := cmd.Flags().GetBool("mcp-mode"); mcpMode {
+		mode = policy.ModeMCP
+	}
 	headless := false
 	if raw := cmd.Flags().Lookup("headless"); raw != nil {
 		headless, _ = cmd.Flags().GetBool("headless")
@@ -196,15 +202,15 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		ScreenshotDirs: screenshotDirs,
 		Engine:         engineKind,
 		CDPEndpoint:    cdpEndpoint,
-		Mode:           policyMode(),
+		Mode:           mode,
 	})
 	defer func() { _ = navigation.Close() }()
 	stateRuntime := daemon.NewStateRuntime(stateStore, navigation)
 	stateRuntime.ReportExpired()
 	authRuntime := daemon.NewAuthRuntime(navigation, nil)
 	journalRuntime := daemon.NewJournalRuntime(journalFor(cfg, session), navigation)
-	policyRuntime := daemon.NewPolicyRuntime(cfg.StateDir, policyMode())
-	oobRuntime := daemon.NewOOBRuntime(oob.NewManager(), oob.NewNotifier(), navigation, policyRuntime.Policy(), policyMode())
+	policyRuntime := daemon.NewPolicyRuntime(cfg.StateDir, mode)
+	oobRuntime := daemon.NewOOBRuntime(oob.NewManager(), oob.NewNotifier(), navigation, policyRuntime.Policy(), mode)
 	// guard delegation (issue #52): the guard decides when it is present
 	// and configured; the decider lands in the journal for every action.
 	// A missing decider is never silent (issue #299): if no guard binary is
@@ -220,10 +226,12 @@ func runDaemon(cmd *cobra.Command, session string) error {
 	// (fetch.url, fetch.batch, wayback.snapshots) over plain HTTP without a
 	// browser session. SSRF policy mirrors the daemon flags.
 	fetchRuntime, err := daemon.NewFetchRuntime(daemon.FetchRuntimeOptions{
-		AllowPrivate: allowPrivate,
-		Robots:       true,
-		CacheDir:     filepath.Join(cfg.CacheDir, "fetch"),
-		CacheTTL:     time.Duration(cfg.CacheTTLHours) * time.Hour,
+		AllowedDomains:    allowedDomains,
+		AllowPrivate:      allowPrivate,
+		Robots:            true,
+		CacheDir:          filepath.Join(cfg.CacheDir, "fetch"),
+		CacheTTL:          time.Duration(cfg.CacheTTLHours) * time.Hour,
+		ContentBoundaries: mode == policy.ModeMCP,
 	})
 	if err != nil {
 		return err
@@ -242,7 +250,14 @@ func runDaemon(cmd *cobra.Command, session string) error {
 		Handler: func(ctx context.Context, frame daemon.Frame) (any, []daemon.Warning, error) {
 			switch frame.Cmd {
 			case "fetch.url", "fetch.batch", "wayback.snapshots":
-				return fetchRuntime.Handle(ctx, frame)
+				allowed, decision, decider, gateErr := oobRuntime.DecideAndConfirm(ctx, frame.Session, frame.Cmd, frameURL(frame), approvalTimeoutFromConfig(cfg))
+				if gateErr != nil {
+					return nil, nil, gateErr
+				}
+				if !allowed {
+					return nil, nil, daemon.NewError(daemon.ErrorPeerDenied, fmt.Sprintf("policy decision %s denied %s", decision, frame.Cmd))
+				}
+				return journalRuntime.HandleFuncWithDecider(ctx, frame, decider, fetchRuntime.Handle)
 			case "daemon.ping":
 				return map[string]any{"pong": true}, nil, nil
 			case "open", "goto", "back", "forward", "reload", "wait", "snapshot", "read", "find", "a11y", "screenshot", "click", "dblclick", "fill", "type", "press", "hover", "focus", "select", "check", "uncheck", "scroll", "scrollintoview", "get.text", "get.html", "get.value", "get.attr", "get.title", "get.url", "get.count", "get.box", "get.styles", "is.visible", "is.enabled", "is.checked", "cookies.list", "cookies.set", "cookies.clear", "storage.list", "storage.set", "storage.clear", "set.viewport", "set.device", "set.geo", "set.offline", "set.headers", "set.media", "set.user-agent", "eval", "console.list", "console.clear", "errors.list", "errors.clear", "network.requests", "network.request", "network.route", "network.unroute", "network.har", "upload", "downloads.list", "download.setdir":
@@ -319,9 +334,10 @@ func resolveDaemonPolicy(cmd *cobra.Command, cfg *config.Config) daemon.PolicySt
 	ssrfFlag, _ := cmd.Flags().GetBool("ssrf")
 	allowPrivateFlag, _ := cmd.Flags().GetBool("allow-private")
 	return daemon.PolicyStatus{
-		AllowedDomains: resolveAllowedDomainsWithConfig(allowedDomainsFlag, cfg),
-		SSRFEnabled:    resolveBoolPolicyWithConfig(ssrfFlag, func(cfg *config.Config) bool { return cfg.SSRFEnabled }, cfg),
-		AllowPrivate:   resolveBoolPolicyWithConfig(allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate }, cfg),
+		AllowedDomains:   resolveAllowedDomainsWithConfig(allowedDomainsFlag, cfg),
+		SSRFEnabled:      resolveBoolPolicyWithConfig(ssrfFlag, func(cfg *config.Config) bool { return cfg.SSRFEnabled }, cfg),
+		FetchSSRFEnabled: !resolveBoolPolicyWithConfig(allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate }, cfg),
+		AllowPrivate:     resolveBoolPolicyWithConfig(allowPrivateFlag, func(cfg *config.Config) bool { return cfg.AllowPrivate }, cfg),
 	}
 }
 
@@ -444,10 +460,17 @@ func policyMode() policy.Mode {
 // frameURL extracts the target URL from a frame's args for policy decisions.
 func frameURL(frame daemon.Frame) string {
 	var request struct {
-		URL string `json:"url"`
+		URL  string   `json:"url"`
+		URLs []string `json:"urls"`
 	}
 	if err := json.Unmarshal(frame.Args, &request); err != nil {
 		return ""
+	}
+	if request.URL != "" {
+		return request.URL
+	}
+	if len(request.URLs) > 0 {
+		return request.URLs[0]
 	}
 	return request.URL
 }

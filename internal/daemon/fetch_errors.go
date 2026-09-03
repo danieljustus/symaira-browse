@@ -27,6 +27,11 @@ func fetchError(err error) *Error {
 		return typedFetchError(ErrorPeerDenied, err, false,
 			"the target is a private or loopback address; start the daemon with --allow-private to permit it")
 	}
+	var blockedDomain *policy.BlockedDomainError
+	if errors.As(err, &blockedDomain) {
+		return typedFetchError(ErrorPeerDenied, err, false,
+			"the target is outside the configured domain allowlist")
+	}
 	var blocked *pipeline.BlockedError
 	if errors.As(err, &blocked) {
 		return typedFetchError(ErrorPeerDenied, err, false,

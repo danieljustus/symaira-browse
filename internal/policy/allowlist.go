@@ -30,6 +30,16 @@ type Allowlist struct {
 	patterns []string // original, normalized patterns (for reporting)
 }
 
+// BlockedDomainError is returned when a request target is outside the
+// configured domain allowlist.
+type BlockedDomainError struct {
+	URL string
+}
+
+func (e *BlockedDomainError) Error() string {
+	return fmt.Sprintf("blocked_domain: %s is outside the configured domain allowlist", e.URL)
+}
+
 // ParseAllowlist builds an Allowlist from host patterns. Patterns are
 // hostnames, optionally prefixed with "*." to include the apex and all
 // subdomains (for example "*.example.com" matches "example.com",

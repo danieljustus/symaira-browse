@@ -367,11 +367,11 @@ func TestNewAppliesDefaults(t *testing.T) {
 
 func TestDaemonArgsRespectAllowPrivate(t *testing.T) {
 	server := &Server{options: Options{AllowPrivate: false}}
-	if got := server.daemonArgs("session"); !reflect.DeepEqual(got, []string{"daemon", "--session", "session", "--ssrf"}) {
+	if got := server.daemonArgs("session"); !reflect.DeepEqual(got, []string{"daemon", "--session", "session", "--ssrf", "--mcp-mode"}) {
 		t.Fatalf("default daemon args = %v", got)
 	}
 	server.options.AllowPrivate = true
-	if got := server.daemonArgs("session"); !reflect.DeepEqual(got, []string{"daemon", "--session", "session", "--ssrf", "--allow-private"}) {
+	if got := server.daemonArgs("session"); !reflect.DeepEqual(got, []string{"daemon", "--session", "session", "--ssrf", "--mcp-mode", "--allow-private"}) {
 		t.Fatalf("private daemon args = %v", got)
 	}
 }

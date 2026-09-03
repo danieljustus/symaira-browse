@@ -14,6 +14,7 @@ import (
 	"github.com/danieljustus/symaira-browse/internal/fetch/pipeline"
 	"github.com/danieljustus/symaira-browse/internal/fetch/render"
 	"github.com/danieljustus/symaira-browse/internal/fetch/robots"
+	"github.com/danieljustus/symaira-browse/internal/policy"
 )
 
 // FetchRuntime exposes the absorbed SymFetch fetch pipeline through the
@@ -23,17 +24,26 @@ import (
 // archived symfetch runtime was retired. All three work on plain HTTP and
 // never launch a browser.
 type FetchRuntime struct {
-	mu           sync.Mutex
-	client       fetch.Client
-	allowPrivate bool
-	robots       bool
-	userAgent    string
-	cacheDir     string
-	cacheTTL     time.Duration
+	mu                   sync.Mutex
+	client               fetch.Client
+	allowlist            *policy.Allowlist
+	allowPrivate         bool
+	robots               bool
+	userAgent            string
+	cacheDir             string
+	cacheTTL             time.Duration
+	contentBoundaries    bool
+	disableInjectionScan bool
+	injectionPatterns    string
+	injectionMu          sync.Mutex
+	injectionCache       map[string][]Warning
 }
 
 // FetchRuntimeOptions configures the fetch runtime.
 type FetchRuntimeOptions struct {
+	// AllowedDomains restricts every fetch target and redirect to the same
+	// host allowlist used by browser navigation.
+	AllowedDomains []string
 	// AllowPrivate relaxes the SSRF guard for plain HTTP fetches
 	// (mirrors the daemon --allow-private opt-in).
 	AllowPrivate bool
@@ -45,6 +55,13 @@ type FetchRuntimeOptions struct {
 	// the shared cache instance; the pipeline falls back to its default).
 	CacheDir string
 	CacheTTL time.Duration
+	// DisableInjectionScan disables the default bounded prompt-injection scan.
+	DisableInjectionScan bool
+	// InjectionPatterns replaces the embedded scanner patterns when set.
+	InjectionPatterns string
+	// ContentBoundaries enables unforgeable content boundaries by default.
+	// The MCP launcher enables this for its daemon.
+	ContentBoundaries bool
 }
 
 // NewFetchRuntime creates the runtime with an honest (CGO-free) fetch
@@ -56,16 +73,26 @@ func NewFetchRuntime(options FetchRuntimeOptions) (*FetchRuntime, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create fetch client: %w", err)
 	}
+	allowlist, err := policy.ParseAllowlist(options.AllowedDomains)
+	if err != nil {
+		_ = client.Close()
+		return nil, fmt.Errorf("parse fetch domain allowlist: %w", err)
+	}
 	if options.UserAgent == "" {
 		options.UserAgent = "symbrowse/1.0"
 	}
 	return &FetchRuntime{
-		client:       client,
-		allowPrivate: options.AllowPrivate,
-		robots:       options.Robots,
-		userAgent:    options.UserAgent,
-		cacheDir:     options.CacheDir,
-		cacheTTL:     options.CacheTTL,
+		client:               client,
+		allowlist:            allowlist,
+		allowPrivate:         options.AllowPrivate,
+		robots:               options.Robots,
+		userAgent:            options.UserAgent,
+		cacheDir:             options.CacheDir,
+		cacheTTL:             options.CacheTTL,
+		contentBoundaries:    options.ContentBoundaries,
+		disableInjectionScan: options.DisableInjectionScan,
+		injectionPatterns:    options.InjectionPatterns,
+		injectionCache:       make(map[string][]Warning),
 	}, nil
 }
 
@@ -77,6 +104,52 @@ func (r *FetchRuntime) Close() error {
 		return nil
 	}
 	return r.client.Close()
+}
+
+func (r *FetchRuntime) safetyOptions(noScan bool, patterns string, boundaries *bool, command string) (bool, string, bool) {
+	scan := !r.disableInjectionScan && !noScan
+	if !scan {
+		slog.Warn("injection scan disabled for fetch output", "command", command)
+	}
+	if patterns == "" {
+		patterns = r.injectionPatterns
+	}
+	withBoundaries := r.contentBoundaries
+	if boundaries != nil {
+		withBoundaries = *boundaries
+	}
+	return scan, patterns, withBoundaries
+}
+
+func (r *FetchRuntime) scanFetchedHTML(source []byte, fallback, patterns string, enabled bool) []Warning {
+	if !enabled {
+		return nil
+	}
+	pageHTML := string(source)
+	if pageHTML == "" {
+		pageHTML = fallback
+	}
+	cacheInput := fallback
+	if cacheInput == "" {
+		cacheInput = pageHTML
+	}
+	key := warningCacheKey(cacheInput, patterns)
+	r.injectionMu.Lock()
+	if cached, ok := r.injectionCache[key]; ok {
+		warnings := cloneWarnings(cached)
+		r.injectionMu.Unlock()
+		return warnings
+	}
+	r.injectionMu.Unlock()
+
+	warnings := scanFetchInjectionHTML(pageHTML, patterns)
+	r.injectionMu.Lock()
+	if len(r.injectionCache) >= maxInjectionScanEntries {
+		r.injectionCache = make(map[string][]Warning)
+	}
+	r.injectionCache[key] = cloneWarnings(warnings)
+	r.injectionMu.Unlock()
+	return warnings
 }
 
 // Handle executes one fetch frame.
@@ -96,19 +169,22 @@ func (r *FetchRuntime) Handle(ctx context.Context, frame Frame) (any, []Warning,
 // fetchURLArgs is the fetch.url frame payload. Field names match the
 // SymFetch fetch_url contract so existing clients keep working (issue #258).
 type fetchURLArgs struct {
-	URL              string `json:"url"`
-	Format           string `json:"format"` // markdown (default), json, text
-	MaxChars         int    `json:"max_chars"`
-	CharLimit        int    `json:"char_limit"`
-	CSSSelector      string `json:"css_selector"`
-	Frontmatter      bool   `json:"frontmatter"`
-	IncludeLinks     bool   `json:"include_links"`
-	Query            string `json:"query"`
-	Raw              bool   `json:"raw"`
-	SchemaPath       string `json:"schema_path"`
-	StoreFullText    bool   `json:"store_full_text"`
-	WaybackTimestamp string `json:"wayback_timestamp"`
-	WaybackFallback  bool   `json:"wayback_fallback"`
+	URL               string `json:"url"`
+	Format            string `json:"format"` // markdown (default), json, text
+	MaxChars          int    `json:"max_chars"`
+	CharLimit         int    `json:"char_limit"`
+	CSSSelector       string `json:"css_selector"`
+	Frontmatter       bool   `json:"frontmatter"`
+	IncludeLinks      bool   `json:"include_links"`
+	Query             string `json:"query"`
+	Raw               bool   `json:"raw"`
+	SchemaPath        string `json:"schema_path"`
+	StoreFullText     bool   `json:"store_full_text"`
+	WaybackTimestamp  string `json:"wayback_timestamp"`
+	WaybackFallback   bool   `json:"wayback_fallback"`
+	NoInjectionScan   bool   `json:"no_injection_scan"`
+	InjectionPatterns string `json:"injection_patterns"`
+	ContentBoundaries *bool  `json:"content_boundaries"`
 }
 
 func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []Warning, error) {
@@ -124,47 +200,75 @@ func (r *FetchRuntime) handleFetchURL(ctx context.Context, frame Frame) (any, []
 	if err != nil {
 		return nil, nil, NewError(ErrorMalformedRequest, err.Error())
 	}
+	scanInjection, patternsFile, withBoundaries := r.safetyOptions(args.NoInjectionScan, args.InjectionPatterns, args.ContentBoundaries, "fetch.url")
 
 	if args.Raw {
 		// The raw contract returns the decoded response body without any
 		// pipeline processing (SymFetch fetch_url raw=true).
 		resp, err := pipeline.RunRaw(ctx, r.client, args.URL, fetch.Request{
 			AllowPrivate: r.allowPrivate,
+			Allowlist:    r.allowlist,
 		})
 		if err != nil {
 			return nil, nil, fetchError(err)
 		}
-		return map[string]any{
+		response := map[string]any{
 			"url":          args.URL,
 			"final_url":    resp.FinalURL,
 			"status":       resp.StatusCode,
 			"content":      string(resp.Body),
 			"content_type": resp.ContentType,
-		}, nil, nil
+		}
+		if withBoundaries {
+			if err := addFetchBoundary(response, pipeline.FormatText, resp.FinalURL, true); err != nil {
+				return nil, nil, err
+			}
+		}
+		warnings := r.scanFetchedHTML(resp.Body, string(resp.Body), patternsFile, scanInjection)
+		return response, warnings, nil
 	}
 
 	result, err := pipeline.Run(ctx, r.client, pipeline.StaticEngine{}, args.URL, r.pipelineOptions(args.pipelineFields(), format))
 	if err != nil {
 		return nil, nil, fetchError(err)
 	}
+	warnings := r.scanFetchedHTML(result.SourceHTML, result.Output, patternsFile, scanInjection)
 
 	switch format {
 	case pipeline.FormatJSON:
 		// The SymFetch fetch_url json schema (url, final_url, title, lang,
 		// content, interactive) plus the escalate hint the pipeline attached
 		// to the document, and the response metadata every format reports.
-		return withResponseMeta(documentMap(result.Doc), result.Meta), nil, nil
+		response := withResponseMeta(documentMap(result.Doc), result.Meta)
+		if withBoundaries {
+			if err := addFetchBoundary(response, format, result.Meta.FinalURL, false); err != nil {
+				return nil, nil, err
+			}
+		}
+		return response, warnings, nil
 	case pipeline.FormatText:
-		return withResponseMeta(withEscalation(map[string]any{
+		response := withResponseMeta(withEscalation(map[string]any{
 			"url":     result.Doc.URL,
 			"content": render.Text(result.Doc),
-		}, result.Meta), result.Meta), nil, nil
+		}, result.Meta), result.Meta)
+		if withBoundaries {
+			if err := addFetchBoundary(response, format, result.Meta.FinalURL, false); err != nil {
+				return nil, nil, err
+			}
+		}
+		return response, warnings, nil
 	default:
-		return withResponseMeta(withEscalation(map[string]any{
+		response := withResponseMeta(withEscalation(map[string]any{
 			"url":      result.Doc.URL,
 			"title":    result.Doc.Title,
 			"markdown": result.Output,
-		}, result.Meta), result.Meta), nil, nil
+		}, result.Meta), result.Meta)
+		if withBoundaries {
+			if err := addFetchBoundary(response, format, result.Meta.FinalURL, false); err != nil {
+				return nil, nil, err
+			}
+		}
+		return response, warnings, nil
 	}
 }
 
@@ -229,14 +333,17 @@ func withEscalation(response map[string]any, meta agentdom.Meta) map[string]any 
 // fetchBatchArgs is the fetch.batch frame payload (SymFetch fetch_batch
 // contract: urls up to 20, optional concurrency, per-page format/budget).
 type fetchBatchArgs struct {
-	URLs          []string `json:"urls"`
-	Format        string   `json:"format"`
-	MaxChars      int      `json:"max_chars"`
-	CharLimit     int      `json:"char_limit"`
-	Concurrency   int      `json:"concurrency"`
-	StoreFullText bool     `json:"store_full_text"`
-	Frontmatter   bool     `json:"frontmatter"`
-	IncludeLinks  bool     `json:"include_links"`
+	URLs              []string `json:"urls"`
+	Format            string   `json:"format"`
+	MaxChars          int      `json:"max_chars"`
+	CharLimit         int      `json:"char_limit"`
+	Concurrency       int      `json:"concurrency"`
+	StoreFullText     bool     `json:"store_full_text"`
+	Frontmatter       bool     `json:"frontmatter"`
+	IncludeLinks      bool     `json:"include_links"`
+	NoInjectionScan   bool     `json:"no_injection_scan"`
+	InjectionPatterns string   `json:"injection_patterns"`
+	ContentBoundaries *bool    `json:"content_boundaries"`
 }
 
 func (r *FetchRuntime) handleFetchBatch(ctx context.Context, frame Frame) (any, []Warning, error) {
@@ -255,6 +362,7 @@ func (r *FetchRuntime) handleFetchBatch(ctx context.Context, frame Frame) (any, 
 	if err != nil {
 		return nil, nil, NewError(ErrorMalformedRequest, err.Error())
 	}
+	scanInjection, patternsFile, withBoundaries := r.safetyOptions(args.NoInjectionScan, args.InjectionPatterns, args.ContentBoundaries, "fetch.batch")
 
 	results := make([]any, 0, len(args.URLs))
 	var mu sync.Mutex
@@ -267,7 +375,7 @@ func (r *FetchRuntime) handleFetchBatch(ctx context.Context, frame Frame) (any, 
 		go func(target string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			entry := r.fetchBatchEntry(ctx, target, args, format)
+			entry := r.fetchBatchEntry(ctx, target, args, format, scanInjection, patternsFile, withBoundaries)
 			mu.Lock()
 			results = append(results, entry)
 			mu.Unlock()
@@ -298,7 +406,7 @@ func (r *FetchRuntime) handleFetchBatch(ctx context.Context, frame Frame) (any, 
 	return ordered, nil, nil
 }
 
-func (r *FetchRuntime) fetchBatchEntry(ctx context.Context, target string, args fetchBatchArgs, format pipeline.Format) map[string]any {
+func (r *FetchRuntime) fetchBatchEntry(ctx context.Context, target string, args fetchBatchArgs, format pipeline.Format, scanInjection bool, patternsFile string, withBoundaries bool) map[string]any {
 	result, err := pipeline.Run(ctx, r.client, pipeline.StaticEngine{}, target, r.pipelineOptions(args.pipelineFields(), format))
 	if err != nil {
 		entryErr := fetchError(err)
@@ -319,7 +427,17 @@ func (r *FetchRuntime) fetchBatchEntry(ctx context.Context, target string, args 
 	case pipeline.FormatJSON:
 		content = string(mustJSON(result.Doc))
 	}
-	return withResponseMeta(withEscalation(map[string]any{"url": target, "ok": true, "content": content}, result.Meta), result.Meta)
+	response := withResponseMeta(withEscalation(map[string]any{"url": target, "ok": true, "content": content}, result.Meta), result.Meta)
+	warnings := r.scanFetchedHTML(result.SourceHTML, content, patternsFile, scanInjection)
+	if len(warnings) > 0 {
+		response["warnings"] = warnings
+	}
+	if withBoundaries {
+		if err := addFetchBoundary(response, format, result.Meta.FinalURL, false); err != nil {
+			return map[string]any{"url": target, "ok": false, "error": err.Error(), "code": ErrorOperationFailed, "retryable": false}
+		}
+	}
+	return response
 }
 
 // waybackSnapshotsArgs is the wayback.snapshots frame payload (SymFetch
@@ -342,6 +460,9 @@ func (r *FetchRuntime) handleWaybackSnapshots(ctx context.Context, frame Frame) 
 	}
 	if args.MatchType != "" && args.MatchType != "exact" && args.MatchType != "prefix" && args.MatchType != "host" {
 		return nil, nil, NewError(ErrorMalformedRequest, "match_type must be exact, prefix, or host")
+	}
+	if err := fetch.CheckAllowlist(args.URL, r.allowlist); err != nil {
+		return nil, nil, fetchError(err)
 	}
 
 	client := archive.NewCDXClient("", nil)
@@ -386,6 +507,7 @@ func (r *FetchRuntime) pipelineOptions(f pipelineFields, format pipeline.Format)
 			AllowPrivate: r.allowPrivate,
 			Robots:       r.robots,
 			UserAgent:    r.userAgent,
+			Allowlist:    r.allowlist,
 		},
 		Content: pipeline.ContentOptions{
 			MaxChars:     f.MaxChars,
