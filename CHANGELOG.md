@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.8.0] - 2026-09-03
+
+### Added
+
+- The MCP server accepts a browser-engine selection, so an MCP client can run
+  against Safari instead of the default engine without a separate daemon
+  configuration (#373).
+- `fetch.url` reports the tier-escalation hint, so an agent learns from the
+  response that a page needs the interactive browser instead of retrying the
+  static fetch (#380).
+
+### Changed
+
+- `daemon status` reports the network policy that is actually enforced. It
+  previously printed SSRF as disabled while `--ssrf` was in effect (#370).
+- `fetch_url` enforces `max_chars` and stays inside an MCP token budget rather
+  than returning unbounded output (#381).
+- The shared output schema is enforced for `fetch_url`: frontmatter is no
+  longer a no-op, and the conformance test the schema cites now exists (#382).
+- Fetch errors keep their typed taxonomy and their 404 recovery candidates
+  instead of being flattened to `operation_failed` (#383).
+
 ### Fixed
 
 - Fetch compatibility frames now honor the configured domain allowlist, risk
@@ -25,6 +47,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fetch robots compliance, user agent and cache behavior now follow TOML/XDG
   configuration; `fetch_url` exposes `top_k` and a per-request `no_cache`
   override, while robots and page requests use the same configured agent (#388).
+- A private managed session no longer emits a misleading reused-profile
+  warning (#372).
+- Session socket ownership is single-owner and atomic, so concurrent MCP
+  recovery cannot start duplicate daemons for one session (#371).
+- Socket replacement keeps working on Windows (#378).
+- The state key-resolver "no key" test case is hermetic and no longer depends
+  on the ambient environment (#379).
+- `make fmt-check` inspects only tracked files and pins gofmt to the toolchain
+  CI uses, so registered worktrees and a newer local Go no longer produce
+  failures CI does not see (#393).
 
 ## [v0.7.0] - 2026-09-03
 
@@ -326,7 +358,8 @@ Initial release of `symbrowse`, the agent-operable browser automation CLI.
   badges, go install quickstart, issue forms and PR template, Apache-2.0
   LICENSE (#106, #124, #140, #139, #120)
 
-[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/danieljustus/symaira-browse/compare/v0.8.0...HEAD
+[v0.8.0]: https://github.com/danieljustus/symaira-browse/compare/v0.7.0...v0.8.0
 [v0.7.0]: https://github.com/danieljustus/symaira-browse/compare/v0.6.1...v0.7.0
 [v0.6.1]: https://github.com/danieljustus/symaira-browse/compare/v0.6.0...v0.6.1
 [v0.6.0]: https://github.com/danieljustus/symaira-browse/compare/v0.5.0...v0.6.0
