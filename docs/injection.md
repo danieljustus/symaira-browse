@@ -56,6 +56,21 @@ Menüs) — deshalb ist `hidden_text` nur `medium` und der Scan abschaltbar.
   vererbte Hintergründe werden nicht aufgelöst.
 - Der Scan läuft im Daemon auf dem Snapshot-Erfassungspfad (`internal/daemon/capture_frames.go`), sodass Snapshot-Baum und Warnungen in einem einzigen Frame zurückgegeben werden und MCP-Tools wie CLI-Aufrufe die Warnungen direkt erhalten.
 
+## Fetch-Pfad
+
+`fetch_url` und `fetch_batch` scannen das originale HTML im Daemon mit demselben
+bounded Scanner. `fetch_url` liefert `warnings[{kind, severity, ref, excerpt}]`
+als Frame-Warnungen; `fetch_batch` legt die Warnungen beim jeweiligen URL-Eintrag
+ab, damit ein Treffer nicht der falschen Seite zugerechnet wird. Der Inhalt wird
+nicht verändert.
+
+Der MCP-Daemon aktiviert `content_boundaries` standardmäßig. Strukturierte
+Antworten tragen `content_boundaries` als separates Boundary-Objekt; Markdown
+und Text setzen die Nonce-Marker um den Seitenkörper. Frontmatter und
+Metadaten-Kopf bleiben außerhalb der Grenze. `no_injection_scan` deaktiviert
+den Scan nur für den jeweiligen Aufruf und wird geloggt;
+`injection_patterns` kann die eingebettete Musterliste durch eine Datei ersetzen.
+
 ## Scan budget and memoization
 
 Snapshot injection scanning remains enabled by default. The daemon caps HTML

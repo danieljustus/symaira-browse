@@ -50,6 +50,16 @@ Ohne die Option beginnt die Antwort direkt mit dem Inhalt. Der Block zählt
 gegen `max_chars` (siehe [mcp.md](mcp.md#ausgabegrenzen)), wird also nicht
 zusätzlich zum Budget ausgegeben.
 
+## Fetch-Sicherheitsfelder
+
+`fetch_url` und `fetch_batch` erweitern die SymFetch-Antworten optional um
+`warnings` und `content_boundaries`. `warnings` folgen der Snapshot-Form
+`{kind, severity, ref, excerpt}`; bei Batches stehen sie am jeweiligen
+URL-Eintrag. Das Boundary-Objekt enthält `nonce`, `origin`, `start` und `end`.
+In strukturierten Antworten bleibt es ein separates Feld, während Markdown
+und Text den Seitenkörper zwischen `start` und `end` setzen. Frontmatter und
+der Metadaten-Kopf bleiben außerhalb der Grenze.
+
 ## JSON-Modus (`read --json`)
 
 ```json

@@ -138,6 +138,10 @@ type Result struct {
 	Doc    *agentdom.Document
 	Output string
 	Meta   agentdom.Meta
+	// SourceHTML is the fetched page before semantic rendering. It lets
+	// daemon-level safety checks inspect hostile markup without exposing it in
+	// the response schema.
+	SourceHTML []byte `json:"-"`
 }
 
 // Run executes the full semantic pipeline:

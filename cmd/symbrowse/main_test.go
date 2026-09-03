@@ -19,7 +19,7 @@ func TestVersionJSON(t *testing.T) {
 	}
 	// The versionkit contract is exact bytes: {tool, version,
 	// schema_version} on a single line, no envelope, no extra fields.
-	want := `{"tool":"symbrowse","version":"dev","schema_version":6}` + "\n"
+	want := `{"tool":"symbrowse","version":"dev","schema_version":7}` + "\n"
 	if output.String() != want {
 		t.Fatalf("version --json = %q, want %q", output.String(), want)
 	}

@@ -421,19 +421,22 @@ var tools = []ProxyTool{
 		Description: "Fetch a web page with the plain-HTTP fetch pipeline (no browser) and return LLM-optimized content in the SymFetch contract. " + guidance("you need fast fetch of static content, batch fetch, or Wayback discovery without a browser session", "you need JavaScript, browser state or interaction (use open/snapshot/read)", "markdown (default), json, or text in the SymFetch output schema", "read or open when the page needs a real browser"),
 		Profile:     ProfileCore,
 		Schema: objectSchema(map[string]any{
-			"url":               stringProp("the URL to fetch (http or https)"),
-			"format":            map[string]any{"type": "string", "description": "Output format: markdown (default), json, text", "enum": []string{"markdown", "json", "text"}},
-			"max_chars":         integerProp("Maximum characters in output (default 20000)"),
-			"char_limit":        integerProp("Per-page character limit for truncate-and-store (default 15000)"),
-			"css_selector":      stringProp("CSS selector to extract specific elements (e.g. 'table.pricing', '.article-body')"),
-			"frontmatter":       boolProp("Prepend YAML frontmatter with metadata (title, url, fetched_at, lang, tokens)"),
-			"include_links":     boolProp("Append a Links section with all hrefs (default false)"),
-			"query":             stringProp("BM25 query for relevance filtering. Returns only sections matching the query, preserving headings and structure."),
-			"raw":               boolProp("Return raw decoded response body without semantic processing"),
-			"schema_path":       stringProp("JSON-LD query path. Typed selectors (e.g. '@Recipe:name') filter by @type then traverse a dot-path."),
-			"store_full_text":   boolProp("Enable truncate-and-store for long pages (default false)"),
-			"wayback_timestamp": stringProp("Specific Wayback timestamp to fetch (empty = latest)"),
-			"wayback_fallback":  boolProp("Fall back to the Wayback Machine on 404/thin content"),
+			"url":                stringProp("the URL to fetch (http or https)"),
+			"format":             map[string]any{"type": "string", "description": "Output format: markdown (default), json, text", "enum": []string{"markdown", "json", "text"}},
+			"max_chars":          integerProp("Maximum characters in output (default 20000)"),
+			"char_limit":         integerProp("Per-page character limit for truncate-and-store (default 15000)"),
+			"css_selector":       stringProp("CSS selector to extract specific elements (e.g. 'table.pricing', '.article-body')"),
+			"frontmatter":        boolProp("Prepend YAML frontmatter with metadata (title, url, fetched_at, lang, tokens)"),
+			"include_links":      boolProp("Append a Links section with all hrefs (default false)"),
+			"query":              stringProp("BM25 query for relevance filtering. Returns only sections matching the query, preserving headings and structure."),
+			"raw":                boolProp("Return raw decoded response body without semantic processing"),
+			"schema_path":        stringProp("JSON-LD query path. Typed selectors (e.g. '@Recipe:name') filter by @type then traverse a dot-path."),
+			"store_full_text":    boolProp("Enable truncate-and-store for long pages (default false)"),
+			"wayback_timestamp":  stringProp("Specific Wayback timestamp to fetch (empty = latest)"),
+			"wayback_fallback":   boolProp("Fall back to the Wayback Machine on 404/thin content"),
+			"no_injection_scan":  boolProp("Disable the bounded prompt-injection scan (logged; default false)"),
+			"injection_patterns": stringProp("Path to a custom prompt-injection pattern file"),
+			"content_boundaries": boolProp("Wrap fetched content in unforgeable boundaries (default true in MCP mode)"),
 		}, "url"),
 		Cmd: "fetch.url",
 		Args: func(input map[string]any) (any, error) {
@@ -445,14 +448,17 @@ var tools = []ProxyTool{
 		Description: "Fetch multiple URLs concurrently with the plain-HTTP fetch pipeline and return results in input order. " + guidance("you need several pages at once and each is independent", "you need one page (use fetch_url) or browser interaction", "a per-URL array in input order; one failure does not abort the batch", "read or open when a result needs a real browser"),
 		Profile:     ProfileCore,
 		Schema: objectSchema(map[string]any{
-			"urls":            map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "URLs to fetch (max 20)"},
-			"format":          map[string]any{"type": "string", "description": "Output format for each result: markdown, json, text"},
-			"max_chars":       integerProp("Per-page character budget (default 20000)"),
-			"char_limit":      integerProp("Per-page character limit for truncate-and-store (default 15000)"),
-			"concurrency":     integerProp("Maximum parallel fetches (default 4, max 8)"),
-			"store_full_text": boolProp("Enable truncate-and-store for each page (default false)"),
-			"frontmatter":     boolProp("Prepend YAML frontmatter to each result"),
-			"include_links":   boolProp("Append a Links section to each result"),
+			"urls":               map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "URLs to fetch (max 20)"},
+			"format":             map[string]any{"type": "string", "description": "Output format for each result: markdown, json, text"},
+			"max_chars":          integerProp("Per-page character budget (default 20000)"),
+			"char_limit":         integerProp("Per-page character limit for truncate-and-store (default 15000)"),
+			"concurrency":        integerProp("Maximum parallel fetches (default 4, max 8)"),
+			"store_full_text":    boolProp("Enable truncate-and-store for each page (default false)"),
+			"frontmatter":        boolProp("Prepend YAML frontmatter to each result"),
+			"include_links":      boolProp("Append a Links section to each result"),
+			"no_injection_scan":  boolProp("Disable the bounded prompt-injection scan (logged; default false)"),
+			"injection_patterns": stringProp("Path to a custom prompt-injection pattern file"),
+			"content_boundaries": boolProp("Wrap fetched content in unforgeable boundaries (default true in MCP mode)"),
 		}, "urls"),
 		Cmd: "fetch.batch",
 		Args: func(input map[string]any) (any, error) {
@@ -519,7 +525,7 @@ func buildFetchArgs(input map[string]any, overrides ...map[string]any) (any, err
 			args[k] = v
 		}
 	}
-	for _, key := range []string{"url", "format", "css_selector", "query", "schema_path", "wayback_timestamp"} {
+	for _, key := range []string{"url", "format", "css_selector", "query", "schema_path", "wayback_timestamp", "injection_patterns"} {
 		if v, ok := input[key].(string); ok {
 			args[key] = v
 		}
@@ -529,7 +535,7 @@ func buildFetchArgs(input map[string]any, overrides ...map[string]any) (any, err
 			args[key] = int(v)
 		}
 	}
-	for _, key := range []string{"frontmatter", "include_links", "raw", "store_full_text", "wayback_fallback"} {
+	for _, key := range []string{"frontmatter", "include_links", "raw", "store_full_text", "wayback_fallback", "no_injection_scan", "content_boundaries"} {
 		if v, ok := input[key].(bool); ok {
 			args[key] = v
 		}

@@ -293,7 +293,7 @@ func (s *Server) client(session string) (*daemon.Client, error) {
 // daemonArgs builds the daemon command line started for one session. The
 // SSRF guard is always enabled in MCP mode; --allow-private relaxes it.
 func (s *Server) daemonArgs(session string) []string {
-	args := []string{"daemon", "--session", session, "--ssrf"}
+	args := []string{"daemon", "--session", session, "--ssrf", "--mcp-mode"}
 	if s.options.AllowPrivate {
 		args = append(args, "--allow-private")
 	}

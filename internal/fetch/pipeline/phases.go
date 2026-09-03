@@ -395,7 +395,12 @@ func finalizePage(page *processedPage, rawURL string, o Options, cacher *cache.C
 	// this cap max_chars would stay advisory for exactly the format most
 	// callers use.
 	page.output, meta = composeWithinBudget(page, o, meta)
-	result := &Result{Doc: page.doc, Output: page.output, Meta: meta}
+	result := &Result{
+		Doc:        page.doc,
+		Output:     page.output,
+		Meta:       meta,
+		SourceHTML: append([]byte(nil), page.resp.Body...),
+	}
 	if cacher != nil {
 		cacheResult(cacher, rawURL, o, page.output, cache.Meta{
 			URL: rawURL, FinalURL: page.resp.FinalURL, StatusCode: page.resp.StatusCode,
