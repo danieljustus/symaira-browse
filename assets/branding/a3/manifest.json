@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "product": "symaira-browse",
+  "design": "A3 (Verzahnt)",
+  "role": "brand-only",
+  "native_app_bundle": false,
+  "source_handoff": "symaira-icons-release/symaira-browse",
+  "product_signet_group": "Symaira Browse — Browser",
+  "existing_wordmark_preserved": true,
+  "files": {
+    "AppIcon.icon/icon.json": "fbed76a712a62dfc54405359fbc9cdcdfd8467fbe800d29fab2cbaad5d4d37da",
+    "AppIcon.icon/Assets/S.png": "4c2c6f7a6a6d1107e2697a1c98b26a37466541c3b3d5648bf8c88a44bc171824",
+    "AppIcon.icon/Assets/signet.png": "26fbe718e8716e6530edaec3667916f9fcc5616a8130664b3fa7f7c752cdf0b8",
+    "source/signet.svg": "00651970c1156753a1139c9163229c34c5195ea13c15741f00bb4555264fe7a2",
+    "symaira-browse-a3.png": "25dc13d43568c36a576097224f8e20e6d4650c46c3db004496b07fe0e45dff53"
+  },
+  "png_contract": {
+    "symaira-browse-a3.png": {
+      "dimensions": [
+        1024,
+        1024
+      ],
+      "color_mode": "RGB"
+    }
+  }
+}

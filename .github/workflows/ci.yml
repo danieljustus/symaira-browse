@@ -40,6 +40,8 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: Verify approved A3 brand assets
+        run: python3 scripts/test_brand_assets.py
       - name: Check formatting
         run: make fmt-check
       - name: Lint
