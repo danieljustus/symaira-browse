@@ -138,4 +138,90 @@ mod windows {
         server.stop();
         assert!(server_thread.join().expect("join Windows daemon").is_ok());
     }
+
+    #[test]
+    fn concurrent_starts_have_one_owner_and_recover_after_stop() {
+        use interprocess::os::windows::named_pipe::{DuplexPipeStream, pipe_mode};
+        use std::{sync::Arc, thread, time::Duration};
+
+        let session = format!("windows-race-{}", std::process::id());
+        let endpoint = default_socket_path(&session);
+        let servers = (0..8)
+            .map(|_| {
+                Arc::new(
+                    symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+                        socket_path: endpoint.clone(),
+                        session: session.clone(),
+                        idle_timeout: None,
+                        handler: Some(Arc::new(|_, _| {
+                            Ok((Some(serde_json::json!({"pong": true})), Vec::new()))
+                        })),
+                        ..Default::default()
+                    })
+                    .expect("construct concurrent Windows daemon"),
+                )
+            })
+            .collect::<Vec<_>>();
+        let threads = servers
+            .iter()
+            .cloned()
+            .map(|server| thread::spawn(move || server.listen_and_serve()))
+            .collect::<Vec<_>>();
+        let mut stream = None;
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while std::time::Instant::now() < deadline {
+            match DuplexPipeStream::<pipe_mode::Bytes>::connect_by_path_with_wait_mode(
+                endpoint.to_string_lossy().as_ref(),
+                interprocess::ConnectWaitMode::Timeout(Duration::from_millis(50)),
+            ) {
+                Ok(value) => {
+                    stream = Some(value);
+                    break;
+                }
+                Err(_) => thread::sleep(Duration::from_millis(10)),
+            }
+        }
+        assert!(
+            stream.is_some(),
+            "one concurrent daemon should publish the pipe"
+        );
+        drop(stream);
+        for server in &servers {
+            server.stop();
+        }
+        let results = threads
+            .into_iter()
+            .map(|thread| thread.join().expect("join concurrent daemon"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            results.iter().filter(|result| result.is_ok()).count(),
+            1,
+            "exactly one concurrent starter owns the endpoint: {results:?}"
+        );
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(
+                    result,
+                    Err(symbrowse_daemon::ServerError::AlreadyRunning)
+                ))
+                .count(),
+            7
+        );
+
+        // The lock is released with the owner process, so a fresh start can
+        // reclaim the same endpoint after the previous owner stops.
+        let replacement = symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+            socket_path: endpoint,
+            session,
+            idle_timeout: Some(Duration::from_millis(1)),
+            ..Default::default()
+        })
+        .expect("construct replacement Windows daemon");
+        let result = replacement.listen_and_serve();
+        assert!(
+            result.is_ok(),
+            "released endpoint was not recoverable: {result:?}"
+        );
+    }
 }

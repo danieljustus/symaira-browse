@@ -2,12 +2,14 @@ use crate::{
     DaemonError, Frame, MAX_FRAME_BYTES, Response, Warning, codes, decode_frame, error_response,
     success_response,
 };
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use fs2::FileExt;
 use serde_json::Value;
 use serde_json::json;
 #[cfg(unix)]
-use std::fs::{self, File, OpenOptions};
+use std::fs;
+#[cfg(any(unix, windows))]
+use std::fs::{File, OpenOptions};
 #[cfg(not(windows))]
 use std::io::BufRead;
 #[cfg(unix)]
@@ -413,9 +415,11 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
     };
     use widestring::u16cstr;
 
-    // The owner-only DACL prevents other Windows users from opening the
-    // named pipe. Interprocess owns the Windows API/handle safety layer;
-    // this crate contains no Windows FFI or unsafe code.
+    // A named pipe permits multiple server instances with the same name. Keep
+    // the daemon's single-owner contract with a crash-safe OS file lock.
+    let lock_path =
+        std::env::temp_dir().join(format!("symbrowse-{}.sock.lock", server.options.session));
+    let _lock = acquire_lock(&lock_path)?;
     let security =
         SecurityDescriptor::deserialize(u16cstr!("D:P(A;;GA;;;OW)")).map_err(ServerError::Io)?;
     let path = server.options.socket_path.to_string_lossy();
@@ -827,17 +831,29 @@ fn read_limited_line_windows<R: io::Read>(
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn acquire_lock(path: &Path) -> Result<File, ServerError> {
     let file = {
-        use std::os::unix::fs::OpenOptionsExt;
-        OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .read(true)
-            .write(true)
-            .mode(0o600)
-            .open(path)?
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            OpenOptions::new()
+                .create(true)
+                .truncate(false)
+                .read(true)
+                .write(true)
+                .mode(0o600)
+                .open(path)?
+        }
+        #[cfg(windows)]
+        {
+            OpenOptions::new()
+                .create(true)
+                .truncate(false)
+                .read(true)
+                .write(true)
+                .open(path)?
+        }
     };
     file.try_lock_exclusive().map_err(|error| {
         if error.kind() == io::ErrorKind::WouldBlock {

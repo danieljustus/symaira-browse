@@ -337,7 +337,8 @@ port-daemon-fixture-check:
 
 rust-daemon-contract: port-daemon-fixture-check
 	$(CARGO) test -p symbrowse-daemon --all-features --locked
-	python3 port/harness/run.py --suite daemon
+	$(CARGO) install --path crates/symbrowse-cli --root target/port/rust-install --locked --force
+	SYMBROWSE_RUST_BINARY="$(CURDIR)/target/port/rust-install/bin/symbrowse$(if $(filter Windows_NT,$(OS)),.exe,)" python3 port/harness/run.py --suite daemon
 
 rust-cdp-spike:
 	python3 scripts/rust-port/validate_cdp_spike.py

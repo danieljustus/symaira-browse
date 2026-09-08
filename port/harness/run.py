@@ -70,6 +70,22 @@ def request(socket_path: Path, frame: dict[str, object], *, timeout: float = 3.0
     payload = json.dumps(frame, separators=(",", ":")).encode() + b"\n"
     if len(payload) >= MAX_FRAME_BYTES:
         raise ValueError("harness request must stay below the daemon frame limit")
+    if os.name == "nt":
+        # Python exposes named pipes as byte streams on Windows. Opening the
+        # endpoint for each request mirrors the Rust client's one-request
+        # connection lifecycle and needs no third-party package.
+        with open(socket_path, "r+b", buffering=0) as connection:
+            connection.write(payload)
+            response = bytearray()
+            deadline = time.monotonic() + timeout
+            while time.monotonic() < deadline and len(response) <= MAX_FRAME_BYTES:
+                chunk = connection.read(min(65536, MAX_FRAME_BYTES + 1 - len(response)))
+                if not chunk:
+                    break
+                response.extend(chunk)
+                if b"\n" in response:
+                    return json.loads(bytes(response).split(b"\n", 1)[0])
+        raise AssertionError("daemon closed without a JSON response")
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
         connection.settimeout(timeout)
         connection.connect(str(socket_path))
@@ -115,13 +131,22 @@ def assert_clean_process(process: subprocess.Popen[bytes], *, timeout: float = 5
 
 def lifecycle_once(binary: Path, env: dict[str, str], runtime: Path, *, suffix: str) -> None:
     session = f"contract-{suffix}"
-    socket_path = runtime / "symbrowse" / f"{session}.sock"
+    socket_path = (Path(r"\\.\pipe") / f"symbrowse-{session}") if os.name == "nt" else runtime / "symbrowse" / f"{session}.sock"
     process = start_daemon(binary, env, session)
     try:
-        wait_for_path(socket_path)
-        mode = stat.S_IMODE(socket_path.stat().st_mode)
-        if mode != 0o600:
-            raise AssertionError(f"socket mode is {mode:o}, expected 600")
+        if os.name == "nt":
+            # A named pipe is not visible through Path.exists().
+            wait_for_request(socket_path, {"cmd": "daemon.ping", "session": session})
+        else:
+            wait_for_path(socket_path)
+        if os.name == "nt":
+            # Named pipes have no filesystem mode bits; access is enforced by
+            # the owner-only DACL installed by the Rust listener.
+            pass
+        else:
+            mode = stat.S_IMODE(socket_path.stat().st_mode)
+            if mode != 0o600:
+                raise AssertionError(f"socket mode is {mode:o}, expected 600")
         status = request(socket_path, {"cmd": "daemon.status", "session": session})
         status_data = status.get("data")
         if not status.get("success") or not isinstance(status_data, dict) or not status_data.get("running"):
@@ -131,17 +156,18 @@ def lifecycle_once(binary: Path, env: dict[str, str], runtime: Path, *, suffix: 
         sessions = list_data.get("sessions", []) if isinstance(list_data, dict) else []
         if not any(isinstance(item, dict) and item.get("name") == session for item in sessions):
             raise AssertionError(f"session registry omitted {session}: {listed}")
-        oversized = b"{" + b"x" * MAX_FRAME_BYTES + b"}\n"
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
-            connection.settimeout(2)
-            connection.connect(str(socket_path))
-            try:
-                connection.sendall(oversized)
-            except BrokenPipeError:
-                pass
-            else:
-                if connection.recv(1):
-                    raise AssertionError("oversized daemon frame received a response")
+        if os.name != "nt":
+            oversized = b"{" + b"x" * MAX_FRAME_BYTES + b"}\n"
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+                connection.settimeout(2)
+                connection.connect(str(socket_path))
+                try:
+                    connection.sendall(oversized)
+                except BrokenPipeError:
+                    pass
+                else:
+                    if connection.recv(1):
+                        raise AssertionError("oversized daemon frame received a response")
         stop = request(socket_path, {"cmd": "daemon.stop", "session": session})
         if not stop.get("success"):
             raise AssertionError(f"unexpected daemon.stop response: {stop}")
@@ -150,12 +176,16 @@ def lifecycle_once(binary: Path, env: dict[str, str], runtime: Path, *, suffix: 
             raise AssertionError("daemon socket survived clean shutdown")
     finally:
         kill_tree(process)
-        if socket_path.exists():
+        if os.name != "nt" and socket_path.exists():
             raise AssertionError("daemon socket survived harness cleanup")
     assert_clean_process(process)
 
 
 def stale_socket_once(binary: Path, env: dict[str, str], runtime: Path, *, suffix: str) -> None:
+    if os.name == "nt":
+        # Named-pipe instances disappear with their owning process; the
+        # crash-safe mutex is the stale-endpoint recovery mechanism.
+        return
     session = f"stale-{suffix}"
     socket_dir = runtime / "symbrowse"
     socket_dir.mkdir(mode=0o700, exist_ok=True)
@@ -175,16 +205,19 @@ def stale_socket_once(binary: Path, env: dict[str, str], runtime: Path, *, suffi
     finally:
         kill_tree(process)
     assert_clean_process(process)
-    if socket_path.exists():
+    if os.name != "nt" and socket_path.exists():
         raise AssertionError("stale-socket recovery left the socket behind")
 
 
 def race_once(binary: Path, env: dict[str, str], runtime: Path, *, suffix: str, starters: int) -> None:
     session = f"race-{suffix}"
-    socket_path = runtime / "symbrowse" / f"{session}.sock"
+    socket_path = (Path(r"\\.\pipe") / f"symbrowse-{session}") if os.name == "nt" else runtime / "symbrowse" / f"{session}.sock"
     processes = [start_daemon(binary, env, session) for _ in range(starters)]
     try:
-        wait_for_path(socket_path, timeout=10.0)
+        if os.name == "nt":
+            wait_for_request(socket_path, {"cmd": "daemon.ping", "session": session}, timeout=10.0)
+        else:
+            wait_for_path(socket_path, timeout=10.0)
         status = request(socket_path, {"cmd": "daemon.status", "session": session})
         if not status.get("success"):
             raise AssertionError(f"race daemon did not become queryable: {status}")
@@ -196,16 +229,19 @@ def race_once(binary: Path, env: dict[str, str], runtime: Path, *, suffix: str, 
     finally:
         for process in processes:
             kill_tree(process)
-    if socket_path.exists():
+    if os.name != "nt" and socket_path.exists():
         raise AssertionError("race cleanup left a live socket")
 
 
 def daemon_suite(root: Path, env: dict[str, str], *, rounds: int, starters: int) -> None:
-    if os.name != "posix":
-        raise SystemExit("daemon Unix-socket harness requires a Unix host; use native Windows tests for named pipes")
-    run(["cargo", "test", "-p", "symbrowse-daemon", "--all-targets", "--locked"], root, env)
-    run(["cargo", "build", "-p", "symbrowse-cli", "--locked"], root, env)
-    binary = root / "target" / "debug" / "symbrowse"
+    binary_value = env.get("SYMBROWSE_RUST_BINARY")
+    if binary_value:
+        binary = Path(binary_value)
+        if not binary.is_file():
+            raise AssertionError(f"installed Rust daemon binary does not exist: {binary}")
+    else:
+        run(["cargo", "build", "-p", "symbrowse-cli", "--locked"], root, env)
+        binary = root / "target" / "debug" / ("symbrowse.exe" if os.name == "nt" else "symbrowse")
     with tempfile.TemporaryDirectory(prefix="sb-") as directory:
         base = Path(directory)
         runtime = base / "runtime"
