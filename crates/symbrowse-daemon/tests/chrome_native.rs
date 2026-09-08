@@ -127,6 +127,14 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     assert_eq!(closed["data"]["active"], "t1");
     let remaining = request(&socket, "tab.list", json!({}));
     assert_eq!(remaining["data"]["tabs"].as_array().map(Vec::len), Some(1));
+    let window = request(&socket, "window.new", json!({}));
+    assert_eq!(window["success"], true, "window.new response: {window}");
+    assert_eq!(window["data"]["tab"], "t2");
+    let closed_window = request(&socket, "tab.close", json!({}));
+    assert_eq!(
+        closed_window["success"], true,
+        "close active tab: {closed_window}"
+    );
     let framed = request(
         &socket,
         "open",
