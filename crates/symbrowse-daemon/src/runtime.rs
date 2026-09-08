@@ -137,10 +137,10 @@ impl DispatchRuntime {
             | "forward" | "reload" | "scrollintoview" | "get.text" | "get.html" | "get.title"
             | "get.url" | "get.count" | "get.value" | "get.attr" | "get.box" | "get.styles"
             | "is.visible" | "is.enabled" | "is.checked" | "find" | "tabs.list" | "tab.list"
-            | "tab.new" | "tab.switch" | "tab.close" | "frames.list" | "frame.tree" | "dialog"
-            | "network.capture" | "network.offline" | "network.block" | "screenshot" | "pdf"
-            | "upload" | "a11y" | "cookies.get" | "cookies.set" | "storage.get" | "storage.set"
-            | "download" => self.browser_command(&frame).await,
+            | "tab.new" | "tab.switch" | "tab.close" | "window.new" | "frames.list"
+            | "frame.tree" | "dialog" | "network.capture" | "network.offline" | "network.block"
+            | "screenshot" | "pdf" | "upload" | "a11y" | "cookies.get" | "cookies.set"
+            | "storage.get" | "storage.set" | "download" => self.browser_command(&frame).await,
             "network.har" | "axe.audit" => Err(DaemonError {
                 code: "unsupported".into(),
                 message: format!("Chrome daemon does not implement {:?}", frame.cmd),
@@ -545,7 +545,7 @@ impl DispatchRuntime {
                 }
                 json!({"tabs": listed, "active": active})
             }
-            "tab.new" => {
+            "tab.new" | "window.new" => {
                 let session = self.chrome_session()?;
                 let url = args
                     .get("url")
