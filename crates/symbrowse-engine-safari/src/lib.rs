@@ -15,7 +15,7 @@ mod bidi;
 pub use attach::{
     AttachEngine, AttachError, DEFAULT_COMMAND_TIMEOUT, DEFAULT_NAVIGATION_TIMEOUT,
     DEFAULT_TAB_NAME, ENGINE_KIND as ATTACH_ENGINE_KIND, NavigationPolicy, OsascriptRunner,
-    ScriptRunner,
+    SafariPrerequisite, ScriptRunner,
 };
 pub use bidi::{
     BidiEngine, BidiError, BidiTransport, BoxFuture, DRIVER_PATH, DriverOptions,

@@ -43,6 +43,7 @@ impl SafariRuntime {
             // Attach is deliberately opt-in for all script-backed interaction,
             // including state capture and restore.
             engine.set_interactions_opt_in(true);
+            engine.check_prerequisites().map_err(runtime_error)?;
             engine.launch().map_err(runtime_error)?;
             let context = engine.new_context().map_err(runtime_error)?;
             let page = engine.new_page(&context).map_err(runtime_error)?;

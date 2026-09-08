@@ -19,10 +19,40 @@ pub const DEFAULT_COMMAND_TIMEOUT: Duration = Duration::from_secs(10);
 pub const DEFAULT_NAVIGATION_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_SCRIPT_BYTES: usize = 1024 * 1024;
 
+/// A prerequisite that must be diagnosed before Safari automation is used.
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum SafariPrerequisite {
+    ApplicationUnavailable,
+    AutomationPermissionDenied,
+    WindowUnavailable,
+    TabUnavailable,
+    DriverUnavailable,
+    RemoteAutomationDisabled,
+    LoopbackSessionUnavailable,
+}
+
+impl fmt::Display for SafariPrerequisite {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::ApplicationUnavailable => "Safari application unavailable",
+            Self::AutomationPermissionDenied => "Safari Automation permission denied",
+            Self::WindowUnavailable => "Safari selected window unavailable",
+            Self::TabUnavailable => "Safari selected tab unavailable",
+            Self::DriverUnavailable => "SafariDriver unavailable",
+            Self::RemoteAutomationDisabled => "Safari Remote Automation disabled",
+            Self::LoopbackSessionUnavailable => "Safari loopback session unavailable",
+        })
+    }
+}
+
 /// Errors returned by the live-session Apple Events adapter.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum AttachError {
     Closed,
+    Prerequisite {
+        check: SafariPrerequisite,
+        message: String,
+    },
     Unsupported {
         operation: String,
     },
@@ -46,6 +76,9 @@ impl fmt::Display for AttachError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Closed => f.write_str("safari attach engine: engine is closed"),
+            Self::Prerequisite { check, message } => {
+                write!(f, "safari attach prerequisite {check}: {message}")
+            }
             Self::Unsupported { operation } => {
                 write!(
                     f,
@@ -404,6 +437,34 @@ impl<R: ScriptRunner> AttachEngine<R> {
         self.navigation_policy = policy;
     }
 
+    /// Verify that the selected Safari application/window/tab can be addressed.
+    /// This never enables Automation or Remote Automation permissions.
+    pub fn check_prerequisites(&self) -> Result<(), AttachError> {
+        self.ensure_open()?;
+        let script = "try\n tell application \"Safari\"\n if not (exists) then return \"application_unavailable\"\n set window_count to count windows\n if window_count = 0 then return \"window_unavailable\"\n set tab_count to count tabs of window 1\n if tab_count = 0 then return \"tab_unavailable\"\n return \"ok\"\n end tell\non error\n return \"automation_permission_denied\"\nend try".to_owned();
+        let result = self
+            .runner
+            .run(&script, self.command_timeout)?
+            .trim()
+            .to_owned();
+        let check = match result.as_str() {
+            "ok" => return Ok(()),
+            "application_unavailable" => SafariPrerequisite::ApplicationUnavailable,
+            "automation_permission_denied" => SafariPrerequisite::AutomationPermissionDenied,
+            "window_unavailable" => SafariPrerequisite::WindowUnavailable,
+            "tab_unavailable" => SafariPrerequisite::TabUnavailable,
+            _other => SafariPrerequisite::AutomationPermissionDenied,
+        };
+        Err(AttachError::Prerequisite {
+            check,
+            message: if result == "ok" {
+                String::new()
+            } else {
+                result
+            },
+        })
+    }
+
     /// Attaching is deliberately a no-op: this engine never launches or quits Safari.
     pub fn launch(&self) -> Result<(), AttachError> {
         self.ensure_open()
@@ -438,17 +499,30 @@ impl<R: ScriptRunner> AttachEngine<R> {
         self.runner.run(&set_url, self.command_timeout)?;
 
         let started = std::time::Instant::now();
+        let mut previous = None;
+        let mut stable_reads = 0_u8;
         while started.elapsed() < self.navigation_timeout {
             let remaining = self.navigation_timeout.saturating_sub(started.elapsed());
             let command_timeout = self.command_timeout.min(remaining);
             if let Ok(current) = self.current_url_with_timeout(command_timeout)
-                && current == target
+                && Url::parse(&current).ok().is_some_and(|url| {
+                    matches!(url.scheme(), "http" | "https") && url.host_str().is_some()
+                })
             {
-                return Ok(NavigationResult {
-                    frame_id: "safari-live".to_owned(),
-                    loader_id: "safari-live".to_owned(),
-                    error_text: String::new(),
-                });
+                if previous.as_deref() == Some(current.as_str()) {
+                    stable_reads = stable_reads.saturating_add(1);
+                } else {
+                    stable_reads = 0;
+                }
+                previous = Some(current.clone());
+                if stable_reads >= 1 {
+                    return Ok(NavigationResult {
+                        frame_id: "safari-live".to_owned(),
+                        loader_id: "safari-live".to_owned(),
+                        url: current,
+                        error_text: String::new(),
+                    });
+                }
             }
             let sleep_for = self.poll_interval.min(remaining);
             if !sleep_for.is_zero() {
@@ -494,7 +568,7 @@ impl<R: ScriptRunner> AttachEngine<R> {
 
     #[must_use]
     pub fn capabilities(&self) -> Capabilities {
-        let mut implemented = vec!["InspectionEngine", "NavigationStateProvider", "TabManager"];
+        let mut implemented = vec!["InspectionEngine", "NavigationStateProvider"];
         if self.interactions_opt_in && self.navigation_policy.is_active() {
             implemented.push("InteractionEngine");
         }
