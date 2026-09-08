@@ -142,9 +142,11 @@ impl DispatchRuntime {
             | "is.visible" | "is.enabled" | "is.checked" | "find" | "tabs.list" | "tab.list"
             | "tab.new" | "tab.switch" | "tab.close" | "window.new" | "frames.list"
             | "frame.tree" | "dialog" | "dialog.status" | "dialog.accept" | "dialog.dismiss"
-            | "network.capture" | "network.requests" | "network.offline" | "network.block"
-            | "screenshot" | "pdf" | "upload" | "a11y" | "cookies.get" | "cookies.set"
-            | "storage.get" | "storage.set" | "download" => self.browser_command(&frame).await,
+            | "dialog.auto" | "network.capture" | "network.requests" | "network.offline"
+            | "network.block" | "screenshot" | "pdf" | "upload" | "a11y" | "cookies.get"
+            | "cookies.set" | "storage.get" | "storage.set" | "download" => {
+                self.browser_command(&frame).await
+            }
             "network.har" | "axe.audit" => Err(DaemonError {
                 code: "unsupported".into(),
                 message: format!("Chrome daemon does not implement {:?}", frame.cmd),
@@ -684,6 +686,16 @@ impl DispatchRuntime {
             "dialog.dismiss" => {
                 page.dismiss_dialog().await.map_err(runtime_error)?;
                 json!({"handled": true, "action": "dismiss"})
+            }
+            "dialog.auto" => {
+                let mode = args
+                    .get("mode")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| malformed("dialog.auto requires mode"))?;
+                page.set_dialog_auto_mode(mode)
+                    .await
+                    .map_err(runtime_error)?;
+                json!({"auto_mode": mode})
             }
             "network.capture" => {
                 let capture = page.start_network_capture().await.map_err(runtime_error)?;
