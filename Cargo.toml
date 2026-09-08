@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/symbrowse-cli", "crates/symbrowse-core", "crates/symbrowse-daemon", "crates/symbrowse-engine", "crates/symbrowse-engine-chrome", "crates/symbrowse-engine-safari", "crates/symbrowse-fetch", "crates/symbrowse-mcp", "crates/symbrowse-protocol"]
+members = ["crates/symbrowse-cli", "crates/symbrowse-compat", "crates/symbrowse-core", "crates/symbrowse-daemon", "crates/symbrowse-engine", "crates/symbrowse-engine-chrome", "crates/symbrowse-engine-safari", "crates/symbrowse-fetch", "crates/symbrowse-mcp", "crates/symbrowse-protocol"]
 resolver = "3"
 
 [workspace.package]
@@ -32,6 +32,7 @@ nix = { version = "=0.31.3", features = ["fs", "poll", "signal", "socket", "user
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 sha2 = "=0.10.9"
+symbrowse-compat = { path = "crates/symbrowse-compat", version = "=0.0.0" }
 symbrowse-core = { path = "crates/symbrowse-core", version = "=0.0.0" }
 symbrowse-daemon = { path = "crates/symbrowse-daemon", version = "=0.0.0" }
 symbrowse-engine = { path = "crates/symbrowse-engine", version = "=0.0.0" }

@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 #[cfg(target_os = "macos")]
 use crate::safari_runtime::SafariRuntime;
 use serde_json::{Value, json};
+use symbrowse_compat::{CompatClient, Request as CompatRequest};
 use symbrowse_core::{
     flows,
     policy::Allowlist,
@@ -18,7 +19,6 @@ use symbrowse_fetch::{
     pipeline,
 };
 use tokio::runtime::Runtime;
-#[cfg(target_os = "macos")]
 use tokio::sync::Mutex as AsyncMutex;
 
 use crate::{
@@ -34,6 +34,7 @@ pub struct DispatchRuntime {
     output_cache: OutputCache,
     wayback_cdx_url: String,
     runtime: Runtime,
+    compat: AsyncMutex<Option<CompatClient>>,
     browser: Mutex<Option<BrowserState>>,
     #[cfg(target_os = "macos")]
     safari: AsyncMutex<Option<SafariRuntime>>,
@@ -77,6 +78,7 @@ impl DispatchRuntime {
             output_cache,
             wayback_cdx_url: wayback_cdx_url.into(),
             runtime,
+            compat: AsyncMutex::new(None),
             browser: Mutex::new(None),
             #[cfg(target_os = "macos")]
             safari: AsyncMutex::new(None),
@@ -95,10 +97,11 @@ impl DispatchRuntime {
     }
 
     async fn dispatch(&self, frame: Frame) -> HandlerResult {
-        if self.spec.mode == "compat" {
+        if self.spec.mode == "compat" && !matches!(frame.cmd.as_str(), "fetch.url" | "fetch.batch")
+        {
             return Err(DaemonError {
-                code: "compat_unavailable".into(),
-                message: "compat transport sidecar is not available".into(),
+                code: "compat_unsupported_command".into(),
+                message: "compat transport only supports explicit fetch commands".into(),
                 ..Default::default()
             });
         }
@@ -148,6 +151,9 @@ impl DispatchRuntime {
     async fn fetch_url(&self, frame: &Frame) -> HandlerResult {
         let args = object_args(frame)?;
         let url = required_string(args, "url")?;
+        if self.spec.mode == "compat" {
+            return self.compat_fetch(args, url).await;
+        }
         let format = match args
             .get("format")
             .and_then(Value::as_str)
@@ -238,6 +244,107 @@ impl DispatchRuntime {
             });
         }
         Ok((Some(data), Vec::new()))
+    }
+
+    async fn compat_fetch(
+        &self,
+        args: &serde_json::Map<String, Value>,
+        url: &str,
+    ) -> HandlerResult {
+        let mut policy_request = Request::get(url);
+        policy_request.allow_private = self.spec.allow_private;
+        policy_request.allowlist = self.allowlist.clone();
+        self.fetch
+            .validate_request_policy(&policy_request)
+            .map_err(fetch_error)?;
+        let mut guard = self.compat.lock().await;
+        if guard.is_none() {
+            *guard = Some(CompatClient::from_environment(self.spec.operation_timeout));
+        }
+        let request = CompatRequest {
+            id: 0,
+            method: args
+                .get("method")
+                .and_then(Value::as_str)
+                .unwrap_or("GET")
+                .to_owned(),
+            url: url.to_owned(),
+            profile: args
+                .get("profile")
+                .and_then(Value::as_str)
+                .unwrap_or("chrome")
+                .to_owned(),
+            headers: args
+                .get("headers")
+                .and_then(Value::as_object)
+                .map(|headers| {
+                    headers
+                        .iter()
+                        .filter_map(|(key, value)| {
+                            value.as_str().map(|value| (key.clone(), value.to_owned()))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            body: args
+                .get("body")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            timeout_ms: self
+                .spec
+                .operation_timeout
+                .as_millis()
+                .min(u64::MAX as u128) as u64,
+            max_body_bytes: args
+                .get("max_body_bytes")
+                .and_then(Value::as_u64)
+                .unwrap_or(10 * 1024 * 1024) as usize,
+        };
+        let max_body_bytes = request.max_body_bytes;
+        let response = guard
+            .as_mut()
+            .ok_or_else(|| runtime_error("compat sidecar was not initialized"))?
+            .request_with_timeout(request)
+            .await
+            .map_err(|error| DaemonError {
+                code: match error {
+                    symbrowse_compat::CompatError::Timeout => codes::OPERATION_TIMEOUT,
+                    symbrowse_compat::CompatError::Integrity(_) => "compat_integrity_error",
+                    _ => "compat_unavailable",
+                }
+                .into(),
+                message: format!("compat sidecar request failed: {error}"),
+                retryable: Some(false),
+                ..Default::default()
+            })?;
+        if !response.ok {
+            let error = response.error.unwrap_or(symbrowse_compat::TypedError {
+                code: "compat_request_failed".into(),
+                message: "compat sidecar rejected request".into(),
+                retryable: false,
+            });
+            return Err(DaemonError {
+                code: error.code,
+                message: error.message,
+                retryable: Some(error.retryable),
+                ..Default::default()
+            });
+        }
+        let body = response.body;
+        if body.len() > max_body_bytes {
+            return Err(DaemonError {
+                code: "compat_response_too_large".into(),
+                message: "compat sidecar response exceeded the configured bound".into(),
+                ..Default::default()
+            });
+        }
+        Ok((
+            Some(
+                json!({"url": url, "final_url": response.final_url, "status_code": response.status, "headers": response.headers, "content": body, "transport": {"mode":"compat", "browser_identity": Value::Null, "tls_profile": "azuretls-legacy"}}),
+            ),
+            Vec::new(),
+        ))
     }
 
     async fn fetch_batch(&self, frame: &Frame) -> HandlerResult {
