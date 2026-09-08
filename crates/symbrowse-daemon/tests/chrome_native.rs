@@ -84,6 +84,16 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
             .is_some_and(|text| text.contains("native")),
         "read response: {script}"
     );
+    let tabs = request(&socket, "tabs.list", json!({}));
+    assert_eq!(tabs["success"], true, "tabs response: {tabs}");
+    let listed = tabs["data"]["tabs"].as_array().expect("tab list");
+    assert!(!listed.is_empty(), "tabs response: {tabs}");
+    let active = listed
+        .iter()
+        .filter(|tab| tab["active"] == true)
+        .collect::<Vec<_>>();
+    assert_eq!(active.len(), 1, "tabs response: {tabs}");
+    assert_eq!(tabs["data"]["active"], active[0]["id"]);
     let ax = request(&socket, "a11y", json!({}));
     assert_eq!(ax["success"], true, "a11y response: {ax}");
 

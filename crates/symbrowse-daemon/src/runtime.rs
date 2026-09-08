@@ -43,7 +43,7 @@ pub struct DispatchRuntime {
 }
 
 struct BrowserState {
-    _session: ChromeSession,
+    session: Arc<ChromeSession>,
     page: ChromePage,
 }
 
@@ -507,7 +507,24 @@ impl DispatchRuntime {
         let page = self.ensure_browser().await?;
         let args = object_args(frame)?;
         let data = match frame.cmd.as_str() {
-            "tabs.list" => json!({"tabs": [json!({"id": page.target_id()})]}),
+            "tabs.list" => {
+                let session = {
+                    self.browser
+                        .lock()
+                        .map_err(|_| runtime_error("browser lock poisoned"))?
+                        .as_ref()
+                        .ok_or_else(|| runtime_error("browser was not initialized"))?
+                        .session
+                        .clone()
+                };
+                let pages = session.pages().await.map_err(runtime_error)?;
+                let mut tabs = Vec::with_capacity(pages.len());
+                for tab in pages {
+                    let url = tab.inspect("body", "url").await.map_err(runtime_error)?;
+                    tabs.push(json!({"id": tab.target_id(), "url": url, "active": tab.target_id() == page.target_id()}));
+                }
+                json!({"tabs": tabs, "active": page.target_id()})
+            }
             "frames.list" => json!({"frames": page.frames().await.map_err(runtime_error)?}),
             "a11y" => json!({"nodes": page.accessibility_tree().await.map_err(runtime_error)?}),
             "dialog" => {
@@ -1106,7 +1123,7 @@ impl DispatchRuntime {
             return Ok(browser.page.clone());
         }
         *guard = Some(BrowserState {
-            _session: session,
+            session: Arc::new(session),
             page,
         });
         Ok(result)
