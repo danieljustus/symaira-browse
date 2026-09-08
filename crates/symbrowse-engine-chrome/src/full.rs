@@ -9,6 +9,7 @@ use std::{
     error::Error,
     fmt,
     path::Path,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -19,6 +20,7 @@ use chromiumoxide::{
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use tokio::sync::Mutex;
 
 use crate::{BrowserMode, ConnectionMode, launch};
 
@@ -71,6 +73,20 @@ pub struct DialogInfo {
     pub url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_prompt: Option<String>,
+}
+
+/// Persistent state for the daemon's manual dialog controller.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PendingDialog {
+    #[serde(rename = "type", skip_serializing_if = "String::is_empty")]
+    pub dialog_type: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub message: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub default: String,
+    pub handled: bool,
+    #[serde(rename = "auto_mode", skip_serializing_if = "String::is_empty")]
+    pub auto_mode: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -187,19 +203,15 @@ impl ChromeSession {
         &self,
         url: impl Into<String>,
     ) -> Result<ChromePage, Box<dyn Error + Send + Sync>> {
-        Ok(ChromePage {
-            page: self.browser.new_page(url.into()).await?,
-        })
+        ChromePage::new(self.browser.new_page(url.into()).await?).await
     }
 
     pub async fn pages(&self) -> Result<Vec<ChromePage>, Box<dyn Error + Send + Sync>> {
-        Ok(self
-            .browser
-            .pages()
-            .await?
-            .into_iter()
-            .map(|page| ChromePage { page })
-            .collect())
+        let mut chrome_pages = Vec::new();
+        for page in self.browser.pages().await? {
+            chrome_pages.push(ChromePage::new(page).await?);
+        }
+        Ok(chrome_pages)
     }
 
     pub async fn close(mut self) -> Result<(), Box<dyn Error + Send + Sync>> {
@@ -219,9 +231,46 @@ impl ChromeSession {
 #[derive(Clone)]
 pub struct ChromePage {
     page: Page,
+    dialogs: DialogMonitor,
+}
+
+#[derive(Clone)]
+struct DialogMonitor {
+    state: Arc<Mutex<DialogState>>,
+    _task: Arc<tokio::task::JoinHandle<()>>,
+}
+
+#[derive(Default)]
+struct DialogState {
+    pending: Option<PendingDialog>,
 }
 
 impl ChromePage {
+    async fn new(page: Page) -> Result<Self, Box<dyn Error + Send + Sync>> {
+        let mut events = page
+            .event_listener::<page::EventJavascriptDialogOpening>()
+            .await?;
+        let state = Arc::new(Mutex::new(DialogState::default()));
+        let monitor_state = Arc::clone(&state);
+        let task = tokio::spawn(async move {
+            while let Some(event) = events.next().await {
+                monitor_state.lock().await.pending = Some(PendingDialog {
+                    dialog_type: format!("{:?}", event.r#type).to_ascii_lowercase(),
+                    message: event.message.clone(),
+                    default: event.default_prompt.clone().unwrap_or_default(),
+                    handled: false,
+                    auto_mode: String::new(),
+                });
+            }
+        });
+        Ok(Self {
+            page,
+            dialogs: DialogMonitor {
+                state,
+                _task: Arc::new(task),
+            },
+        })
+    }
     pub fn target_id(&self) -> String {
         self.page.target_id().inner().clone()
     }
@@ -573,6 +622,52 @@ impl ChromePage {
             .build()?;
         self.page.execute(params).await?;
         Ok(info)
+    }
+
+    pub async fn dialog_status(&self) -> PendingDialog {
+        self.dialogs
+            .state
+            .lock()
+            .await
+            .pending
+            .clone()
+            .unwrap_or(PendingDialog {
+                dialog_type: String::new(),
+                message: String::new(),
+                default: String::new(),
+                handled: true,
+                auto_mode: String::new(),
+            })
+    }
+
+    pub async fn accept_dialog(
+        &self,
+        prompt_text: Option<String>,
+    ) -> Result<PendingDialog, Box<dyn Error + Send + Sync>> {
+        self.handle_pending_dialog(true, prompt_text).await
+    }
+
+    pub async fn dismiss_dialog(&self) -> Result<PendingDialog, Box<dyn Error + Send + Sync>> {
+        self.handle_pending_dialog(false, None).await
+    }
+
+    async fn handle_pending_dialog(
+        &self,
+        accept: bool,
+        prompt_text: Option<String>,
+    ) -> Result<PendingDialog, Box<dyn Error + Send + Sync>> {
+        let mut state = self.dialogs.state.lock().await;
+        let pending = state
+            .pending
+            .clone()
+            .ok_or("no JavaScript dialog is pending")?;
+        let params = page::HandleJavaScriptDialogParams::builder()
+            .accept(accept)
+            .prompt_text(prompt_text.unwrap_or_default())
+            .build()?;
+        self.page.execute(params).await?;
+        state.pending = None;
+        Ok(pending)
     }
 
     pub async fn start_auto_dialog_handler(
