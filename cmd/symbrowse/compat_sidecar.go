@@ -11,24 +11,34 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type compatWire struct {
+type compatHandshakeWire struct {
+	Type      string `json:"type"`
+	Protocol  uint32 `json:"protocol,omitempty"`
+	Component string `json:"component,omitempty"`
+	Oracle    string `json:"oracle,omitempty"`
+}
+
+type compatRequestWire struct {
+	Type         string      `json:"type"`
+	ID           uint64      `json:"id,omitempty"`
+	Method       string      `json:"method,omitempty"`
+	URL          string      `json:"url,omitempty"`
+	Profile      string      `json:"profile,omitempty"`
+	Headers      [][2]string `json:"headers,omitempty"`
+	Body         string      `json:"body,omitempty"`
+	TimeoutMS    uint64      `json:"timeout_ms,omitempty"`
+	MaxBodyBytes int         `json:"max_body_bytes,omitempty"`
+}
+
+type compatResponseWire struct {
 	Type            string           `json:"type"`
-	Protocol        uint32           `json:"protocol,omitempty"`
-	Component       string           `json:"component,omitempty"`
-	Oracle          string           `json:"oracle,omitempty"`
 	ID              uint64           `json:"id,omitempty"`
-	Method          string           `json:"method,omitempty"`
-	URL             string           `json:"url,omitempty"`
-	Profile         string           `json:"profile,omitempty"`
-	Headers         [][2]string      `json:"headers,omitempty"`
-	Body            string           `json:"body,omitempty"`
-	TimeoutMS       uint64           `json:"timeout_ms,omitempty"`
-	MaxBodyBytes    int              `json:"max_body_bytes,omitempty"`
 	OK              bool             `json:"ok,omitempty"`
 	Status          int              `json:"status,omitempty"`
 	FinalURL        string           `json:"final_url,omitempty"`
 	ResponseHeaders [][2]interface{} `json:"headers,omitempty"`
 	Error           *compatError     `json:"error,omitempty"`
+	Body            string           `json:"body,omitempty"`
 }
 type compatError struct {
 	Code      string `json:"code"`
@@ -46,18 +56,18 @@ func newCompatSidecarCommand() *cobra.Command {
 func runCompatSidecar(cmd *cobra.Command, _ []string) error {
 	decoder := json.NewDecoder(cmd.InOrStdin())
 	encoder := json.NewEncoder(cmd.OutOrStdout())
-	var handshake compatWire
+	var handshake compatHandshakeWire
 	if err := decoder.Decode(&handshake); err != nil {
 		return err
 	}
 	if handshake.Type != "handshake" || handshake.Protocol != 1 {
 		return fmt.Errorf("compat_protocol_mismatch")
 	}
-	if err := encoder.Encode(compatWire{Type: "handshake_ack", Protocol: 1, Component: "symbrowse-go", Oracle: "go-azuretls-v0.8.0"}); err != nil {
+	if err := encoder.Encode(compatHandshakeWire{Type: "handshake_ack", Protocol: 1, Component: "symbrowse-go", Oracle: "go-azuretls-v0.8.0"}); err != nil {
 		return err
 	}
 	for {
-		var wire compatWire
+		var wire compatRequestWire
 		if err := decoder.Decode(&wire); err != nil {
 			if err == io.EOF {
 				return nil
@@ -67,7 +77,7 @@ func runCompatSidecar(cmd *cobra.Command, _ []string) error {
 		if wire.Type != "request" {
 			return fmt.Errorf("compat_malformed_request")
 		}
-		response := compatWire{Type: "response", ID: wire.ID}
+		response := compatResponseWire{Type: "response", ID: wire.ID}
 		client, err := fetch.New(fetch.ParseProfile(wire.Profile), fetch.WithTimeout(int(wire.TimeoutMS/1000)), fetch.WithMaxBody(wire.MaxBodyBytes/1024/1024))
 		if err != nil {
 			response.Error = &compatError{Code: "compat_integrity_error", Message: err.Error()}
