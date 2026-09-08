@@ -90,7 +90,7 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     let interactions = request(
         &socket,
         "open",
-        json!({"url": "data:text/html,%3Cinput%20id%3D%27text%27%3E%3Cselect%20id%3D%27choice%27%3E%3Coption%20value%3D%27one%27%3EOne%3C%2Foption%3E%3Coption%20value%3D%27two%27%3ETwo%3C%2Foption%3E%3C%2Fselect%3E%3Cinput%20id%3D%27check%27%20type%3D%27checkbox%27%3E%3Cdiv%20id%3D%27dbl%27%20ondblclick%3D%22this.dataset.doubled%3D%27yes%27%22%3EDouble%3C%2Fdiv%3E%3Cdiv%20id%3D%27hover%27%20onmouseenter%3D%22this.dataset.hovered%3D%27yes%27%22%3EHover%3C%2Fdiv%3E"}),
+        json!({"url": "data:text/html,%3Cinput%20id%3D%27text%27%20onfocus%3D%22this.dataset.focused%3D%27yes%27%22%3E%3Cselect%20id%3D%27choice%27%3E%3Coption%20value%3D%27one%27%3EOne%3C%2Foption%3E%3Coption%20value%3D%27two%27%3ETwo%3C%2Foption%3E%3C%2Fselect%3E%3Cinput%20id%3D%27check%27%20type%3D%27checkbox%27%3E%3Cdiv%20id%3D%27dbl%27%20ondblclick%3D%22this.dataset.doubled%3D%27yes%27%22%3EDouble%3C%2Fdiv%3E%3Cdiv%20id%3D%27hover%27%20onmouseenter%3D%22this.dataset.hovered%3D%27yes%27%22%3EHover%3C%2Fdiv%3E"}),
     );
     assert_eq!(
         interactions["success"], true,
@@ -107,6 +107,18 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
         let response = request(&socket, command, args);
         assert_eq!(response["success"], true, "{command} response: {response}");
         assert_eq!(response["data"]["action"], command);
+        if command == "focus" {
+            let focused = request(
+                &socket,
+                "get.attr",
+                json!({"selector":"#text","attribute":"data-focused"}),
+            );
+            assert_eq!(focused["data"], "yes", "focus state: {focused}");
+        }
+        if command == "check" {
+            let checked = request(&socket, "is.checked", json!({"selector":"#check"}));
+            assert_eq!(checked["data"], true, "check state: {checked}");
+        }
     }
     let doubled = request(
         &socket,
