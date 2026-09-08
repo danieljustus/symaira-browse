@@ -244,5 +244,15 @@
       "Profile 1"
     ],
     "default_first": true
-  }
+  },
+  "fixture_families": [
+    "flow-validation",
+    "flow-execution",
+    "record-replay",
+    "oob",
+    "session-resume",
+    "journal-watch",
+    "auth",
+    "settings"
+  ]
 }

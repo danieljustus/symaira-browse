@@ -95,9 +95,35 @@ pub fn validate_device(device: &Device) -> Result<(), SettingsError> {
     }
 }
 
+/// Accept only a secret-provider reference. The browser boundary resolves it
+/// at execution time, so settings validation cannot leak or persist secrets.
+pub fn validate_auth_entry(entry: &str) -> Result<String, SettingsError> {
+    let entry = entry.trim();
+    if entry.is_empty() {
+        return Err(SettingsError("auth entry is required".to_owned()));
+    }
+    if entry.starts_with("op://") {
+        Ok(entry.to_owned())
+    } else {
+        Err(SettingsError(
+            "auth entry must be an op:// reference; plaintext credentials are denied".to_owned(),
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn auth_references_are_validated_without_resolving_credentials() {
+        assert_eq!(
+            validate_auth_entry(" op://vault/login/password ").unwrap(),
+            "op://vault/login/password"
+        );
+        assert!(validate_auth_entry("plaintext-password").is_err());
+        assert!(validate_auth_entry("").is_err());
+    }
+
     #[test]
     fn rejects_credential_headers_and_invalid_coordinates() {
         let headers = [("Authorization".to_owned(), "redacted".to_owned())]

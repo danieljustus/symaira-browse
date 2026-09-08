@@ -12,6 +12,7 @@ fn pinned_go_fixture_covers_requested_contracts_without_secrets() {
         "652453d1595fc302bd69c328e7da8a21dbee28b9"
     );
     assert_eq!(root["generated_by"], "scripts/rust-port/cmd/workflowgen");
+    assert_eq!(root["fixture_families"].as_array().unwrap().len(), 8);
     assert_eq!(root["source_files"].as_object().unwrap().len(), 9);
     assert_eq!(root["source_digest"].as_str().unwrap().len(), 64);
     let contracts = root["contracts"].as_object().unwrap();
