@@ -601,9 +601,26 @@ fn validate_step(errors: &mut Vec<ValidationError>, text: &str, index: usize, st
             errors.push(field_error(
                 text,
                 &secret_field,
-                "plaintext secret detected: use an op:// reference instead",
+                "plaintext secret detected: use an op://… reference instead",
             ));
         }
+    }
+    let selector_text = [
+        step.field("label"),
+        step.field("name"),
+        step.field("role"),
+        step.field("text"),
+    ]
+    .join(" ");
+    if matches!(step.action.as_str(), "find" | "click" | "fill")
+        && looks_secret(&selector_text)
+        && !step.field("value").starts_with("op://")
+    {
+        errors.push(field_error(
+            text,
+            &format!("{field}.selector"),
+            "plaintext secret selector detected: use an op:// reference instead",
+        ));
     }
 }
 fn looks_secret(value: &str) -> bool {

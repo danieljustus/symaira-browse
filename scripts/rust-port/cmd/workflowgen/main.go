@@ -74,6 +74,7 @@ type fixture struct {
 	Session       sessionCase         `json:"session"`
 	Settings      settingsCase        `json:"settings"`
 	Profiles      profilesCase        `json:"profiles"`
+	Families      []string            `json:"fixture_families"`
 }
 
 type oobCase struct {
@@ -216,7 +217,7 @@ outputs:
 		"SES-005":   "Auth requires the existing symvault/browser runtime; no credential or auth success is fabricated.",
 		"SES-006":   "Browser-backed persistent settings mutation is not implemented in Rust.",
 		"STATE-006": "Browser-backed state capture and restore are not implemented in Rust.",
-	}, Flow: *flow, Plan: plan, Draft: *draft, Journal: written, Trace: *tr, OOB: oobCase{Status: string(managerState.Status), Allowed: false, NotificationProgram: "osascript"}, Session: sessionCase{States: []string{string(created.ControlState), string(delegated.ControlState)}, HardStopCode: hardStopErr.Code}, Settings: settingsCase{ValidViewport: true, InvalidGeo: true, CredentialHeaderRejected: true}, Profiles: profilesCase{Names: []string{"Default", "Profile 1"}, DefaultFirst: true}}
+	}, Flow: *flow, Plan: plan, Draft: *draft, Journal: written, Trace: *tr, OOB: oobCase{Status: string(managerState.Status), Allowed: false, NotificationProgram: "osascript"}, Session: sessionCase{States: []string{string(created.ControlState), string(delegated.ControlState)}, HardStopCode: hardStopErr.Code}, Settings: settingsCase{ValidViewport: true, InvalidGeo: true, CredentialHeaderRejected: true}, Profiles: profilesCase{Names: []string{"Default", "Profile 1"}, DefaultFirst: true}, Families: []string{"flow-validation", "flow-execution", "record-replay", "oob", "session-resume", "journal-watch", "auth", "settings"}}
 	encoded, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return nil, err
