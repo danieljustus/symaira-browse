@@ -309,6 +309,7 @@ rust-fetch-contract: port-fetch-static-fixtures-check port-fetch-control-fixture
 	$(CARGO) test -p symbrowse-fetch --all-targets --all-features --locked
 	python3 port/harness/run.py --suite fetch-control
 	python3 port/harness/run.py --suite fetch-render --comparison bytes
+	python3 scripts/rust-port/check_fetch_case_ids.py
 
 rust-session-contract: port-session-fixture-check
 	$(CARGO) test -p symbrowse-core --test session_lifecycle --all-features --locked

@@ -297,6 +297,40 @@
       1,
       20,
       21
-    ]
+    ],
+    "case_ids": [
+      "FETCH-001-profile-selection",
+      "FETCH-003-http-semantics",
+      "FETCH-004-redirect-proxy-cookie",
+      "FETCH-005-robots-retry-rate-limit",
+      "FETCH-009-static-selection",
+      "FETCH-009-browser-unavailable",
+      "FETCH-009-compat-unavailable",
+      "FETCH-010-static-honesty"
+    ],
+    "static": {
+      "mode": "static",
+      "browser_identity": null,
+      "tls_profile": null,
+      "selection": [
+        {
+          "id": "FETCH-009-static-selection",
+          "input": "static",
+          "result": "selected"
+        }
+      ],
+      "typed_errors": [
+        {
+          "id": "FETCH-009-browser-unavailable",
+          "input": "browser",
+          "result": "typed_unavailable"
+        },
+        {
+          "id": "FETCH-009-compat-unavailable",
+          "input": "compat",
+          "result": "typed_unavailable"
+        }
+      ]
+    }
   }
 }

@@ -599,7 +599,7 @@
         "windows-amd64",
         "windows-arm64"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FETCH-002",
@@ -633,7 +633,7 @@
         "windows-amd64",
         "windows-arm64"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FETCH-010",
@@ -645,7 +645,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FETCH-011",
@@ -674,7 +674,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FETCH-004",
@@ -686,7 +686,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FETCH-005",
@@ -698,7 +698,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FETCH-006",

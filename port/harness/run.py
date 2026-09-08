@@ -263,6 +263,18 @@ def daemon_suite(root: Path, env: dict[str, str], *, rounds: int, starters: int)
     print(f"daemon suite passed ({rounds} rounds x {starters} starters)", flush=True)
 
 
+FETCH_CONTROL_CASE_IDS = (
+    "FETCH-001-profile-selection",
+    "FETCH-003-http-semantics",
+    "FETCH-004-redirect-proxy-cookie",
+    "FETCH-005-robots-retry-rate-limit",
+    "FETCH-009-static-selection",
+    "FETCH-009-browser-unavailable",
+    "FETCH-009-compat-unavailable",
+    "FETCH-010-static-honesty",
+)
+
+
 ALL_SUITES = (
     "engine-neutral",
     "fetch-control",
@@ -371,6 +383,8 @@ def main() -> int:
 
     for command in commands:
         run(command, root, env)
+    if args.suite == "fetch-control":
+        print("executed fetch-control case IDs: " + ",".join(FETCH_CONTROL_CASE_IDS), flush=True)
     print(f"{args.suite} suite passed ({args.comparison})")
     return 0
 

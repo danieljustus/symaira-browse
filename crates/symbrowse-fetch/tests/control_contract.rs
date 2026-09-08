@@ -17,6 +17,25 @@ struct Controls {
     retry: Retry,
     robots: Vec<RobotsCase>,
     batch_counts: Vec<usize>,
+    case_ids: Vec<String>,
+    #[serde(rename = "static")]
+    static_control: StaticControl,
+}
+
+#[derive(Deserialize)]
+struct StaticControl {
+    mode: String,
+    browser_identity: Option<String>,
+    tls_profile: Option<String>,
+    selection: Vec<StaticCase>,
+    typed_errors: Vec<StaticCase>,
+}
+
+#[derive(Deserialize)]
+struct StaticCase {
+    id: String,
+    input: String,
+    result: String,
 }
 
 #[derive(Deserialize)]
@@ -76,6 +95,44 @@ fn pinned_go_control_fixture_has_provenance_and_full_boundaries() {
     assert_eq!(fixture.controls.retry.transient.len(), 13);
     assert_eq!(fixture.controls.retry.backoff.len(), 12);
     assert_eq!(fixture.controls.robots.len(), 15);
+}
+
+#[test]
+fn static_selection_is_explicit_and_never_claims_browser_identity() {
+    let fixture = fixture();
+    let controls = fixture.controls.static_control;
+    assert_eq!(controls.mode, "static");
+    assert!(controls.browser_identity.is_none());
+    assert!(controls.tls_profile.is_none());
+    assert_eq!(controls.selection.len(), 1);
+    assert_eq!(controls.selection[0].id, "FETCH-009-static-selection");
+    assert_eq!(controls.selection[0].input, "static");
+    assert_eq!(controls.selection[0].result, "selected");
+    assert_eq!(controls.typed_errors.len(), 2);
+    for case in controls.typed_errors {
+        assert!(case.id.starts_with("FETCH-009-"));
+        assert!(matches!(case.input.as_str(), "browser" | "compat"));
+        assert_eq!(case.result, "typed_unavailable");
+    }
+}
+
+#[test]
+fn declared_case_ids_are_the_rust_control_corpus() {
+    let fixture = fixture();
+    let mut expected = fixture.controls.case_ids;
+    expected.sort();
+    let mut executed = vec![
+        "FETCH-001-profile-selection".to_owned(),
+        "FETCH-003-http-semantics".to_owned(),
+        "FETCH-004-redirect-proxy-cookie".to_owned(),
+        "FETCH-005-robots-retry-rate-limit".to_owned(),
+        "FETCH-009-static-selection".to_owned(),
+        "FETCH-009-browser-unavailable".to_owned(),
+        "FETCH-009-compat-unavailable".to_owned(),
+        "FETCH-010-static-honesty".to_owned(),
+    ];
+    executed.sort();
+    assert_eq!(expected, executed);
 }
 
 #[test]
