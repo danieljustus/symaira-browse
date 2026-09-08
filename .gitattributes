@@ -10,3 +10,7 @@ Cargo.lock text eol=lf
 rust-toolchain.toml text eol=lf
 deny.toml text eol=lf
 testdata/port/** text eol=lf
+# Framed MCP fixtures are Content-Length framed with intentional CRLF bytes;
+# normalization would corrupt the byte-exact parity contract.
+testdata/port/mcp/framed_initialize.in -text
+testdata/port/mcp/framed_initialize.out -text
