@@ -130,9 +130,9 @@ impl DispatchRuntime {
             | "forward" | "reload" | "scrollintoview" | "get.text" | "get.html" | "get.title"
             | "get.url" | "get.count" | "get.value" | "get.attr" | "get.box" | "get.styles"
             | "is.visible" | "is.enabled" | "is.checked" | "find" | "tabs.list" | "frames.list"
-            | "dialog" | "network.capture" | "network.offline" | "network.block" | "screenshot"
-            | "pdf" | "upload" | "a11y" | "cookies.get" | "cookies.set" | "storage.get"
-            | "storage.set" | "download" => self.browser_command(&frame).await,
+            | "frame.tree" | "dialog" | "network.capture" | "network.offline" | "network.block"
+            | "screenshot" | "pdf" | "upload" | "a11y" | "cookies.get" | "cookies.set"
+            | "storage.get" | "storage.set" | "download" => self.browser_command(&frame).await,
             "network.har" | "axe.audit" => Err(DaemonError {
                 code: "unsupported".into(),
                 message: format!("Chrome daemon does not implement {:?}", frame.cmd),
@@ -525,7 +525,9 @@ impl DispatchRuntime {
                 }
                 json!({"tabs": tabs, "active": page.target_id()})
             }
-            "frames.list" => json!({"frames": page.frames().await.map_err(runtime_error)?}),
+            "frames.list" | "frame.tree" => {
+                json!({"frames": page.frames().await.map_err(runtime_error)?})
+            }
             "a11y" => json!({"nodes": page.accessibility_tree().await.map_err(runtime_error)?}),
             "dialog" => {
                 let accept = args.get("accept").and_then(Value::as_bool).unwrap_or(false);
