@@ -139,6 +139,23 @@ results, all four representative workloads, p95 regression <=10%, and either
 invented by the portable runner; use the existing `portbench`/platform tools
 for that measurement.
 
+## Phase 2 paired benchmark evidence
+
+Evidence captured on `2026-09-08T14:04:57Z` from the clean local darwin/arm64
+worktree is stored in `port/results/rust016-benchmark-v2.json` (schema 2,
+30 raw samples per workload). The report binds both binary SHA-256 digests,
+source revision, fixture identity, cache policy, and nearest-rank p95 calculation.
+The semantic probe checks final URL, HTTP status, rendered body, document
+metadata, and error-shaped responses. Its deliberately fast `success=true` /
+wrong-title-and-body negative control was rejected for both binaries.
+
+The report's `compare.py` output is the canonical programmatic comparison and
+contains the four p95 ratios plus the independent fetch hard-gate result. The
+Rust release binary is 7,826,384 bytes versus Go's 18,264,882 bytes, so the
+binary-size value criterion is evidenced in the report. RUST-016 remains blocked
+because native release artifacts/signatures and the other release gates are not
+complete; this evidence does not authorize cutover.
+
 ## Remaining blockers
 
 1. Produce and verify Rust archives for all six targets with the exact binary
