@@ -127,6 +127,7 @@ async fn bidi_navigation_evaluation_and_cleanup_use_injected_transport() {
         .await
         .expect("navigate");
     assert_eq!(navigation.loader_id, "nav-1");
+    assert!(navigation.url.is_empty());
     let result: EvaluationResult = engine
         .evaluate(&page, "document.title")
         .await
@@ -139,7 +140,14 @@ async fn bidi_navigation_evaluation_and_cleanup_use_injected_transport() {
             .capabilities()
             .interfaces
             .iter()
-            .any(|name| name == "FrameManager")
+            .any(|name| name == "CookieEngine")
+    );
+    assert!(
+        engine
+            .capabilities()
+            .unsupported
+            .iter()
+            .any(|name| name == "FrameManager" || name == "TabManager" || name == "NetworkEvents")
     );
     assert!(engine.screenshot().is_err());
     engine.close().await.expect("close");
@@ -284,20 +292,29 @@ async fn bidi_protocol_errors_remain_typed() {
 }
 
 #[tokio::test]
-async fn real_safari_bidi_launch_is_opt_in() {
-    if std::env::var_os("SYMBROWSE_NATIVE_TARGETS").as_deref() != Some(std::ffi::OsStr::new("1")) {
-        return;
+async fn real_safari_bidi_launch_is_opt_in_or_reports_typed_blocked_gate() {
+    let result = BidiEngine::launch(DriverOptions {
+        ready_timeout: std::time::Duration::from_millis(100),
+        session_timeout: std::time::Duration::from_millis(100),
+        request_timeout: std::time::Duration::from_millis(100),
+        ..DriverOptions::default()
+    })
+    .await;
+    if std::env::var_os("SYMBROWSE_NATIVE_TARGETS").as_deref() == Some(std::ffi::OsStr::new("1")) {
+        let mut engine = result.expect("launch isolated safaridriver BiDi session");
+        let page = engine.new_page().expect("initial Safari automation page");
+        let title = engine
+            .evaluate(&page, "document.title")
+            .await
+            .expect("evaluate document.title in Safari")
+            .value
+            .expect("Safari returned a title value");
+        assert_eq!(title, "");
+        engine.close().await.expect("close isolated Safari session");
+    } else {
+        assert!(
+            matches!(result, Err(BidiError::Prerequisite { .. })),
+            "native gate must be typed, not skipped"
+        );
     }
-    let mut engine = BidiEngine::launch(DriverOptions::default())
-        .await
-        .expect("launch isolated safaridriver BiDi session");
-    let page = engine.new_page().expect("initial Safari automation page");
-    let title = engine
-        .evaluate(&page, "document.title")
-        .await
-        .expect("evaluate document.title in Safari")
-        .value
-        .expect("Safari returned a title value");
-    assert_eq!(title, "");
-    engine.close().await.expect("close isolated Safari session");
 }

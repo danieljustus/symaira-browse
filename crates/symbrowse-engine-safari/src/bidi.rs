@@ -16,7 +16,7 @@ use symbrowse_engine::{Context, EvaluationResult, NavigationResult, Page};
 use tokio::time::timeout;
 use url::Url;
 
-use crate::attach::NavigationPolicy;
+use crate::attach::{NavigationPolicy, SafariPrerequisite};
 
 pub const ENGINE_KIND: &str = "safari-bidi";
 pub const DRIVER_PATH: &str = "/usr/bin/safaridriver";
@@ -26,6 +26,10 @@ const MAX_CONNECT_ATTEMPTS: usize = 4;
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BidiError {
     Closed,
+    Prerequisite {
+        check: SafariPrerequisite,
+        message: String,
+    },
     NotLaunched,
     Unsupported {
         operation: String,
@@ -63,6 +67,9 @@ impl fmt::Display for BidiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Closed => f.write_str("safari-bidi engine: closed"),
+            Self::Prerequisite { check, message } => {
+                write!(f, "safari-bidi prerequisite {check}: {message}")
+            }
             Self::NotLaunched => f.write_str("safari-bidi engine: not launched"),
             Self::Unsupported { operation } => {
                 write!(f, "safari-bidi engine: unsupported operation: {operation}")
@@ -474,6 +481,12 @@ impl BidiEngine {
     ) -> Result<Self, BidiError> {
         let mut last_error = None;
         for _ in 0..MAX_CONNECT_ATTEMPTS {
+            if !options.driver_path.is_file() {
+                return Err(BidiError::Prerequisite {
+                    check: SafariPrerequisite::DriverUnavailable,
+                    message: format!("driver not found at {}", options.driver_path.display()),
+                });
+            }
             match launch_once(&options, process, connector).await {
                 Ok(mut session) => {
                     let tree = match session.command("browsingContext.getTree", json!({})).await {
@@ -558,6 +571,11 @@ impl BidiEngine {
                 frame_id: context,
                 loader_id: result
                     .get("navigation")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+                url: result
+                    .get("url")
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_owned(),
@@ -670,11 +688,10 @@ impl BidiEngine {
         let mut caps = capabilities_for(
             ENGINE_KIND,
             [
+                "CookieEngine",
                 "InspectionEngine",
+                "InteractionEngine",
                 "NavigationStateProvider",
-                "NetworkPolicyReporter",
-                "FrameManager",
-                "TabManager",
             ],
         );
         caps.launch_mode = "launch".to_owned();
@@ -742,7 +759,13 @@ async fn launch_once<P: ProcessAdapter, C: TransportConnector>(
         let mut child = child;
         let _ = child.kill();
         let _ = child.wait();
-        return Err(error);
+        return Err(match error {
+            BidiError::Timeout { timeout, .. } => BidiError::Prerequisite {
+                check: SafariPrerequisite::LoopbackSessionUnavailable,
+                message: format!("safaridriver did not become ready within {timeout:?}"),
+            },
+            other => other,
+        });
     }
     let response = match timeout(
         options.session_timeout,
@@ -764,9 +787,12 @@ async fn launch_once<P: ProcessAdapter, C: TransportConnector>(
         }
         Err(_) => {
             stop_process(&mut child);
-            return Err(BidiError::Timeout {
-                operation: "create safaridriver session".to_owned(),
-                timeout: options.session_timeout,
+            return Err(BidiError::Prerequisite {
+                check: SafariPrerequisite::RemoteAutomationDisabled,
+                message: format!(
+                    "safaridriver session creation timed out after {:?}",
+                    options.session_timeout
+                ),
             });
         }
     };
@@ -961,6 +987,16 @@ pub fn parse_session_response(status: u16, body: &Value) -> Result<SessionCapabi
 }
 
 fn session_creation_error(status: u16, code: &str, message: &str) -> BidiError {
+    if message.contains("remote automation")
+        || message.contains("Allow remote automation")
+        || message.contains("already running")
+        || message.contains("Cmd-Q")
+    {
+        return BidiError::Prerequisite {
+            check: SafariPrerequisite::RemoteAutomationDisabled,
+            message: format!("{message} (HTTP {status})"),
+        };
+    }
     if !message.contains("Request creation of a new automation session") {
         return BidiError::SessionNotCreated {
             code: code.to_owned(),

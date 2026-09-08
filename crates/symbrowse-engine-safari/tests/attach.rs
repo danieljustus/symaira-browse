@@ -73,6 +73,7 @@ fn attach_navigation_and_inspection_are_bounded_and_typed() {
     let page = engine.new_page(&engine.new_context().unwrap()).unwrap();
     let result = engine.navigate(&page, "https://example.test/").unwrap();
     assert_eq!(result.frame_id, "safari-live");
+    assert_eq!(result.url, "https://example.test/");
     let calls = runner.calls();
     assert!(calls[0].contains("set URL of its document"));
     assert!(
@@ -177,6 +178,48 @@ fn attach_policy_denies_before_script_runner_and_ssrf_fails_closed() {
         runner.calls().is_empty(),
         "resolution failure reached ScriptRunner"
     );
+}
+
+#[test]
+fn attach_prerequisites_are_distinct_and_never_enable_permissions() {
+    for (token, expected) in [
+        ("application_unavailable", "Safari application unavailable"),
+        (
+            "automation_permission_denied",
+            "Safari Automation permission denied",
+        ),
+        ("window_unavailable", "Safari selected window unavailable"),
+        ("tab_unavailable", "Safari selected tab unavailable"),
+    ] {
+        let engine = AttachEngine::new(FakeRunner::with_answer(token));
+        let error = engine
+            .check_prerequisites()
+            .expect_err("blocked prerequisite");
+        assert!(error.to_string().contains(expected));
+    }
+}
+
+#[test]
+fn attach_accepts_a_stable_redirect_url_and_times_out_unsettled_navigation() {
+    let redirect = FakeRunner::with_answer("\"https://example.test/final\"");
+    let engine = AttachEngine::new(redirect)
+        .with_navigation_timeout(Duration::from_millis(50))
+        .with_poll_interval(Duration::from_millis(1));
+    let page = engine.new_page(&engine.new_context().unwrap()).unwrap();
+    let result = engine
+        .navigate(&page, "https://example.test/start")
+        .unwrap();
+    assert_eq!(result.url, "https://example.test/final");
+
+    let hanging = FakeRunner::default();
+    let engine = AttachEngine::new(hanging)
+        .with_navigation_timeout(Duration::from_millis(10))
+        .with_poll_interval(Duration::from_millis(1));
+    let page = engine.new_page(&engine.new_context().unwrap()).unwrap();
+    assert!(matches!(
+        engine.navigate(&page, "https://example.test/start"),
+        Err(AttachError::NavigationDidNotSettle { .. })
+    ));
 }
 
 #[test]
