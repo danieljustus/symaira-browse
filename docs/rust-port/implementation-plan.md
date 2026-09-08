@@ -373,10 +373,12 @@ AppleScript attach boundary and an isolated safaridriver BiDi boundary. URL
 allowlist/SSRF checks run before navigation side effects; AppleScript travels
 through stdin; subprocess trees, input/output, BiDi commands and cleanup are
 bounded; and BiDi endpoints must be loopback `ws`/`wss` URLs without userinfo.
-Injected native tests cover lifecycle, policy, capabilities, protocol errors and
-descendant cleanup. A real Safari attach/BiDi session, Go-generated frame
-fixtures, CLI/daemon wiring and native amd64 macOS execution remain, so ENG-008
-stays `todo` and this item is not complete.
+Injected tests cover lifecycle, policy, capabilities, protocol errors and
+descendant cleanup. A real macOS Safari BiDi session now exercises navigation,
+evaluation, bounded cleanup, and the production daemon socket path without any
+Chrome fallback. A real Safari attach session, Go-generated frame fixtures, and
+native amd64 macOS execution remain, so ENG-008 stays `todo` and this item is
+not complete.
 
 **Files:**
 
