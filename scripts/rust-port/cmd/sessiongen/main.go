@@ -30,6 +30,8 @@ type fixture struct {
 	Snapshots    map[string]any       `json:"snapshots"`
 	Errors       map[string]hardStop  `json:"errors"`
 	Transitions  []session.Transition `json:"transitions"`
+	Families     []string             `json:"fixture_families"`
+	Runtime      map[string]any       `json:"runtime"`
 }
 
 func main() {
@@ -138,6 +140,13 @@ func generate() ([]byte, error) {
 		Snapshots:    snapshots,
 		Errors:       errorsByName,
 		Transitions:  transitions,
+		Families:     []string{"lifecycle", "journal-watch", "oob-notifier", "auth-runtime", "persistent-settings", "cookie-storage"},
+		Runtime: map[string]any{
+			"journal_watch": map[string]any{"cancelled": true, "timeout_is_deny": true},
+			"oob_notifier":  map[string]any{"program": "osascript", "credential_safe": true},
+			"auth":          map[string]any{"reference": "op://fixture/login", "replay": "hard_stop"},
+			"settings":      map[string]any{"persistent": true, "invalid_geo_rejected": true},
+		},
 	}
 	encoded, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
