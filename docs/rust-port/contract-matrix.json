@@ -710,7 +710,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FETCH-007",
@@ -722,7 +722,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FETCH-008",
@@ -734,7 +734,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "ENG-001",

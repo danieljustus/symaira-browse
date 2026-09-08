@@ -6,6 +6,7 @@ use symbrowse_fetch::{dom, relevance, render, semantic};
 struct Fixture {
     oracle_commit: String,
     generated_by: String,
+    comparison: std::collections::BTreeMap<String, String>,
     vectors: Vec<Vector>,
 }
 
@@ -33,6 +34,18 @@ fn go_generated_static_vectors_match() {
     assert_eq!(
         fixture.generated_by,
         "scripts/rust-port/fetch_fixture_gen.go"
+    );
+    assert_eq!(
+        fixture.comparison.get("FETCH-006"),
+        Some(&"bytes".to_string())
+    );
+    assert_eq!(
+        fixture.comparison.get("FETCH-007"),
+        Some(&"bytes".to_string())
+    );
+    assert_eq!(
+        fixture.comparison.get("FETCH-008"),
+        Some(&"json-semantic".to_string())
     );
     assert!(!fixture.vectors.is_empty());
     for vector in fixture.vectors {
