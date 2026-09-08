@@ -15,7 +15,9 @@ The first probe verified that a fixed loopback port is required: Firefox adverti
 the endpoint in its process output rather than `/json/version`. The adapter therefore
 allocates a free loopback port, waits for TCP readiness with a bounded timeout, and
 connects only to `127.0.0.1`. It sends `session.new`, `browsingContext.getTree`, and
-supports navigation and `script.evaluate`.
+supports navigation, `script.evaluate`, cookies/storage, click/type interactions,
+browsing-context tab/frame enumeration, and viewport PNG/JPEG screenshots. Downloads
+and response capture remain typed unsupported; no command claims those capabilities.
 
 Cleanup evidence: the probe used a unique temporary profile, sent termination to the
 owned process group, waited for the direct child, and removed only that profile. The

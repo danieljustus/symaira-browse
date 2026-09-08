@@ -130,7 +130,8 @@ impl DispatchRuntime {
             | "get.html" | "get.title" | "get.url" | "get.count" | "get.value" | "get.attr"
             | "get.box" | "get.styles" | "is.visible" | "is.enabled" | "is.checked" | "find"
             | "tabs.list" | "frames.list" | "dialog" | "network.capture" | "network.offline"
-            | "network.block" | "screenshot" | "pdf" | "upload" | "a11y" => {
+            | "network.block" | "screenshot" | "pdf" | "upload" | "a11y" | "cookies.get"
+            | "cookies.set" | "storage.get" | "storage.set" | "download" => {
                 self.browser_command(&frame).await
             }
             "network.har" | "axe.audit" => Err(DaemonError {
@@ -940,6 +941,86 @@ impl DispatchRuntime {
                     Vec::new(),
                 ))
             }
+            "cookies.get" => Ok((
+                Some(session.cookies().await.map_err(runtime_error)?),
+                Vec::new(),
+            )),
+            "cookies.set" => {
+                let cookie = args
+                    .get("cookie")
+                    .cloned()
+                    .ok_or_else(|| malformed("cookies.set requires cookie"))?;
+                Ok((
+                    Some(session.set_cookie(cookie).await.map_err(runtime_error)?),
+                    Vec::new(),
+                ))
+            }
+            "storage.get" => {
+                let value = session
+                    .evaluate("JSON.stringify({local_storage:Object.fromEntries(Object.entries(localStorage)),session_storage:Object.fromEntries(Object.entries(sessionStorage))})")
+                    .await
+                    .map_err(runtime_error)?;
+                let data = value
+                    .value
+                    .and_then(|value| value.as_str().map(str::to_owned))
+                    .ok_or_else(|| runtime_error("Firefox storage capture returned no JSON"))?;
+                let data = serde_json::from_str(&data).map_err(runtime_error)?;
+                Ok((Some(data), Vec::new()))
+            }
+            "storage.set" => {
+                let local = args
+                    .get("local_storage")
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                let session_storage = args
+                    .get("session_storage")
+                    .cloned()
+                    .unwrap_or_else(|| json!({}));
+                let local = serde_json::to_string(&local).map_err(runtime_error)?;
+                let session_storage =
+                    serde_json::to_string(&session_storage).map_err(runtime_error)?;
+                let expression = format!(
+                    "(() => {{ for (const [k,v] of Object.entries({local})) localStorage.setItem(k,v); for (const [k,v] of Object.entries({session_storage})) sessionStorage.setItem(k,v); return true; }})()"
+                );
+                let value = session.evaluate(&expression).await.map_err(runtime_error)?;
+                Ok((Some(value.value.unwrap_or(Value::Null)), Vec::new()))
+            }
+            "click" | "type" | "fill" => {
+                let selector = args
+                    .get("selector")
+                    .and_then(Value::as_str)
+                    .unwrap_or("body");
+                let value = args.get("value").and_then(Value::as_str);
+                let data = session
+                    .interact(frame.cmd.as_str(), selector, value)
+                    .await
+                    .map_err(runtime_error)?;
+                Ok((Some(data), Vec::new()))
+            }
+            "tabs.list" | "frames.list" => {
+                let tree = session.browsing_contexts().await.map_err(runtime_error)?;
+                Ok((
+                    Some(if frame.cmd == "tabs.list" {
+                        json!({"tabs":tree.get("contexts").cloned().unwrap_or(Value::Array(Vec::new()))})
+                    } else {
+                        json!({"frames":tree.get("contexts").cloned().unwrap_or(Value::Array(Vec::new()))})
+                    }),
+                    Vec::new(),
+                ))
+            }
+            "screenshot" => {
+                let format = args.get("format").and_then(Value::as_str).unwrap_or("png");
+                Ok((
+                    Some(session.screenshot(format).await.map_err(runtime_error)?),
+                    Vec::new(),
+                ))
+            }
+            "network.capture" | "download" | "network.har" => Err(DaemonError {
+                code: "unsupported".into(),
+                message: format!("Firefox does not implement {:?}", frame.cmd),
+                hint: "the operation is explicitly unsupported by this engine".into(),
+                ..Default::default()
+            }),
             _ => Err(DaemonError {
                 code: "unsupported".into(),
                 message: format!("Firefox does not implement {:?}", frame.cmd),

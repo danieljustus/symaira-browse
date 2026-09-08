@@ -324,6 +324,7 @@ rust-browser-contract:
 	python3 scripts/rust-port/browser_fixture_gen.py --suite all --check
 	$(CARGO) test -p symbrowse-engine-chrome --test contract_fixture --locked
 	$(CARGO) test -p symbrowse-engine-safari --test contract_fixture --locked
+	$(CARGO) test -p symbrowse-engine-firefox --lib --locked
 
 rust-native-browser-contract:
 	python3 port/harness/run.py --suite all --native-targets
