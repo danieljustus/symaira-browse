@@ -157,7 +157,7 @@
         "DMN-008",
         "MCP-006"
       ],
-      "status": "in_progress",
+      "status": "complete",
       "acceptance_commands": [
         "cargo nextest run -p symbrowse-daemon",
         "python3 port/harness/run.py --suite daemon",

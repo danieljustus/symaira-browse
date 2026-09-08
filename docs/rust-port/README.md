@@ -1,6 +1,6 @@
 # Go→Rust migration handoff
 
-Status: **migration started; RUST-001/002/003/004/005 complete, RUST-006/010 in progress, RUST-011 spike verified early, no cutover approval**.
+Status: **migration started; RUST-001/002/003/004/005/006 complete, RUST-010 in progress, RUST-011 spike verified early, no cutover approval**.
 
 This directory freezes the starting point for a contract-first Rust port of
 `symaira-browse`. The Go implementation remains the executable oracle until
