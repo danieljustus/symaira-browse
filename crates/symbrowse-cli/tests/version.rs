@@ -47,6 +47,24 @@ fn root_version_flags_match_go_contract() {
 }
 
 #[test]
+fn adopted_version_renderers_preserve_fixture_bytes() {
+    let cases = [
+        (&["version"][..], b"symbrowse dev\n" as &[u8]),
+        (
+            &["version", "--json"][..],
+            b"{\"tool\":\"symbrowse\",\"version\":\"dev\",\"schema_version\":8}\n",
+        ),
+        (&["--version"][..], b"symbrowse version dev\n"),
+    ];
+    for (args, expected) in cases {
+        let output = run(args);
+        assert_eq!(output.status.code(), Some(0), "args={args:?}");
+        assert_eq!(output.stdout, expected, "args={args:?}");
+        assert!(output.stderr.is_empty(), "args={args:?}");
+    }
+}
+
+#[test]
 fn invalid_output_and_extra_arguments_match_go_contract() {
     let output = run(&["version", "--output", "wat"]);
     assert_eq!(output.status.code(), Some(2));
