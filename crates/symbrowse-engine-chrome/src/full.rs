@@ -829,6 +829,16 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn canonical_capabilities_partition_matches_daemon_commands() {
+        let value = crate::canonical_capabilities();
+        assert!(value.interfaces.contains(&"TabManager".to_owned()));
+        assert!(value.interfaces.contains(&"FileTransfer".to_owned()));
+        assert!(value.unsupported.contains(&"A11yAuditor".to_owned()));
+        assert!(value.unsupported.contains(&"SettingsEngine".to_owned()));
+        assert!(!value.interfaces.iter().any(|name| name == "HAR"));
+    }
+
+    #[test]
     fn capabilities_are_explicit_and_sorted_with_unsupported_features() {
         let value = capabilities();
         assert_eq!(value.interactions.len(), 11);
