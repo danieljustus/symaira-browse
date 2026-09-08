@@ -3,6 +3,7 @@ SHELL := /bin/sh
 BINARY := symbrowse
 VERSION ?= $(shell git describe --tags --abbrev=0 2>/dev/null || echo 0.1.1)
 GO ?= go
+PYTHON ?= python3
 CARGO ?= cargo
 # Match the toolchain CI formats with, so gofmt output cannot differ by host.
 GO_VERSION := $(shell awk '$$1 == "go" { print $$2; exit }' go.mod)
@@ -10,7 +11,7 @@ CGO_ENABLED ?= 0
 GOFLAGS ?=
 LDFLAGS ?= -s -w -X main.version=$(VERSION)
 
-.PHONY: build test test-race lint fmt-check clean port-oracle-build port-fixture-source-check port-core-fixtures-generate port-core-fixtures-check port-config-fixtures-generate port-config-fixtures-check port-policy-fixtures-generate port-policy-fixtures-check port-state-fixtures-generate port-state-fixtures-check port-mcp-fixtures-generate port-mcp-fixtures-check port-engine-fixtures-generate port-engine-fixtures-check port-injection-fixtures-generate port-injection-fixtures-check port-fetch-static-fixtures-generate port-fetch-static-fixtures-check port-fetch-control-fixtures-generate port-fetch-control-fixtures-check port-session-fixture-generate port-session-fixture-check port-workflow-fixture-generate port-workflow-fixture-check port-daemon-fixture-generate port-daemon-fixture-check differential-go-selftest port-benchmark port-value-signal port-contract rust-build rust-check rust-lint rust-test rust-features rust-security rust-version-contract rust-core-contract rust-policy-contract rust-state-contract rust-mcp-contract rust-engine-contract rust-injection-contract rust-fetch-static-slice rust-fetch-contract rust-session-contract rust-workflow-slice rust-safari-slice rust-browser-contract rust-native-browser-contract rust-daemon-contract rust-cdp-spike rust-miri rust-fuzz-smoke rust-inventory rust-hardening rust-release-gates rust-gates
+.PHONY: build test test-race lint fmt-check clean port-oracle-build port-oracle-build-test port-fixture-source-check port-core-fixtures-generate port-core-fixtures-check port-config-fixtures-generate port-config-fixtures-check port-policy-fixtures-generate port-policy-fixtures-check port-state-fixtures-generate port-state-fixtures-check port-mcp-fixtures-generate port-mcp-fixtures-check port-engine-fixtures-generate port-engine-fixtures-check port-injection-fixtures-generate port-injection-fixtures-check port-fetch-static-fixtures-generate port-fetch-static-fixtures-check port-fetch-control-fixtures-generate port-fetch-control-fixtures-check port-session-fixture-generate port-session-fixture-check port-workflow-fixture-generate port-workflow-fixture-check port-daemon-fixture-generate port-daemon-fixture-check differential-go-selftest port-benchmark port-value-signal port-contract rust-build rust-check rust-lint rust-test rust-features rust-security rust-version-contract rust-core-contract rust-policy-contract rust-state-contract rust-mcp-contract rust-engine-contract rust-injection-contract rust-fetch-static-slice rust-fetch-contract rust-session-contract rust-workflow-slice rust-safari-slice rust-browser-contract rust-native-browser-contract rust-daemon-contract rust-cdp-spike rust-miri rust-fuzz-smoke rust-inventory rust-hardening rust-release-gates rust-gates
 
 PORT_ORACLE_COMMIT := 652453d1595fc302bd69c328e7da8a21dbee28b9
 PORT_ORACLE_RELEASE := v0.8.0
@@ -74,31 +75,16 @@ fmt-check:
 	fi
 
 # Build the pinned Go implementation used as the external Rust-port oracle.
-# Migration-only files may change, but production Go inputs must still match
-# the pinned commit until their contracts are deliberately re-frozen.
+# The helper creates a temporary detached worktree and isolated Go cache; the
+# active checkout is never changed.
 port-oracle-build:
-	@git cat-file -e "$(PORT_ORACLE_COMMIT)^{commit}" 2>/dev/null || { \
-		printf '%s\n' 'pinned Go oracle commit $(PORT_ORACLE_COMMIT) is unavailable'; \
-		exit 1; \
-	}
-	@set -eu; \
-		root="$$(pwd)"; worktree="$(PORT_ORACLE_WORKTREE)"; \
-		if [ -e "$$worktree" ]; then \
-			git -C "$$worktree" rev-parse --is-inside-work-tree >/dev/null 2>&1 || { printf '%s\n' "refusing to remove non-worktree $$worktree"; exit 1; }; \
-			test -z "$$(git -C "$$worktree" symbolic-ref -q HEAD || true)" || { printf '%s\n' "refusing to remove branch worktree $$worktree"; exit 1; }; \
-			test "$$(git -C "$$worktree" rev-parse HEAD)" = "$(PORT_ORACLE_COMMIT)" || { printf '%s\n' "refusing to remove worktree at another commit $$worktree"; exit 1; }; \
-			test -z "$$(git -C "$$worktree" status --porcelain --untracked-files=all)" || { printf '%s\n' "refusing to remove dirty worktree $$worktree"; exit 1; }; \
-			git worktree remove "$$worktree"; \
-		fi; \
-		git worktree add --detach "$$worktree" $(PORT_ORACLE_COMMIT) >/dev/null; \
-		trap 'git worktree remove "$$worktree" >/dev/null 2>&1 || true' EXIT HUP INT TERM; \
-		test -z "$$(git -C "$$worktree" status --porcelain --untracked-files=all)"; \
-		mkdir -p "$$root/target/port"; \
-		cd "$$worktree"; \
-		GOTOOLCHAIN=go$(GO_VERSION) CGO_ENABLED=0 $(GO) build -trimpath \
-			-ldflags "-s -w -X main.version=$(PORT_ORACLE_RELEASE)" \
-			-o "$$root/$(PORT_GO_BINARY)" ./cmd/symbrowse; \
-		test -z "$$(git status --porcelain --untracked-files=all)"
+	$(PYTHON) scripts/rust-port/pinned_oracle_build.py \
+		--repo "$(CURDIR)" --commit "$(PORT_ORACLE_COMMIT)" \
+		--release "$(PORT_ORACLE_RELEASE)" --output "$(CURDIR)/$(PORT_GO_BINARY)" \
+		--go "$(GO)" --go-version "$(GO_VERSION)"
+
+port-oracle-build-test:
+	$(PYTHON) scripts/rust-port/test_pinned_oracle_build.py
 
 differential-go-selftest: port-oracle-build
 	GOTOOLCHAIN=go$(GO_VERSION) CGO_ENABLED=0 $(GO) run ./scripts/rust-port/cmd/diffharness \
