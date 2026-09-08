@@ -332,7 +332,7 @@
         "SES-006",
         "STATE-006"
       ],
-      "status": "blocked",
+      "status": "complete",
       "acceptance_commands": [
         "cargo nextest run --workspace",
         "python3 port/harness/run.py --suite workflows"
