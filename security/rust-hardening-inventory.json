@@ -975,6 +975,11 @@
       "source": "workspace"
     },
     {
+      "name": "symbrowse-compat",
+      "version": "0.0.0",
+      "source": "workspace"
+    },
+    {
       "name": "symbrowse-core",
       "version": "0.0.0",
       "source": "workspace"
@@ -991,6 +996,11 @@
     },
     {
       "name": "symbrowse-engine-chrome",
+      "version": "0.0.0",
+      "source": "workspace"
+    },
+    {
+      "name": "symbrowse-engine-firefox",
       "version": "0.0.0",
       "source": "workspace"
     },
@@ -1655,10 +1665,12 @@
     "string_cache_codegen",
     "subtle",
     "symbrowse-cli",
+    "symbrowse-compat",
     "symbrowse-core",
     "symbrowse-daemon",
     "symbrowse-engine",
     "symbrowse-engine-chrome",
+    "symbrowse-engine-firefox",
     "symbrowse-engine-safari",
     "symbrowse-fetch",
     "symbrowse-mcp",

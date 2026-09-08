@@ -1820,6 +1820,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
+name = "symbrowse-compat"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "symbrowse-core"
 version = "0.0.0"
 dependencies = [
@@ -1846,9 +1855,11 @@ dependencies = [
  "nix",
  "serde",
  "serde_json",
+ "symbrowse-compat",
  "symbrowse-core",
  "symbrowse-engine",
  "symbrowse-engine-chrome",
+ "symbrowse-engine-firefox",
  "symbrowse-engine-safari",
  "symbrowse-fetch",
  "time",
@@ -1876,6 +1887,18 @@ dependencies = [
  "serde_json",
  "symbrowse-engine",
  "tokio",
+]
+
+[[package]]
+name = "symbrowse-engine-firefox"
+version = "0.0.0"
+dependencies = [
+ "async-tungstenite",
+ "futures-util",
+ "serde_json",
+ "symbrowse-engine",
+ "tokio",
+ "url",
 ]
 
 [[package]]
