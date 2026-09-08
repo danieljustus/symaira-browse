@@ -45,6 +45,13 @@ pub struct DispatchRuntime {
 struct BrowserState {
     session: Arc<ChromeSession>,
     page: ChromePage,
+    tabs: Vec<BrowserTab>,
+}
+
+#[derive(Clone)]
+struct BrowserTab {
+    label: String,
+    page: ChromePage,
 }
 
 impl DispatchRuntime {
@@ -129,10 +136,11 @@ impl DispatchRuntime {
             | "press" | "focus" | "hover" | "select" | "check" | "uncheck" | "wait" | "back"
             | "forward" | "reload" | "scrollintoview" | "get.text" | "get.html" | "get.title"
             | "get.url" | "get.count" | "get.value" | "get.attr" | "get.box" | "get.styles"
-            | "is.visible" | "is.enabled" | "is.checked" | "find" | "tabs.list" | "frames.list"
-            | "frame.tree" | "dialog" | "network.capture" | "network.offline" | "network.block"
-            | "screenshot" | "pdf" | "upload" | "a11y" | "cookies.get" | "cookies.set"
-            | "storage.get" | "storage.set" | "download" => self.browser_command(&frame).await,
+            | "is.visible" | "is.enabled" | "is.checked" | "find" | "tabs.list" | "tab.list"
+            | "tab.new" | "tab.switch" | "tab.close" | "frames.list" | "frame.tree" | "dialog"
+            | "network.capture" | "network.offline" | "network.block" | "screenshot" | "pdf"
+            | "upload" | "a11y" | "cookies.get" | "cookies.set" | "storage.get" | "storage.set"
+            | "download" => self.browser_command(&frame).await,
             "network.har" | "axe.audit" => Err(DaemonError {
                 code: "unsupported".into(),
                 message: format!("Chrome daemon does not implement {:?}", frame.cmd),
@@ -507,23 +515,81 @@ impl DispatchRuntime {
         let page = self.ensure_browser().await?;
         let args = object_args(frame)?;
         let data = match frame.cmd.as_str() {
-            "tabs.list" => {
-                let session = {
-                    self.browser
+            "tabs.list" | "tab.list" => {
+                let (tabs, active_id) = {
+                    let guard = self
+                        .browser
                         .lock()
-                        .map_err(|_| runtime_error("browser lock poisoned"))?
+                        .map_err(|_| runtime_error("browser lock poisoned"))?;
+                    let browser = guard
                         .as_ref()
-                        .ok_or_else(|| runtime_error("browser was not initialized"))?
-                        .session
-                        .clone()
+                        .ok_or_else(|| runtime_error("browser was not initialized"))?;
+                    (browser.tabs.clone(), browser.page.target_id())
                 };
-                let pages = session.pages().await.map_err(runtime_error)?;
-                let mut tabs = Vec::with_capacity(pages.len());
-                for tab in pages {
-                    let url = tab.inspect("body", "url").await.map_err(runtime_error)?;
-                    tabs.push(json!({"id": tab.target_id(), "url": url, "active": tab.target_id() == page.target_id()}));
+                let mut listed = Vec::with_capacity(tabs.len());
+                let mut active = String::new();
+                for (index, tab) in tabs.into_iter().enumerate() {
+                    let id = format!("t{}", index + 1);
+                    let is_active = tab.page.target_id() == active_id;
+                    if is_active {
+                        active = id.clone();
+                    }
+                    let url = tab
+                        .page
+                        .inspect("body", "url")
+                        .await
+                        .map_err(runtime_error)?;
+                    listed.push(
+                        json!({"id": id, "label": tab.label, "url": url, "active": is_active}),
+                    );
                 }
-                json!({"tabs": tabs, "active": page.target_id()})
+                json!({"tabs": listed, "active": active})
+            }
+            "tab.new" => {
+                let session = self.chrome_session()?;
+                let url = args
+                    .get("url")
+                    .and_then(Value::as_str)
+                    .unwrap_or("about:blank");
+                let page = session.new_page(url).await.map_err(runtime_error)?;
+                let label = args.get("label").and_then(Value::as_str).unwrap_or("");
+                let mut guard = self
+                    .browser
+                    .lock()
+                    .map_err(|_| runtime_error("browser lock poisoned"))?;
+                let browser = guard
+                    .as_mut()
+                    .ok_or_else(|| runtime_error("browser was not initialized"))?;
+                let index = browser.tabs.len() + 1;
+                let label = if label.is_empty() {
+                    format!("t{index}")
+                } else {
+                    label.to_owned()
+                };
+                browser.tabs.push(BrowserTab {
+                    label: label.clone(),
+                    page: page.clone(),
+                });
+                browser.page = page;
+                json!({"tab": format!("t{index}"), "label": label})
+            }
+            "tab.switch" => {
+                let target = required_string(args, "tab")?;
+                let (index, tab) = self.chrome_tab(target)?;
+                tab.page
+                    .raw()
+                    .bring_to_front()
+                    .await
+                    .map_err(runtime_error)?;
+                let mut guard = self
+                    .browser
+                    .lock()
+                    .map_err(|_| runtime_error("browser lock poisoned"))?;
+                guard
+                    .as_mut()
+                    .ok_or_else(|| runtime_error("browser was not initialized"))?
+                    .page = tab.page;
+                json!({"tab": format!("t{}", index + 1), "label": tab.label})
             }
             "frames.list" | "frame.tree" => {
                 json!({"frames": page.frames().await.map_err(runtime_error)?})
@@ -1087,6 +1153,43 @@ impl DispatchRuntime {
         }
     }
 
+    fn chrome_session(&self) -> Result<Arc<ChromeSession>, DaemonError> {
+        Ok(self
+            .browser
+            .lock()
+            .map_err(|_| runtime_error("browser lock poisoned"))?
+            .as_ref()
+            .ok_or_else(|| runtime_error("browser was not initialized"))?
+            .session
+            .clone())
+    }
+
+    fn chrome_tab(&self, target: &str) -> Result<(usize, BrowserTab), DaemonError> {
+        let target = target.trim().trim_start_matches('@');
+        let browser = self
+            .browser
+            .lock()
+            .map_err(|_| runtime_error("browser lock poisoned"))?;
+        let browser = browser
+            .as_ref()
+            .ok_or_else(|| runtime_error("browser was not initialized"))?;
+        if let Some(index) = target
+            .strip_prefix('t')
+            .and_then(|value| value.parse::<usize>().ok())
+            .and_then(|index| index.checked_sub(1))
+            && let Some(tab) = browser.tabs.get(index)
+        {
+            return Ok((index, tab.clone()));
+        }
+        browser
+            .tabs
+            .iter()
+            .enumerate()
+            .find(|(_, tab)| tab.label == target)
+            .map(|(index, tab)| (index, tab.clone()))
+            .ok_or_else(|| runtime_error(format!("tab {target:?} not found")))
+    }
+
     async fn ensure_browser(&self) -> Result<ChromePage, DaemonError> {
         {
             let guard = self
@@ -1126,7 +1229,11 @@ impl DispatchRuntime {
         }
         *guard = Some(BrowserState {
             session: Arc::new(session),
-            page,
+            page: page.clone(),
+            tabs: vec![BrowserTab {
+                label: "t1".into(),
+                page,
+            }],
         });
         Ok(result)
     }

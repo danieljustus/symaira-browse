@@ -94,6 +94,33 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
         .collect::<Vec<_>>();
     assert_eq!(active.len(), 1, "tabs response: {tabs}");
     assert_eq!(tabs["data"]["active"], active[0]["id"]);
+    let created = request(
+        &socket,
+        "tab.new",
+        json!({"label":"second","url":"data:text/html,<h1>second</h1>"}),
+    );
+    assert_eq!(created["success"], true, "tab.new response: {created}");
+    assert_eq!(created["data"]["tab"], "t2");
+    assert_eq!(created["data"]["label"], "second");
+    let listed_tabs = request(&socket, "tab.list", json!({}));
+    assert_eq!(
+        listed_tabs["success"], true,
+        "tab.list response: {listed_tabs}"
+    );
+    assert_eq!(
+        listed_tabs["data"]["tabs"].as_array().map(Vec::len),
+        Some(2)
+    );
+    assert_eq!(listed_tabs["data"]["active"], "t2");
+    let switched = request(&socket, "tab.switch", json!({"tab":"t1"}));
+    assert_eq!(switched["success"], true, "tab.switch response: {switched}");
+    let original = request(&socket, "read", json!({}));
+    assert!(
+        original["data"]
+            .as_str()
+            .is_some_and(|text| text.contains("native")),
+        "switched tab read: {original}"
+    );
     let framed = request(
         &socket,
         "open",
