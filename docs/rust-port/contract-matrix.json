@@ -498,7 +498,7 @@
       "platforms": [
         "all"
       ],
-      "status": "fixture-ready"
+      "status": "parity"
     },
     {
       "id": "SEC-001",
@@ -902,7 +902,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FLOW-002",
@@ -914,7 +914,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FLOW-003",
@@ -926,7 +926,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "FLOW-004",
@@ -938,7 +938,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "SES-001",
@@ -950,7 +950,7 @@
       "platforms": [
         "all"
       ],
-      "status": "fixture-ready",
+      "status": "parity",
       "rust_test": "crates/symbrowse-core/tests/session_lifecycle.rs"
     },
     {
@@ -963,7 +963,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "SES-003",
@@ -975,7 +975,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "SES-004",
@@ -987,7 +987,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "SES-005",
@@ -999,7 +999,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "SES-006",
@@ -1011,7 +1011,7 @@
       "platforms": [
         "all"
       ],
-      "status": "todo"
+      "status": "parity"
     },
     {
       "id": "REL-001",

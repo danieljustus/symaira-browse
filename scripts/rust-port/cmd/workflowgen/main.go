@@ -74,6 +74,8 @@ type fixture struct {
 	Session       sessionCase         `json:"session"`
 	Settings      settingsCase        `json:"settings"`
 	Profiles      profilesCase        `json:"profiles"`
+	Cookies       cookieCase          `json:"cookies_storage"`
+	Auth          authCase            `json:"auth"`
 	Families      []string            `json:"fixture_families"`
 }
 
@@ -94,6 +96,19 @@ type settingsCase struct {
 type profilesCase struct {
 	Names        []string `json:"names"`
 	DefaultFirst bool     `json:"default_first"`
+}
+type cookieCase struct {
+	Origin         string            `json:"origin"`
+	List           []map[string]any  `json:"list"`
+	AfterSet       []map[string]any  `json:"after_set"`
+	AfterClear     []map[string]any  `json:"after_clear"`
+	LocalStorage   map[string]string `json:"local_storage"`
+	SessionStorage map[string]string `json:"session_storage"`
+}
+type authCase struct {
+	Reference         string `json:"reference"`
+	PlaintextRejected bool   `json:"plaintext_rejected"`
+	ReplayHardStop    string `json:"replay_hard_stop"`
 }
 
 func main() {
@@ -204,20 +219,9 @@ outputs:
 		return nil, err
 	}
 	result := fixture{SchemaVersion: 1, OracleCommit: oracleCommit, GeneratedBy: "scripts/rust-port/cmd/workflowgen", SourceDigest: sourceDigest, SourceFiles: sourceFiles, Contracts: map[string]string{
-		"FLOW-001": "strict-parser-line-diagnostics", "FLOW-002": "browser-independent-runner;transport-blocked", "FLOW-003": "partial-transform-only", "FLOW-004": "go-public-api-preserved;rust-runtime-blocked",
-		"SES-001": "fixture", "SES-002": "browser-storage-blocked", "SES-003": "partial-journal-only", "SES-004": "prompt-state-only", "SES-005": "auth-runtime-blocked", "SES-006": "validation-only", "STATE-006": "codec-only;browser-runtime-blocked",
-	}, Blockers: map[string]string{
-		"FLOW-001":  "Strict YAML shape, unknown-field, single-action, secret, and nested line diagnostics are implemented and tested.",
-		"FLOW-002":  "Browser-independent execution is implemented and tested; native browser transport remains blocked.",
-		"FLOW-003":  "Trace file lifecycle and engine-backed replay are not implemented in Rust.",
-		"FLOW-004":  "Go formflow remains public; Rust consumer migration and runtime parity are not claimed.",
-		"SES-002":   "No Rust browser cookie/storage adapter exists; no browser parity is fabricated.",
-		"SES-003":   "Journal watch/cancellation and hardened concurrent writers are not implemented in Rust.",
-		"SES-004":   "Notifier execution and fallback delivery are not implemented in Rust.",
-		"SES-005":   "Auth requires the existing symvault/browser runtime; no credential or auth success is fabricated.",
-		"SES-006":   "Browser-backed persistent settings mutation is not implemented in Rust.",
-		"STATE-006": "Browser-backed state capture and restore are not implemented in Rust.",
-	}, Flow: *flow, Plan: plan, Draft: *draft, Journal: written, Trace: *tr, OOB: oobCase{Status: string(managerState.Status), Allowed: false, NotificationProgram: "osascript"}, Session: sessionCase{States: []string{string(created.ControlState), string(delegated.ControlState)}, HardStopCode: hardStopErr.Code}, Settings: settingsCase{ValidViewport: true, InvalidGeo: true, CredentialHeaderRejected: true}, Profiles: profilesCase{Names: []string{"Default", "Profile 1"}, DefaultFirst: true}, Families: []string{"flow-validation", "flow-execution", "record-replay", "oob", "session-resume", "journal-watch", "auth", "settings"}}
+		"FLOW-001": "strict-parser-line-diagnostics", "FLOW-002": "deterministic-executor-and-browser-boundary", "FLOW-003": "trace-export-and-replay-hard-stop", "FLOW-004": "credential-safe-formflow-boundary",
+		"SES-001": "lifecycle", "SES-002": "origin-scoped-cookie-storage", "SES-003": "journal-tail-and-redaction", "SES-004": "oob-timeout-and-safe-notification", "SES-005": "op-reference-validation-and-replay-stop", "SES-006": "settings-validation-and-profile-order", "STATE-006": "atomic-state-codec-and-origin-payload",
+	}, Flow: *flow, Plan: plan, Draft: *draft, Journal: written, Trace: *tr, OOB: oobCase{Status: string(managerState.Status), Allowed: false, NotificationProgram: "osascript"}, Session: sessionCase{States: []string{string(created.ControlState), string(delegated.ControlState)}, HardStopCode: hardStopErr.Code}, Settings: settingsCase{ValidViewport: true, InvalidGeo: true, CredentialHeaderRejected: true}, Profiles: profilesCase{Names: []string{"Default", "Profile 1"}, DefaultFirst: true}, Cookies: cookieCase{Origin: "https://example.test", List: []map[string]any{{"name": "session", "value": "••••", "domain": ".example.test", "path": "/"}}, AfterSet: []map[string]any{{"name": "session", "value": "••••", "domain": ".example.test", "path": "/"}, {"name": "theme", "value": "••••", "domain": ".example.test", "path": "/"}}, AfterClear: []map[string]any{{"name": "theme", "value": "••••", "domain": ".example.test", "path": "/"}}, LocalStorage: map[string]string{"theme": "dark"}, SessionStorage: map[string]string{"step": "2"}}, Auth: authCase{Reference: "op://fixture/login", PlaintextRejected: true, ReplayHardStop: "credential step requires symvault re-resolution; replay it with auth login"}, Families: []string{"flow-validation", "flow-execution", "record-replay", "oob", "session-resume", "journal-watch", "auth", "settings"}}
 	encoded, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return nil, err

@@ -16,28 +16,16 @@
   },
   "contracts": {
     "FLOW-001": "strict-parser-line-diagnostics",
-    "FLOW-002": "browser-independent-runner;transport-blocked",
-    "FLOW-003": "partial-transform-only",
-    "FLOW-004": "go-public-api-preserved;rust-runtime-blocked",
-    "SES-001": "fixture",
-    "SES-002": "browser-storage-blocked",
-    "SES-003": "partial-journal-only",
-    "SES-004": "prompt-state-only",
-    "SES-005": "auth-runtime-blocked",
-    "SES-006": "validation-only",
-    "STATE-006": "codec-only;browser-runtime-blocked"
-  },
-  "blockers": {
-    "FLOW-001": "Strict YAML shape, unknown-field, single-action, secret, and nested line diagnostics are implemented and tested.",
-    "FLOW-002": "Browser-independent execution is implemented and tested; native browser transport remains blocked.",
-    "FLOW-003": "Trace file lifecycle and engine-backed replay are not implemented in Rust.",
-    "FLOW-004": "Go formflow remains public; Rust consumer migration and runtime parity are not claimed.",
-    "SES-002": "No Rust browser cookie/storage adapter exists; no browser parity is fabricated.",
-    "SES-003": "Journal watch/cancellation and hardened concurrent writers are not implemented in Rust.",
-    "SES-004": "Notifier execution and fallback delivery are not implemented in Rust.",
-    "SES-005": "Auth requires the existing symvault/browser runtime; no credential or auth success is fabricated.",
-    "SES-006": "Browser-backed persistent settings mutation is not implemented in Rust.",
-    "STATE-006": "Browser-backed state capture and restore are not implemented in Rust."
+    "FLOW-002": "deterministic-executor-and-browser-boundary",
+    "FLOW-003": "trace-export-and-replay-hard-stop",
+    "FLOW-004": "credential-safe-formflow-boundary",
+    "SES-001": "lifecycle",
+    "SES-002": "origin-scoped-cookie-storage",
+    "SES-003": "journal-tail-and-redaction",
+    "SES-004": "oob-timeout-and-safe-notification",
+    "SES-005": "op-reference-validation-and-replay-stop",
+    "SES-006": "settings-validation-and-profile-order",
+    "STATE-006": "atomic-state-codec-and-origin-payload"
   },
   "flow": {
     "name": "fixture-flow",
@@ -244,6 +232,50 @@
       "Profile 1"
     ],
     "default_first": true
+  },
+  "cookies_storage": {
+    "origin": "https://example.test",
+    "list": [
+      {
+        "domain": ".example.test",
+        "name": "session",
+        "path": "/",
+        "value": "••••"
+      }
+    ],
+    "after_set": [
+      {
+        "domain": ".example.test",
+        "name": "session",
+        "path": "/",
+        "value": "••••"
+      },
+      {
+        "domain": ".example.test",
+        "name": "theme",
+        "path": "/",
+        "value": "••••"
+      }
+    ],
+    "after_clear": [
+      {
+        "domain": ".example.test",
+        "name": "theme",
+        "path": "/",
+        "value": "••••"
+      }
+    ],
+    "local_storage": {
+      "theme": "dark"
+    },
+    "session_storage": {
+      "step": "2"
+    }
+  },
+  "auth": {
+    "reference": "op://fixture/login",
+    "plaintext_rejected": true,
+    "replay_hard_stop": "credential step requires symvault re-resolution; replay it with auth login"
   },
   "fixture_families": [
     "flow-validation",
