@@ -4,6 +4,10 @@ set -euo pipefail
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 toolchain=${MIRI_TOOLCHAIN:-nightly}
+# Miri artifacts are not ABI-compatible with the normal Rust target tree.
+# Keep them separate so a preceding cargo test cannot make dependency metadata
+# look resolved while Miri fails to link the crate graph.
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$root/target/miri}"
 
 # These targets do not touch files, sockets, subprocesses, clocks or the
 # network. Keep the selection explicit so a new I/O test cannot silently enter
