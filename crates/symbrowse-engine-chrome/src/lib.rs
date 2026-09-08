@@ -17,6 +17,29 @@ pub use full::{
     capabilities,
 };
 
+/// Canonical capability partition used by the daemon handshake. Only names
+/// backed by commands in `DispatchRuntime` are advertised here.
+pub fn canonical_capabilities() -> symbrowse_engine::capabilities::Capabilities {
+    symbrowse_engine::capabilities::capabilities_for(
+        "chrome",
+        [
+            "AXSelectorResolver",
+            "CookieEngine",
+            "DialogController",
+            "FileTransfer",
+            "FrameManager",
+            "InspectionEngine",
+            "InteractionEngine",
+            "NavigationStateProvider",
+            "NetworkEvents",
+            "NetworkPolicyReporter",
+            "ScreenshotEngine",
+            "ScreenshotOptionsEngine",
+            "TabManager",
+        ],
+    )
+}
+
 use std::{path::PathBuf, time::Duration};
 
 use chromiumoxide::cdp::browser_protocol::{accessibility, page::CaptureScreenshotFormat};
