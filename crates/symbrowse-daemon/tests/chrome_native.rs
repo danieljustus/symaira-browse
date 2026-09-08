@@ -2,7 +2,8 @@
 
 use std::{
     fs,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Write},
+    net::TcpListener,
     os::unix::net::UnixStream,
     path::PathBuf,
     thread,
@@ -134,6 +135,45 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     assert_eq!(
         closed_window["success"], true,
         "close active tab: {closed_window}"
+    );
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture server");
+    let address = listener.local_addr().expect("fixture address");
+    let fixture = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept fixture request");
+        let mut request = [0_u8; 1024];
+        let _ = stream.read(&mut request).expect("read fixture request");
+        let body = b"<h1>network</h1>";
+        let header = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        stream
+            .write_all(header.as_bytes())
+            .expect("write fixture header");
+        stream.write_all(body).expect("write fixture body");
+    });
+    let started = request(&socket, "network.capture", json!({}));
+    assert_eq!(started["success"], true, "network capture start: {started}");
+    assert_eq!(started["data"]["started"], true);
+    let url = format!("http://{address}/");
+    let network_page = request(&socket, "open", json!({"url": url}));
+    assert_eq!(
+        network_page["success"], true,
+        "network page: {network_page}"
+    );
+    fixture.join().expect("fixture thread");
+    let captured = request(&socket, "network.requests", json!({}));
+    assert_eq!(captured["success"], true, "network capture: {captured}");
+    assert!(
+        captured["data"]["count"]
+            .as_u64()
+            .is_some_and(|count| count > 0)
+    );
+    assert!(
+        captured["data"]["requests"]
+            .as_array()
+            .is_some_and(|events| events.iter().any(|event| event["status"] == 200)),
+        "network capture: {captured}"
     );
     let framed = request(
         &socket,

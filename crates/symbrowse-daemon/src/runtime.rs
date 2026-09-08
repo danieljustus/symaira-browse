@@ -11,7 +11,9 @@ use symbrowse_core::{
     state::{Cookie, OriginState},
     state_store::Store,
 };
-use symbrowse_engine_chrome::{BrowserMode, ChromePage, ChromeSession, resolve_chrome_executable};
+use symbrowse_engine_chrome::{
+    BrowserMode, ChromePage, ChromeSession, NetworkCapture, resolve_chrome_executable,
+};
 use symbrowse_engine_firefox::{FirefoxSession, resolve_firefox_executable};
 use symbrowse_fetch::{
     FetchClient, Request,
@@ -46,6 +48,7 @@ struct BrowserState {
     session: Arc<ChromeSession>,
     page: ChromePage,
     tabs: Vec<BrowserTab>,
+    network_capture: Option<NetworkCapture>,
 }
 
 #[derive(Clone)]
@@ -138,9 +141,11 @@ impl DispatchRuntime {
             | "get.url" | "get.count" | "get.value" | "get.attr" | "get.box" | "get.styles"
             | "is.visible" | "is.enabled" | "is.checked" | "find" | "tabs.list" | "tab.list"
             | "tab.new" | "tab.switch" | "tab.close" | "window.new" | "frames.list"
-            | "frame.tree" | "dialog" | "network.capture" | "network.offline" | "network.block"
-            | "screenshot" | "pdf" | "upload" | "a11y" | "cookies.get" | "cookies.set"
-            | "storage.get" | "storage.set" | "download" => self.browser_command(&frame).await,
+            | "frame.tree" | "dialog" | "network.capture" | "network.requests"
+            | "network.offline" | "network.block" | "screenshot" | "pdf" | "upload" | "a11y"
+            | "cookies.get" | "cookies.set" | "storage.get" | "storage.set" | "download" => {
+                self.browser_command(&frame).await
+            }
             "network.har" | "axe.audit" => Err(DaemonError {
                 code: "unsupported".into(),
                 message: format!("Chrome daemon does not implement {:?}", frame.cmd),
@@ -665,7 +670,26 @@ impl DispatchRuntime {
             }
             "network.capture" => {
                 let capture = page.start_network_capture().await.map_err(runtime_error)?;
-                json!({"events": capture.collect(self.spec.operation_timeout).await})
+                self.browser
+                    .lock()
+                    .map_err(|_| runtime_error("browser lock poisoned"))?
+                    .as_mut()
+                    .ok_or_else(|| runtime_error("browser was not initialized"))?
+                    .network_capture = Some(capture);
+                json!({"started": true})
+            }
+            "network.requests" => {
+                let capture = self
+                    .browser
+                    .lock()
+                    .map_err(|_| runtime_error("browser lock poisoned"))?
+                    .as_mut()
+                    .ok_or_else(|| runtime_error("browser was not initialized"))?
+                    .network_capture
+                    .take()
+                    .ok_or_else(|| runtime_error("network capture was not started"))?;
+                let events = capture.collect(std::time::Duration::from_millis(100)).await;
+                json!({"requests": events, "count": events.len()})
             }
             "network.offline" => {
                 page.set_offline(args.get("offline").and_then(Value::as_bool).unwrap_or(true))
@@ -1307,6 +1331,7 @@ impl DispatchRuntime {
                 label: "t1".into(),
                 page,
             }],
+            network_capture: None,
         });
         Ok(result)
     }
