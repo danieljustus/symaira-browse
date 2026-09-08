@@ -53,6 +53,7 @@ enum Action {
     },
     DaemonRun {
         session: String,
+        mode: String,
         engine: String,
         ssrf: Option<bool>,
         allow_private: Option<bool>,
@@ -153,10 +154,11 @@ fn main() -> ExitCode {
         Ok(Action::StateKeyInit { format }) => run_state_key_init(format),
         Ok(Action::DaemonRun {
             session,
+            mode,
             engine,
             ssrf,
             allow_private,
-        }) => run_daemon(session, engine, ssrf, allow_private),
+        }) => run_daemon(session, mode, engine, ssrf, allow_private),
         Ok(Action::DaemonLifecycle {
             session,
             command,
@@ -554,6 +556,7 @@ fn render_state_key_init(
 
 fn run_daemon(
     session: String,
+    mode: String,
     engine: String,
     ssrf: Option<bool>,
     allow_private: Option<bool>,
@@ -581,6 +584,19 @@ fn run_daemon(
     } else {
         engine
     };
+    let mode = if mode.is_empty() {
+        config.mode.clone()
+    } else {
+        mode
+    };
+    if let Err(error) = symbrowse_core::config::resolve_selection(Some(&mode), Some(&engine)) {
+        let _ = writeln!(
+            io::stderr(),
+            "invalid transport selection: {}",
+            error.message
+        );
+        return ExitCode::from(1);
+    }
     if let Err(error) = validate_engine(&engine) {
         let _ = writeln!(io::stderr(), "{error}");
         return ExitCode::from(1);
@@ -591,6 +607,7 @@ fn run_daemon(
         Some(Duration::from_secs(config.idle_timeout as u64))
     };
     let mut spec = SessionSpec::from_config(&config, session.clone());
+    spec.mode = mode.clone();
     spec.engine = engine.clone();
     spec.ssrf_enabled = ssrf.unwrap_or(config.ssrf_enabled);
     spec.allow_private = allow_private.unwrap_or(config.allow_private);
@@ -605,6 +622,7 @@ fn run_daemon(
         socket_path: spec.socket_path.clone(),
         session: session.clone(),
         engine: engine.clone(),
+        mode: mode.clone(),
         policy,
         idle_timeout,
         operation_timeout: Duration::from_secs(config.operation_timeout as u64),
@@ -1510,6 +1528,7 @@ fn parse_flow(values: &[String], index: usize) -> Result<Action, ParseError> {
 fn parse_daemon(values: &[String], daemon_index: usize) -> Result<Action, ParseError> {
     let mut session = "default".to_owned();
     let mut engine = String::new();
+    let mut mode = String::new();
     let mut ssrf = None;
     let mut allow_private = None;
     let mut format = Format::Text;
@@ -1529,6 +1548,10 @@ fn parse_daemon(values: &[String], daemon_index: usize) -> Result<Action, ParseE
                 index += 1;
                 engine = required_value(values, index, "--engine")?.to_owned();
             }
+            "--mode" => {
+                index += 1;
+                mode = required_value(values, index, "--mode")?.to_owned();
+            }
             "--ssrf" => {
                 if let Some(value @ ("true" | "false")) = values.get(index + 1).map(String::as_str)
                 {
@@ -1547,6 +1570,7 @@ fn parse_daemon(values: &[String], daemon_index: usize) -> Result<Action, ParseE
             }
             value if value.starts_with("--session=") => session = value[10..].to_owned(),
             value if value.starts_with("--engine=") => engine = value[9..].to_owned(),
+            value if value.starts_with("--mode=") => mode = value[7..].to_owned(),
             value if value.starts_with("--ssrf=") => {
                 ssrf = Some(parse_bool("--ssrf", &value[7..])?);
             }
@@ -1579,6 +1603,7 @@ fn parse_daemon(values: &[String], daemon_index: usize) -> Result<Action, ParseE
     }
     Ok(Action::DaemonRun {
         session,
+        mode,
         engine,
         ssrf,
         allow_private,
@@ -1943,6 +1968,8 @@ fn parse_config(values: &[String], config_index: usize) -> Result<Action, ParseE
                 "--executable-path",
                 &mut flags.executable_path,
             )?,
+            "--mode" => set_flag(values, &mut index, "--mode", &mut flags.mode)?,
+            "--engine" => set_flag(values, &mut index, "--engine", &mut flags.engine)?,
             _ if value.starts_with("--output=") => output = value[9..].to_owned(),
             _ => {
                 return Err(ParseError {
@@ -2116,6 +2143,7 @@ mod tests {
             ])),
             Ok(Action::DaemonRun {
                 session: "auto".to_owned(),
+                mode: String::new(),
                 engine: "static".to_owned(),
                 ssrf: Some(true),
                 allow_private: None,

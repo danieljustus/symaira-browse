@@ -106,6 +106,7 @@ pub struct DaemonProxyOptions {
     pub executable: String,
     pub allow_private: bool,
     pub engine: Option<String>,
+    pub mode: Option<String>,
     pub endpoint: Option<String>,
     pub daemon_log_path: Option<String>,
     pub read_timeout: Duration,
@@ -119,6 +120,7 @@ impl Default for DaemonProxyOptions {
             executable: current_executable(),
             allow_private: false,
             engine: None,
+            mode: None,
             endpoint: None,
             daemon_log_path: None,
             read_timeout: DEFAULT_READ_TIMEOUT,
@@ -540,6 +542,9 @@ impl DaemonProxy {
             .arg("--ssrf")
             .arg("--mcp-mode")
             .stdin(Stdio::null());
+        if let Some(mode) = &self.options.mode {
+            command.arg("--mode").arg(mode);
+        }
         if let Some(engine) = &self.options.engine {
             command.arg("--engine").arg(engine);
         }
