@@ -53,6 +53,11 @@ impl DispatchRuntime {
         spec: SessionSpec,
         wayback_cdx_url: impl Into<String>,
     ) -> Result<Arc<Self>, DaemonError> {
+        spec.validate_selection().map_err(|message| DaemonError {
+            code: "invalid_transport_selection".into(),
+            message,
+            ..Default::default()
+        })?;
         let allowlist = Allowlist::parse(&spec.allowed_domains).map_err(|error| DaemonError {
             code: codes::OPERATION_FAILED.into(),
             message: format!("invalid domain allowlist: {error}"),
@@ -90,6 +95,13 @@ impl DispatchRuntime {
     }
 
     async fn dispatch(&self, frame: Frame) -> HandlerResult {
+        if self.spec.mode == "compat" {
+            return Err(DaemonError {
+                code: "compat_unavailable".into(),
+                message: "compat transport sidecar is not available".into(),
+                ..Default::default()
+            });
+        }
         match frame.cmd.as_str() {
             "fetch.url" => self.fetch_url(&frame).await,
             "fetch.batch" => self.fetch_batch(&frame).await,
@@ -340,7 +352,14 @@ impl DispatchRuntime {
     }
 
     async fn browser_command(&self, frame: &Frame) -> HandlerResult {
-        if self.spec.engine == "static" {
+        if self.spec.mode == "browser" && self.spec.engine == "firefox" {
+            return Err(DaemonError {
+                code: "browser_engine_unavailable".into(),
+                message: "Firefox browser transport is not available".into(),
+                ..Default::default()
+            });
+        }
+        if self.spec.mode == "static" || self.spec.engine == "static" {
             return match frame.cmd.as_str() {
                 "open" | "goto" | "read" => {
                     self.fetch_url(&Frame {

@@ -1,6 +1,6 @@
 use std::{path::PathBuf, time::Duration};
 
-use symbrowse_core::config::Config;
+use symbrowse_core::config::{Config, resolve_selection};
 
 /// Effective configuration owned by one daemon session.
 ///
@@ -13,6 +13,7 @@ pub struct SessionSpec {
     pub state_dir: PathBuf,
     pub cache_dir: PathBuf,
     pub engine: String,
+    pub mode: String,
     pub executable_path: PathBuf,
     pub cdp_endpoint: String,
     pub allowed_domains: Vec<String>,
@@ -40,6 +41,7 @@ impl SessionSpec {
             cache_dir: default_cache_dir(),
             state_dir,
             engine: "chrome".into(),
+            mode: "browser".into(),
             executable_path: PathBuf::new(),
             cdp_endpoint: String::new(),
             allowed_domains: Vec::new(),
@@ -64,6 +66,11 @@ impl SessionSpec {
             &config.engine
         }
         .into();
+        spec.mode = if config.engine == "static" {
+            "static".into()
+        } else {
+            config.mode.clone()
+        };
         spec.executable_path = PathBuf::from(&config.executable_path);
         spec.cdp_endpoint = config.cdp_endpoint.clone();
         spec.allowed_domains = config.allowed_domains.clone();
@@ -83,6 +90,15 @@ impl SessionSpec {
         };
         spec.socket_path = default_socket_path(&spec.session);
         spec
+    }
+
+    pub fn validate_selection(&self) -> Result<(), String> {
+        if self.engine == "static" {
+            return Ok(());
+        }
+        resolve_selection(Some(&self.mode), Some(&self.engine))
+            .map(|_| ())
+            .map_err(|error| format!("{}: {}", error.code, error.message))
     }
 
     #[must_use]

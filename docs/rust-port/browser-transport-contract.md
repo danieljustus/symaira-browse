@@ -51,3 +51,13 @@ Release approval requires all static, compat and individual Chrome/Safari/
 Firefox contract rows to pass on their declared platforms. Safari is only
 advertised where its macOS gate passes. A mode is not globally advertised based
 on another engine's result.
+
+## Selection implementation (Phase 5A)
+
+Rust resolves `SYMBROWSE_MODE`/`mode` and `SYMBROWSE_ENGINE`/`engine` with
+flag-over-file precedence. The typed selection is shared by the CLI, daemon
+and MCP autostart path. Browser mode requires one of `chrome`, `safari` or
+`firefox`; an engine is rejected in static or compat mode. Unknown and
+unavailable selections are typed failures, never substitutions. The
+`version --json` handshake is unchanged; transport metadata is confined to
+ordinary operation results.

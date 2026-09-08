@@ -116,6 +116,7 @@ pub struct ServerOptions {
     pub session_spec: Option<crate::SessionSpec>,
     pub policy: PolicyStatus,
     pub engine: String,
+    pub mode: String,
 }
 impl Default for ServerOptions {
     fn default() -> Self {
@@ -130,6 +131,7 @@ impl Default for ServerOptions {
             session_spec: None,
             policy: PolicyStatus::default(),
             engine: "chrome".into(),
+            mode: "browser".into(),
         }
     }
 }
@@ -143,6 +145,7 @@ pub struct DaemonState {
     pub last_activity: String,
     pub policy: PolicyStatus,
     pub engine: String,
+    pub mode: String,
 }
 
 #[derive(Debug)]
@@ -192,6 +195,7 @@ impl Server {
             options.read_timeout = spec.read_timeout;
             options.idle_timeout = spec.idle_timeout;
             options.engine = spec.engine.clone();
+            options.mode = spec.mode.clone();
             options.policy = PolicyStatus {
                 allowed_domains: spec.allowed_domains.clone(),
                 ssrf_enabled: spec.ssrf_enabled,
@@ -387,6 +391,7 @@ impl Server {
             last_activity: format_time(self.last_activity.load(Ordering::Acquire)),
             policy: self.options.policy.clone(),
             engine: self.options.engine.clone(),
+            mode: self.options.mode.clone(),
         }
     }
 }
@@ -682,7 +687,7 @@ fn serve_connection_parts<R, W>(
         let _ = registry.touch(&frame.session);
         let cmd = frame.cmd.clone();
         if cmd == "daemon.status" {
-            let data = json!({"running":true,"pid":std::process::id(),"session":options.session,"socket":crate::redact_str(&options.socket_path.to_string_lossy()),"started_at":format_time(started_at),"last_activity":format_time(last_activity.load(Ordering::Acquire)),"policy":options.policy,"engine":options.engine});
+            let data = json!({"running":true,"pid":std::process::id(),"session":options.session,"socket":crate::redact_str(&options.socket_path.to_string_lossy()),"started_at":format_time(started_at),"last_activity":format_time(last_activity.load(Ordering::Acquire)),"policy":options.policy,"engine":options.engine,"mode":options.mode});
             if write_response(&mut stream, success_response(Some(data), Vec::new())).is_err() {
                 return;
             }
