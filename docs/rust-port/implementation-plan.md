@@ -232,14 +232,13 @@ parity. Browser profiles remain on the explicit Go fallback.
 
 **Objective:** Reproduce the SymFetch-compatible document pipeline byte-for-byte.
 
-**Progress:** Partial foundation integrated. Rust now has HTML5 parsing,
-deterministic cleanup, semantic extraction, Markdown/JSON rendering, Unicode
-budgeting, BM25 section ranking, bounded ordered batch helpers, and bounded
-Wayback/recovery-candidate helpers. Twenty pinned-source Go-generated vectors and
-focused control tests pass through `make rust-fetch-static-slice`. This is not
-the complete corpus: full selector semantics, response-cache integration,
-HTTP-backed batching, and end-to-end CDX/404/410/Wayback recovery remain. Therefore
-FETCH-006/007/008 stay `todo` and RUST-008 stays blocked behind RUST-007.
+**Progress:** Complete. Rust now has HTML5 parsing and cleanup, selector-aware
+rendering, semantic extraction, Markdown/JSON rendering, Unicode budgeting,
+BM25 section ranking, response/output caches, bounded ordered HTTP-backed batch
+fetching, and CDX/Wayback plus 404/410 recovery. The pinned Go generator
+produces the complete 28-vector corpus; byte comparison is used for FETCH-006
+and FETCH-007, while FETCH-008 is explicitly JSON-semantic. The static slice,
+full fetch-render harness, and package tests pass.
 
 **Files:**
 

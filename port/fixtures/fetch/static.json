@@ -3,6 +3,11 @@
   "generated_by": "scripts/rust-port/fetch_fixture_gen.go",
   "source_digest": "4924c02927471d138aef6ba9b13be237d6f4bd0ad91472e322c1a50505750ac1",
   "vector_count": 28,
+  "comparison": {
+    "FETCH-006": "bytes",
+    "FETCH-007": "bytes",
+    "FETCH-008": "json-semantic"
+  },
   "vectors": [
     {
       "name": "malformed-cleanup",

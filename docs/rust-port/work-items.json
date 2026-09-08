@@ -205,7 +205,7 @@
         "FETCH-007",
         "FETCH-008"
       ],
-      "status": "ready",
+      "status": "complete",
       "acceptance_commands": [
         "cargo nextest run -p symbrowse-fetch",
         "python3 port/harness/run.py --suite fetch-render --comparison bytes"

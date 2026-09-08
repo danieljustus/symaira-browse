@@ -48,11 +48,12 @@ type vector struct {
 }
 
 type fixture struct {
-	OracleCommit string   `json:"oracle_commit"`
-	GeneratedBy  string   `json:"generated_by"`
-	SourceDigest string   `json:"source_digest"`
-	VectorCount  int      `json:"vector_count"`
-	Vectors      []vector `json:"vectors"`
+	OracleCommit string            `json:"oracle_commit"`
+	GeneratedBy  string            `json:"generated_by"`
+	SourceDigest string            `json:"source_digest"`
+	VectorCount  int               `json:"vector_count"`
+	Comparison   map[string]string `json:"comparison"`
+	Vectors      []vector          `json:"vectors"`
 }
 
 func main() {
@@ -112,7 +113,17 @@ func generate() fixture {
 		{"all-cleanup", `<html><body><main><script>x</script><style>x</style><noscript>x</noscript><svg>x</svg><iframe>x</iframe><object>x</object><embed>x</embed><canvas>x</canvas><audio>x</audio><video>x</video><template>x</template><picture>x</picture><p>survives</p></main></body></html>`, "survives", 1},
 	}
 	inputs = append(inputs, trackedPipelineInputs()...)
-	result := fixture{OracleCommit: oracleCommit, GeneratedBy: "scripts/rust-port/fetch_fixture_gen.go", SourceDigest: sourceDigest(), VectorCount: len(inputs)}
+	result := fixture{
+		OracleCommit: oracleCommit,
+		GeneratedBy:  "scripts/rust-port/fetch_fixture_gen.go",
+		SourceDigest: sourceDigest(),
+		VectorCount:  len(inputs),
+		Comparison: map[string]string{
+			"FETCH-006": "bytes",
+			"FETCH-007": "bytes",
+			"FETCH-008": "json-semantic",
+		},
+	}
 	for _, input := range inputs {
 		result.Vectors = append(result.Vectors, makeVector(input.name, input.html, input.query, input.topK))
 	}
