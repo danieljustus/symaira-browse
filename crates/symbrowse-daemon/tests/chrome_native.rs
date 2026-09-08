@@ -242,6 +242,56 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     let checked = request(&socket, "is.checked", json!({"selector":"#check"}));
     assert_eq!(checked["data"], false, "uncheck state: {checked}");
 
+    let no_dialog = request(&socket, "dialog.status", json!({}));
+    assert_eq!(
+        no_dialog["success"], true,
+        "empty dialog status: {no_dialog}"
+    );
+    assert_eq!(no_dialog["data"]["handled"], true);
+    let prompt_page = request(
+        &socket,
+        "open",
+        json!({"url":"data:text/html,%3Cscript%3EsetTimeout(()%3D%3Eprompt('native%20prompt'%2C'seed')%2C100)%3C%2Fscript%3E"}),
+    );
+    assert_eq!(prompt_page["success"], true, "prompt page: {prompt_page}");
+    thread::sleep(Duration::from_millis(250));
+    let prompt_status = request(&socket, "dialog.status", json!({}));
+    assert_eq!(
+        prompt_status["success"], true,
+        "prompt status: {prompt_status}"
+    );
+    assert_eq!(prompt_status["data"]["type"], "prompt");
+    assert_eq!(prompt_status["data"]["message"], "native prompt");
+    assert_eq!(prompt_status["data"]["default"], "seed");
+    assert_eq!(prompt_status["data"]["handled"], false);
+    let accepted = request(&socket, "dialog.accept", json!({"text":"answer"}));
+    assert_eq!(accepted["success"], true, "dialog accept: {accepted}");
+    assert_eq!(accepted["data"], json!({"handled":true,"action":"accept"}));
+    let handled = request(&socket, "dialog.status", json!({}));
+    assert_eq!(
+        handled["data"]["handled"], true,
+        "handled status: {handled}"
+    );
+
+    let alert_page = request(
+        &socket,
+        "open",
+        json!({"url":"data:text/html,%3Cscript%3EsetTimeout(()%3D%3Ealert('native%20alert')%2C100)%3C%2Fscript%3E"}),
+    );
+    assert_eq!(alert_page["success"], true, "alert page: {alert_page}");
+    thread::sleep(Duration::from_millis(250));
+    let dismissed = request(&socket, "dialog.dismiss", json!({}));
+    assert_eq!(dismissed["success"], true, "dialog dismiss: {dismissed}");
+    assert_eq!(
+        dismissed["data"],
+        json!({"handled":true,"action":"dismiss"})
+    );
+    let no_pending = request(&socket, "dialog.dismiss", json!({}));
+    assert_eq!(
+        no_pending["success"], false,
+        "no-pending dismiss: {no_pending}"
+    );
+
     let unsupported = request(&socket, "network.har", json!({}));
     assert_eq!(unsupported["success"], false);
     assert_eq!(unsupported["error"]["code"], "unsupported");

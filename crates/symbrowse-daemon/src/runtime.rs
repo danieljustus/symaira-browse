@@ -141,11 +141,10 @@ impl DispatchRuntime {
             | "get.url" | "get.count" | "get.value" | "get.attr" | "get.box" | "get.styles"
             | "is.visible" | "is.enabled" | "is.checked" | "find" | "tabs.list" | "tab.list"
             | "tab.new" | "tab.switch" | "tab.close" | "window.new" | "frames.list"
-            | "frame.tree" | "dialog" | "network.capture" | "network.requests"
-            | "network.offline" | "network.block" | "screenshot" | "pdf" | "upload" | "a11y"
-            | "cookies.get" | "cookies.set" | "storage.get" | "storage.set" | "download" => {
-                self.browser_command(&frame).await
-            }
+            | "frame.tree" | "dialog" | "dialog.status" | "dialog.accept" | "dialog.dismiss"
+            | "network.capture" | "network.requests" | "network.offline" | "network.block"
+            | "screenshot" | "pdf" | "upload" | "a11y" | "cookies.get" | "cookies.set"
+            | "storage.get" | "storage.set" | "download" => self.browser_command(&frame).await,
             "network.har" | "axe.audit" => Err(DaemonError {
                 code: "unsupported".into(),
                 message: format!("Chrome daemon does not implement {:?}", frame.cmd),
@@ -667,6 +666,24 @@ impl DispatchRuntime {
                         .map_err(runtime_error)?,
                 )
                 .map_err(runtime_error)?
+            }
+            "dialog.status" => {
+                serde_json::to_value(page.dialog_status().await).map_err(runtime_error)?
+            }
+            "dialog.accept" => {
+                page.accept_dialog(
+                    args.get("text")
+                        .or_else(|| args.get("prompt_text"))
+                        .and_then(Value::as_str)
+                        .map(str::to_owned),
+                )
+                .await
+                .map_err(runtime_error)?;
+                json!({"handled": true, "action": "accept"})
+            }
+            "dialog.dismiss" => {
+                page.dismiss_dialog().await.map_err(runtime_error)?;
+                json!({"handled": true, "action": "dismiss"})
             }
             "network.capture" => {
                 let capture = page.start_network_capture().await.map_err(runtime_error)?;
