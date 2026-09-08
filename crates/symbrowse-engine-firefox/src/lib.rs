@@ -53,9 +53,12 @@ pub fn canonical_capabilities() -> Capabilities {
         ENGINE_KIND,
         [
             "CookieEngine",
+            "FrameManager",
             "InspectionEngine",
             "InteractionEngine",
             "NavigationStateProvider",
+            "ScreenshotEngine",
+            "TabManager",
         ],
     )
 }
@@ -268,6 +271,77 @@ impl FirefoxSession {
             exception_text: String::new(),
         })
     }
+    /// Read cookies through the Firefox BiDi storage module.
+    pub async fn cookies(&mut self) -> Result<Value, FirefoxError> {
+        self.bidi
+            .command(
+                "storage.getCookies",
+                json!({"partition":{"context":self.context}}),
+                self.timeout,
+            )
+            .await
+    }
+
+    /// Set a cookie through the Firefox BiDi storage module.
+    pub async fn set_cookie(&mut self, cookie: Value) -> Result<Value, FirefoxError> {
+        self.bidi
+            .command(
+                "storage.setCookie",
+                json!({"cookie":cookie,"partition":{"context":self.context}}),
+                self.timeout,
+            )
+            .await
+    }
+
+    /// Execute the two canonical interaction primitives without a browser
+    /// specific fallback. DOM events are generated in the selected context.
+    pub async fn interact(
+        &mut self,
+        operation: &str,
+        selector: &str,
+        value: Option<&str>,
+    ) -> Result<Value, FirefoxError> {
+        let selector = serde_json::to_string(selector)
+            .map_err(|error| FirefoxError::Driver(error.to_string()))?;
+        let value = serde_json::to_string(value.unwrap_or_default())
+            .map_err(|error| FirefoxError::Driver(error.to_string()))?;
+        let expression = match operation {
+            "click" => format!(
+                "(() => {{ const e=document.querySelector({selector}); if (!e) throw new Error('selector did not match'); e.click(); return {{action:'click'}}; }})()"
+            ),
+            "type" | "fill" => format!(
+                "(() => {{ const e=document.querySelector({selector}); if (!e) throw new Error('selector did not match'); e.focus(); e.value={value}; e.dispatchEvent(new Event('input',{{bubbles:true}})); e.dispatchEvent(new Event('change',{{bubbles:true}})); return {{action:'{operation}',value:e.value}}; }})()"
+            ),
+            _ => return Err(Self::unsupported(operation)),
+        };
+        Ok(self
+            .evaluate(&expression)
+            .await?
+            .value
+            .unwrap_or(Value::Null))
+    }
+
+    pub async fn browsing_contexts(&mut self) -> Result<Value, FirefoxError> {
+        self.bidi
+            .command("browsingContext.getTree", json!({}), self.timeout)
+            .await
+    }
+
+    pub async fn screenshot(&mut self, format: &str) -> Result<Value, FirefoxError> {
+        if !matches!(format, "" | "png" | "jpeg") {
+            return Err(FirefoxError::Unsupported {
+                operation: format!("screenshot format {format}"),
+            });
+        }
+        self.bidi
+            .command(
+                "browsingContext.captureScreenshot",
+                json!({"context":self.context,"format":{"type":if format.is_empty() { "png" } else { format }},"origin":"viewport"}),
+                self.timeout,
+            )
+            .await
+    }
+
     pub async fn close(&mut self) -> Result<(), FirefoxError> {
         let _ = self
             .bidi
@@ -300,7 +374,7 @@ mod tests {
     fn capabilities_are_truthful() {
         let c = canonical_capabilities();
         assert!(c.interfaces.contains(&"NavigationStateProvider".into()));
-        assert!(c.unsupported.contains(&"ScreenshotEngine".into()));
+        assert!(c.interfaces.contains(&"ScreenshotEngine".into()));
     }
     #[test]
     fn invalid_explicit_path_is_typed() {
