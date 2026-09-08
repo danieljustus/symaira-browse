@@ -15,6 +15,7 @@ symbrowse-compat.workspace = true
 symbrowse-core = { path = "../symbrowse-core", version = "=0.0.0" }
 symbrowse-engine = { path = "../symbrowse-engine", version = "=0.0.0" }
 symbrowse-engine-chrome = { path = "../symbrowse-engine-chrome", version = "=0.0.0" }
+symbrowse-engine-firefox = { path = "../symbrowse-engine-firefox", version = "=0.0.0" }
 symbrowse-fetch = { path = "../symbrowse-fetch", version = "=0.0.0" }
 time.workspace = true
 tokio.workspace = true

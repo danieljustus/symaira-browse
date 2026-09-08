@@ -12,6 +12,7 @@ use symbrowse_core::{
     state_store::Store,
 };
 use symbrowse_engine_chrome::{BrowserMode, ChromePage, ChromeSession, resolve_chrome_executable};
+use symbrowse_engine_firefox::{FirefoxSession, resolve_firefox_executable};
 use symbrowse_fetch::{
     FetchClient, Request,
     archive::{CdxClient, CdxQuery},
@@ -36,6 +37,7 @@ pub struct DispatchRuntime {
     runtime: Runtime,
     compat: AsyncMutex<Option<CompatClient>>,
     browser: Mutex<Option<BrowserState>>,
+    firefox: AsyncMutex<Option<FirefoxSession>>,
     #[cfg(target_os = "macos")]
     safari: AsyncMutex<Option<SafariRuntime>>,
 }
@@ -80,6 +82,7 @@ impl DispatchRuntime {
             runtime,
             compat: AsyncMutex::new(None),
             browser: Mutex::new(None),
+            firefox: AsyncMutex::new(None),
             #[cfg(target_os = "macos")]
             safari: AsyncMutex::new(None),
         }))
@@ -113,8 +116,12 @@ impl DispatchRuntime {
             "flow.run" => self.flow_run(&frame),
             "capabilities" => Ok((
                 Some(
-                    serde_json::to_value(symbrowse_engine_chrome::canonical_capabilities())
-                        .map_err(runtime_error)?,
+                    serde_json::to_value(if self.spec.engine == "firefox" {
+                        symbrowse_engine_firefox::canonical_capabilities()
+                    } else {
+                        symbrowse_engine_chrome::canonical_capabilities()
+                    })
+                    .map_err(runtime_error)?,
                 ),
                 Vec::new(),
             )),
@@ -460,11 +467,7 @@ impl DispatchRuntime {
 
     async fn browser_command(&self, frame: &Frame) -> HandlerResult {
         if self.spec.mode == "browser" && self.spec.engine == "firefox" {
-            return Err(DaemonError {
-                code: "browser_engine_unavailable".into(),
-                message: "Firefox browser transport is not available".into(),
-                ..Default::default()
-            });
+            return self.firefox_command(frame).await;
         }
         if self.spec.mode == "static" || self.spec.engine == "static" {
             return match frame.cmd.as_str() {
@@ -880,6 +883,70 @@ impl DispatchRuntime {
             *guard = Some(runtime);
         }
         Ok(())
+    }
+
+    async fn firefox_command(&self, frame: &Frame) -> HandlerResult {
+        let args = object_args(frame)?;
+        let mut guard = self.firefox.lock().await;
+        if guard.is_none() {
+            let executable = resolve_firefox_executable(
+                (!self.spec.executable_path.as_os_str().is_empty())
+                    .then_some(self.spec.executable_path.as_path()),
+            )
+            .map_err(runtime_error)?;
+            let session = FirefoxSession::launch(
+                executable,
+                self.spec.user_data_dir(),
+                self.spec.operation_timeout,
+            )
+            .await
+            .map_err(runtime_error)?;
+            *guard = Some(session);
+        }
+        let session = guard
+            .as_mut()
+            .ok_or_else(|| runtime_error("Firefox runtime was not initialized"))?;
+        match frame.cmd.as_str() {
+            "open" | "goto" | "read" => {
+                let url = required_string(args, "url")?;
+                let navigation = session.navigate(url).await.map_err(runtime_error)?;
+                let value = session.evaluate("({url: location.href, title: document.title, content: document.body?.innerText ?? ''})").await.map_err(runtime_error)?;
+                Ok((
+                    Some(
+                        json!({"url": navigation.url, "final_url": navigation.url, "title": value.value.as_ref().and_then(|v|v.get("title")).cloned().unwrap_or(Value::Null), "content": value.value.as_ref().and_then(|v|v.get("content")).cloned().unwrap_or(Value::Null)}),
+                    ),
+                    Vec::new(),
+                ))
+            }
+            "get.url" => {
+                let value = session
+                    .evaluate("location.href")
+                    .await
+                    .map_err(runtime_error)?;
+                Ok((Some(json!({"value":value.value})), Vec::new()))
+            }
+            "get.title" => {
+                let value = session
+                    .evaluate("document.title")
+                    .await
+                    .map_err(runtime_error)?;
+                Ok((Some(json!({"value":value.value})), Vec::new()))
+            }
+            "evaluate" | "eval" => {
+                let expression = required_string(args, "expression")?;
+                let value = session.evaluate(expression).await.map_err(runtime_error)?;
+                Ok((
+                    Some(serde_json::to_value(value).map_err(runtime_error)?),
+                    Vec::new(),
+                ))
+            }
+            _ => Err(DaemonError {
+                code: "unsupported".into(),
+                message: format!("Firefox does not implement {:?}", frame.cmd),
+                hint: "the operation is explicitly unsupported by this engine".into(),
+                ..Default::default()
+            }),
+        }
     }
 
     async fn ensure_browser(&self) -> Result<ChromePage, DaemonError> {
