@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "seeds": {
+    "daemon_mcp_frames/malformed.json": "553948096f4e6c5b09a92c23db3f236b8f504a4983a1449fd8b180cf0b112cc6",
+    "daemon_mcp_frames/status.json": "1328c3b459e1604fe502e08412a063be2b28d4daf6a6aab23183b027b93c7912",
+    "flow_yaml/hostile.txt": "bee69e7427a2e7e9a5c0fa66041ae2e9365665609f88d316118701cbbceac2c4",
+    "flow_yaml/valid.yaml": "6efc2118e64bee44ac214892f9c05a3de3d3b7c74ade8774d6fffe616d76f105",
+    "html_boundaries/boundaries.html": "f4c1dad360fb564280fa45dc4c5f098f75b6ce046a498a18afeec180471cbce0",
+    "state_headers/versioned-header.state": "890597afba1b4b09858d3241aeb0aa8c1295320e2221c9b78a55f9e7a59be108",
+    "urls/url-boundaries.txt": "f5f10319381628bd52e29da73a7f49a5df07066d13d09b4cbc345f63e6c6a183"
+  }
+}

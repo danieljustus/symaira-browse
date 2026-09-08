@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-09-06T20:17:44.325154Z",
+  "binary": {
+    "path": "symbrowse-go",
+    "size_bytes": 18264882,
+    "sha256": "27f9830d1ee10edff4bf2ae564b172fe1ca00562d151b726e9177ff61e41c91a",
+    "vcs_revision": "652453d1595fc302bd69c328e7da8a21dbee28b9"
+  },
+  "candidate": {
+    "path": "symbrowse-cdp-spike",
+    "size_bytes": 4375104,
+    "sha256": "f19b8c5348fb23012ac347a427f036659060ff6ef2fffc0f25dd2faeea2cce4e"
+  },
+  "host": {
+    "goos": "darwin",
+    "goarch": "arm64"
+  },
+  "runs_per_workload": 30,
+  "workloads": [
+    {
+      "name": "version-json",
+      "args": [
+        "version",
+        "--json"
+      ],
+      "samples": 30,
+      "first_duration_ns": 17594833,
+      "min_duration_ns": 7080500,
+      "median_duration_ns": 7830208,
+      "p95_duration_ns": 8734208,
+      "max_duration_ns": 9407250,
+      "median_peak_rss_bytes": 25264128,
+      "p95_peak_rss_bytes": 25575424
+    }
+  ],
+  "candidate_workloads": [
+    {
+      "name": "version-json",
+      "args": [
+        "version",
+        "--json"
+      ],
+      "samples": 30,
+      "first_duration_ns": 190293625,
+      "min_duration_ns": 2095417,
+      "median_duration_ns": 2683125,
+      "p95_duration_ns": 4097375,
+      "max_duration_ns": 4784167,
+      "median_peak_rss_bytes": 2228224,
+      "p95_peak_rss_bytes": 2228224
+    }
+  ],
+  "comparisons": [
+    {
+      "name": "version-json",
+      "binary_size_change_percent": -76.04636044185777,
+      "p95_latency_change_percent": -53.088190709449556,
+      "median_peak_rss_change_percent": -91.18028534370947
+    }
+  ],
+  "interpretation": "Early value signal only: the Rust candidate implements only the version slice, so this does not satisfy or predict the full-product cutover value gate.",
+  "limitations": [
+    "Measurements include process startup and use fresh HOME/XDG/temp roots per run.",
+    "The first sample is reported separately; it is not a proven cold-cache measurement.",
+    "Peak RSS is omitted on unsupported operating systems.",
+    "This command measures process-mode CLI and MCP workloads; daemon steady-state is captured separately by its IPC slice."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "fixture": "testdata/port/engine/chrome-full.json",
+  "fixture_sha256": "2557622940d9a8351cb1ed7c086d62b3e11d724a543a9033f6b9b47b2f2836fb",
+  "generator_sha256": "dff4d88184d5e1b0e04bfff692bf05a02047560fba1171286327668b96a966fa",
+  "oracle_commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+  "schema_version": 1,
+  "source_files": {
+    "internal/engine/chrome/chrome.go": "e69467075e2ff7411ea9cf4ef839270c7a706e2524b46d0a405762faf5ca7958",
+    "internal/engine/chrome/files.go": "28cd94faf5306f4ce6fce8ef76f7bf1066b4e83f57dbb22a035239950b9524db",
+    "internal/engine/chrome/inspection.go": "c90c226faec01e000bed6742dd2256ff4b2e49aee658d1f2cbcc5baf258e1ff1",
+    "internal/engine/chrome/interaction.go": "534a11d956f9f597cdf7c72fbbe7840d1460e6a7e9bb47420b3f3867a2c6e19e",
+    "internal/engine/chrome/network.go": "a5daa085ca08f913ce9d9e6624a93138aa8e3abb6c5d7c688d4e38228b929e4c",
+    "internal/engine/chrome/tabs.go": "0bb7321b1cf62c41155fce2fd903e6dc3cd7da2d600aaffb69e3e38a223cea4a",
+    "internal/engine/engine.go": "df9cbf5107cdd84f2828787ee8bff3ab954b05dcfa204791d3acd85cc6ada7c9"
+  }
+}

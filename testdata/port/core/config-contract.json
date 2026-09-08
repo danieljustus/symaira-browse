@@ -1,0 +1,241 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+    "release": "v0.8.0"
+  },
+  "cases": [
+    {
+      "name": "defaults",
+      "fields": {
+        "allow_private": {
+          "value": "false",
+          "source": "default"
+        },
+        "allowed_domains": {
+          "value": "",
+          "source": "default"
+        },
+        "approval_timeout": {
+          "value": "60",
+          "source": "default"
+        },
+        "autosave": {
+          "value": "auto",
+          "source": "default"
+        },
+        "autosave_interval": {
+          "value": "30",
+          "source": "default"
+        },
+        "autosave_key": {
+          "value": "",
+          "source": "default"
+        },
+        "cache_dir": {
+          "value": "\u003cROOT\u003e/xdg-cache/symbrowse",
+          "source": "default"
+        },
+        "cache_ttl_hours": {
+          "value": "24",
+          "source": "default"
+        },
+        "cdp_endpoint": {
+          "value": "",
+          "source": "default"
+        },
+        "config_dir": {
+          "value": "\u003cROOT\u003e/xdg-config/symbrowse",
+          "source": "default"
+        },
+        "daemon_log": {
+          "value": "\u003cROOT\u003e/xdg-state/symbrowse/daemon.log",
+          "source": "default"
+        },
+        "engine": {
+          "value": "chrome",
+          "source": "default"
+        },
+        "executable_path": {
+          "value": "",
+          "source": "default"
+        },
+        "fetch_no_cache": {
+          "value": "false",
+          "source": "default"
+        },
+        "fetch_robots": {
+          "value": "true",
+          "source": "default"
+        },
+        "fetch_user_agent": {
+          "value": "symbrowse/1.0",
+          "source": "default"
+        },
+        "headless": {
+          "value": "false",
+          "source": "default"
+        },
+        "idle_timeout": {
+          "value": "1800",
+          "source": "default"
+        },
+        "log_format": {
+          "value": "text",
+          "source": "default"
+        },
+        "log_level": {
+          "value": "warn",
+          "source": "default"
+        },
+        "operation_timeout": {
+          "value": "25",
+          "source": "default"
+        },
+        "read_timeout": {
+          "value": "30",
+          "source": "default"
+        },
+        "ssrf_enabled": {
+          "value": "false",
+          "source": "default"
+        },
+        "state_dir": {
+          "value": "\u003cROOT\u003e/xdg-state/symbrowse",
+          "source": "default"
+        },
+        "state_expire_days": {
+          "value": "30",
+          "source": "default"
+        },
+        "upload_dirs": {
+          "value": "\u003cROOT\u003e/workspace",
+          "source": "default"
+        }
+      }
+    },
+    {
+      "name": "precedence",
+      "fields": {
+        "allow_private": {
+          "value": "false",
+          "source": "default"
+        },
+        "allowed_domains": {
+          "value": "env.example,*.env.example",
+          "source": "env"
+        },
+        "approval_timeout": {
+          "value": "60",
+          "source": "default"
+        },
+        "autosave": {
+          "value": "auto",
+          "source": "default"
+        },
+        "autosave_interval": {
+          "value": "30",
+          "source": "default"
+        },
+        "autosave_key": {
+          "value": "",
+          "source": "default"
+        },
+        "cache_dir": {
+          "value": "flag-cache",
+          "source": "flag"
+        },
+        "cache_ttl_hours": {
+          "value": "24",
+          "source": "default"
+        },
+        "cdp_endpoint": {
+          "value": "",
+          "source": "default"
+        },
+        "config_dir": {
+          "value": "\u003cROOT\u003e/xdg-config/symbrowse",
+          "source": "default"
+        },
+        "daemon_log": {
+          "value": "flag-state/daemon.log",
+          "source": "default"
+        },
+        "engine": {
+          "value": "static",
+          "source": "project"
+        },
+        "executable_path": {
+          "value": "",
+          "source": "default"
+        },
+        "fetch_no_cache": {
+          "value": "false",
+          "source": "default"
+        },
+        "fetch_robots": {
+          "value": "true",
+          "source": "default"
+        },
+        "fetch_user_agent": {
+          "value": "symbrowse/1.0",
+          "source": "default"
+        },
+        "headless": {
+          "value": "true",
+          "source": "env"
+        },
+        "idle_timeout": {
+          "value": "1800",
+          "source": "default"
+        },
+        "log_format": {
+          "value": "text",
+          "source": "default"
+        },
+        "log_level": {
+          "value": "trace",
+          "source": "flag"
+        },
+        "operation_timeout": {
+          "value": "44",
+          "source": "project"
+        },
+        "read_timeout": {
+          "value": "90",
+          "source": "env"
+        },
+        "ssrf_enabled": {
+          "value": "false",
+          "source": "default"
+        },
+        "state_dir": {
+          "value": "flag-state",
+          "source": "flag"
+        },
+        "state_expire_days": {
+          "value": "30",
+          "source": "default"
+        },
+        "upload_dirs": {
+          "value": "\u003cROOT\u003e/workspace",
+          "source": "default"
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "engine",
+      "error": "invalid configuration: invalid engine \"wat\": use one of chrome, static, safari-attach, safari-bidi"
+    },
+    {
+      "name": "autosave",
+      "error": "invalid configuration: invalid autosave policy \"sometimes\""
+    },
+    {
+      "name": "timeout",
+      "error": "failed to load environment configuration: invalid SYMBROWSE_READ_TIMEOUT \"0\""
+    }
+  ]
+}

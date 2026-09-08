@@ -1,0 +1,181 @@
+{
+  "oracle_commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+  "generated_by": "scripts/rust-port/cmd/sessiongen",
+  "snapshots": {
+    "after_denied_takeover": {
+      "id": "session-1",
+      "control_id": "human-a",
+      "control_state": "user",
+      "active": true,
+      "handoff_reason": "2FA required",
+      "updated_at": "2026-08-06T12:00:00Z"
+    },
+    "claimed": {
+      "id": "session-1",
+      "control_id": "human-a",
+      "control_state": "user",
+      "active": true,
+      "handoff_reason": "2FA required",
+      "updated_at": "2026-08-06T12:00:00Z"
+    },
+    "completed": {
+      "id": "session-1",
+      "control_id": "agent-b",
+      "control_state": "agent",
+      "active": false,
+      "updated_at": "2026-08-06T12:00:00Z",
+      "completion": {
+        "keep": true,
+        "completed_at": "2026-08-06T12:00:00Z"
+      }
+    },
+    "created": {
+      "id": "session-1",
+      "control_id": "agent-a",
+      "control_state": "agent",
+      "active": true,
+      "updated_at": "2026-08-06T12:00:00Z"
+    },
+    "delegated": {
+      "id": "session-1",
+      "control_id": "agent-a",
+      "control_state": "agent_delegated",
+      "active": true,
+      "handoff_reason": "2FA required",
+      "updated_at": "2026-08-06T12:00:00Z"
+    },
+    "restored": {
+      "id": "session-1",
+      "control_id": "agent-b",
+      "control_state": "agent",
+      "active": false,
+      "updated_at": "2026-08-06T12:00:00Z",
+      "completion": {
+        "keep": true,
+        "completed_at": "2026-08-06T12:00:00Z"
+      }
+    },
+    "taken_over": {
+      "id": "session-1",
+      "control_id": "agent-b",
+      "control_state": "agent",
+      "active": true,
+      "updated_at": "2026-08-06T12:00:00Z"
+    },
+    "timed_out": {
+      "id": "session-timeout",
+      "control_id": "agent-a",
+      "control_state": "agent_delegated",
+      "active": false,
+      "handoff_reason": "CAPTCHA",
+      "updated_at": "2026-08-06T12:00:00Z"
+    }
+  },
+  "errors": {
+    "completed_access": {
+      "code": "session_inactive",
+      "message": "session \"session-1\" is inactive",
+      "retryable": false,
+      "requires_user_confirmation": false,
+      "resume_hint": "reopen the session before retrying"
+    },
+    "delegated_access": {
+      "code": "session_user_control",
+      "message": "session \"session-1\" is controlled by a human",
+      "retryable": false,
+      "requires_user_confirmation": true,
+      "resume_hint": "request explicit confirmation before taking control back"
+    },
+    "timeout": {
+      "code": "handoff_timeout",
+      "message": "handoff for session \"session-timeout\" timed out and was denied",
+      "retryable": false,
+      "requires_user_confirmation": true,
+      "resume_hint": "start a new handoff after explicit human confirmation"
+    },
+    "unconfirmed_takeover": {
+      "code": "session_user_control",
+      "message": "session \"session-1\" is controlled by a human",
+      "retryable": false,
+      "requires_user_confirmation": true,
+      "resume_hint": "request explicit confirmation before taking control back"
+    }
+  },
+  "transitions": [
+    {
+      "session_id": "session-1",
+      "action": "create",
+      "from": "",
+      "to": "agent",
+      "control_id": "agent-a",
+      "confirmed": true,
+      "at": "2026-08-06T12:00:00Z"
+    },
+    {
+      "session_id": "session-1",
+      "action": "handoff",
+      "from": "agent",
+      "to": "agent_delegated",
+      "control_id": "agent-a",
+      "reason": "2FA required",
+      "confirmed": true,
+      "at": "2026-08-06T12:00:00Z"
+    },
+    {
+      "session_id": "session-1",
+      "action": "claim",
+      "from": "agent_delegated",
+      "to": "user",
+      "control_id": "human-a",
+      "confirmed": true,
+      "at": "2026-08-06T12:00:00Z"
+    },
+    {
+      "session_id": "session-1",
+      "action": "takeover",
+      "from": "user",
+      "to": "agent",
+      "control_id": "agent-b",
+      "confirmed": true,
+      "at": "2026-08-06T12:00:00Z"
+    },
+    {
+      "session_id": "session-1",
+      "action": "complete",
+      "from": "agent",
+      "to": "agent",
+      "control_id": "agent-b",
+      "confirmed": true,
+      "keep": true,
+      "at": "2026-08-06T12:00:00Z"
+    },
+    {
+      "session_id": "session-timeout",
+      "action": "create",
+      "from": "",
+      "to": "agent",
+      "control_id": "agent-a",
+      "confirmed": true,
+      "at": "2026-08-06T12:00:00Z"
+    },
+    {
+      "session_id": "session-timeout",
+      "action": "handoff",
+      "from": "agent",
+      "to": "agent_delegated",
+      "control_id": "agent-a",
+      "reason": "CAPTCHA",
+      "confirmed": true,
+      "at": "2026-08-06T12:00:00Z"
+    },
+    {
+      "session_id": "session-timeout",
+      "action": "timeout",
+      "from": "agent_delegated",
+      "to": "agent_delegated",
+      "control_id": "agent-a",
+      "confirmed": false,
+      "at": "2026-08-06T12:00:00Z"
+    }
+  ]
+}

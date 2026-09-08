@@ -1,0 +1,302 @@
+{
+  "oracle_commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+  "generated_by": "scripts/rust-port/cmd/fetchcontrolgen",
+  "source_digest": "1e296a9e9505337b4ecc9d66db86024b80e9df1d3831f69ce3cae5460f5dd8eb",
+  "controls": {
+    "profiles": [
+      {
+        "input": "",
+        "profile": "chrome"
+      },
+      {
+        "input": "chrome",
+        "profile": "chrome"
+      },
+      {
+        "input": "firefox",
+        "profile": "firefox"
+      },
+      {
+        "input": "opera",
+        "profile": "opera"
+      },
+      {
+        "input": "safari",
+        "profile": "safari"
+      },
+      {
+        "input": "edge",
+        "profile": "edge"
+      },
+      {
+        "input": "ios",
+        "profile": "ios"
+      },
+      {
+        "input": "honest",
+        "profile": "honest"
+      },
+      {
+        "input": "random",
+        "profile": "random"
+      },
+      {
+        "input": "unknown",
+        "profile": "chrome",
+        "warning": "unknown profile, defaulting to chrome: unknown"
+      },
+      {
+        "input": "Chrome",
+        "profile": "chrome",
+        "warning": "unknown profile, defaulting to chrome: Chrome"
+      }
+    ],
+    "retry": {
+      "transient": [
+        {
+          "status": 199,
+          "value": false
+        },
+        {
+          "status": 200,
+          "value": false
+        },
+        {
+          "status": 204,
+          "value": false
+        },
+        {
+          "status": 301,
+          "value": false
+        },
+        {
+          "status": 400,
+          "value": false
+        },
+        {
+          "status": 404,
+          "value": false
+        },
+        {
+          "status": 408,
+          "value": false
+        },
+        {
+          "status": 425,
+          "value": false
+        },
+        {
+          "status": 429,
+          "value": true
+        },
+        {
+          "status": 500,
+          "value": false
+        },
+        {
+          "status": 502,
+          "value": true
+        },
+        {
+          "status": 503,
+          "value": true
+        },
+        {
+          "status": 504,
+          "value": true
+        }
+      ],
+      "backoff": [
+        {
+          "jitter": 50,
+          "millis": 250
+        },
+        {
+          "jitter": 100,
+          "millis": 500
+        },
+        {
+          "attempt": 1,
+          "jitter": 50,
+          "millis": 500
+        },
+        {
+          "attempt": 1,
+          "jitter": 100,
+          "millis": 1000
+        },
+        {
+          "attempt": 2,
+          "jitter": 50,
+          "millis": 1000
+        },
+        {
+          "attempt": 2,
+          "jitter": 100,
+          "millis": 2000
+        },
+        {
+          "attempt": 3,
+          "jitter": 50,
+          "millis": 2000
+        },
+        {
+          "attempt": 3,
+          "jitter": 100,
+          "millis": 4000
+        },
+        {
+          "attempt": 4,
+          "jitter": 50,
+          "millis": 4000
+        },
+        {
+          "attempt": 4,
+          "jitter": 100,
+          "millis": 8000
+        },
+        {
+          "attempt": 5,
+          "jitter": 50,
+          "millis": 8000
+        },
+        {
+          "attempt": 5,
+          "jitter": 100,
+          "millis": 16000
+        }
+      ],
+      "retry_after": [
+        {
+          "input": "0",
+          "millis": 0
+        },
+        {
+          "input": "12",
+          "millis": 12000
+        },
+        {
+          "input": "-5",
+          "millis": -5000
+        },
+        {
+          "input": "invalid",
+          "millis": 0
+        }
+      ]
+    },
+    "robots": [
+      {
+        "name": "comments",
+        "text": "# comment\nUser-agent: * # all\nDisallow: /secret # no\nAllow: /secret/public\n",
+        "agent": "symfetch/1",
+        "path": "/all/public/page",
+        "allowed": true
+      },
+      {
+        "name": "comments",
+        "text": "# comment\nUser-agent: * # all\nDisallow: /secret # no\nAllow: /secret/public\n",
+        "agent": "crawler",
+        "path": "/hidden",
+        "allowed": true
+      },
+      {
+        "name": "comments",
+        "text": "# comment\nUser-agent: * # all\nDisallow: /secret # no\nAllow: /secret/public\n",
+        "agent": "other-client",
+        "path": "/private/secret",
+        "allowed": true
+      },
+      {
+        "name": "empty",
+        "text": "User-agent: *\nDisallow:\n",
+        "agent": "symfetch/1",
+        "path": "/all/public/page",
+        "allowed": true
+      },
+      {
+        "name": "empty",
+        "text": "User-agent: *\nDisallow:\n",
+        "agent": "crawler",
+        "path": "/hidden",
+        "allowed": true
+      },
+      {
+        "name": "empty",
+        "text": "User-agent: *\nDisallow:\n",
+        "agent": "other-client",
+        "path": "/private/secret",
+        "allowed": true
+      },
+      {
+        "name": "no-group",
+        "text": "User-agent: crawler\nDisallow: /hidden\n",
+        "agent": "symfetch/1",
+        "path": "/all/public/page",
+        "allowed": true
+      },
+      {
+        "name": "no-group",
+        "text": "User-agent: crawler\nDisallow: /hidden\n",
+        "agent": "crawler",
+        "path": "/hidden",
+        "allowed": false
+      },
+      {
+        "name": "no-group",
+        "text": "User-agent: crawler\nDisallow: /hidden\n",
+        "agent": "other-client",
+        "path": "/private/secret",
+        "allowed": true
+      },
+      {
+        "name": "specific-longest",
+        "text": "User-agent: *\nDisallow: /private\nAllow: /private/public\n\nUser-agent: symfetch\nDisallow: /all\nAllow: /all/public\n",
+        "agent": "symfetch/1",
+        "path": "/all/public/page",
+        "allowed": true
+      },
+      {
+        "name": "specific-longest",
+        "text": "User-agent: *\nDisallow: /private\nAllow: /private/public\n\nUser-agent: symfetch\nDisallow: /all\nAllow: /all/public\n",
+        "agent": "crawler",
+        "path": "/hidden",
+        "allowed": true
+      },
+      {
+        "name": "specific-longest",
+        "text": "User-agent: *\nDisallow: /private\nAllow: /private/public\n\nUser-agent: symfetch\nDisallow: /all\nAllow: /all/public\n",
+        "agent": "other-client",
+        "path": "/private/secret",
+        "allowed": false
+      },
+      {
+        "name": "wildcard",
+        "text": "User-agent: *\nDisallow: /private/*\nAllow: /private/public\n",
+        "agent": "symfetch/1",
+        "path": "/all/public/page",
+        "allowed": true
+      },
+      {
+        "name": "wildcard",
+        "text": "User-agent: *\nDisallow: /private/*\nAllow: /private/public\n",
+        "agent": "crawler",
+        "path": "/hidden",
+        "allowed": true
+      },
+      {
+        "name": "wildcard",
+        "text": "User-agent: *\nDisallow: /private/*\nAllow: /private/public\n",
+        "agent": "other-client",
+        "path": "/private/secret",
+        "allowed": false
+      }
+    ],
+    "batch_counts": [
+      0,
+      1,
+      20,
+      21
+    ]
+  }
+}

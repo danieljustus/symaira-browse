@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "oracle_commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+  "generated_by": "scripts/rust-port/cmd/workflowgen",
+  "source_digest": "21aa6b6d419bc555ce18a72b1fdbc69d9c42b3d4190a6dcc9b7c84dabd3c53fb",
+  "source_files": {
+    "internal/flows/record.go": "99397bce26aaf820d7531651626e0e42d596648862c237765f46f97fc728f7d7",
+    "internal/flows/runner.go": "b34eccfa62d08744123894844fd9ce6e332ae2936a7227201a806916b6a1911e",
+    "internal/flows/schema.go": "cc6bc53349794846729d905812c6bc312f85ac79f8fd4f726bb1ed93d7bdd967",
+    "internal/journal/journal.go": "7760b6ae5c1934fd7141a86097088663369318f7e91b1bb6af6f2870ae8cdb8d",
+    "internal/oob/oob.go": "8525dae4a2272a35215eb9e1c07cee84ae7fbedb2c809d99eee192d30a702a91",
+    "internal/policy/policy.go": "208f0a8cc0152de590677c75b5ff596e9157bceaa4d44eb98400d4c3f8e12c24",
+    "internal/session/errors.go": "dbf387a4bd755f1e76fc15b4f871184ab9c91e82a056b322776a2d0fcac68d09",
+    "internal/session/lifecycle.go": "0ba16bdd3b12398a13845d3cee14fbdf5d7e80c9ff479beae154b69d38910c8c",
+    "internal/trace/trace.go": "2e9ec94acdb1529f503c8404d2982dfd6536b9f090ef719460447a45e16621fc"
+  },
+  "contracts": {
+    "FLOW-001": "strict-parser-line-diagnostics",
+    "FLOW-002": "browser-independent-runner;transport-blocked",
+    "FLOW-003": "partial-transform-only",
+    "FLOW-004": "go-public-api-preserved;rust-runtime-blocked",
+    "SES-001": "fixture",
+    "SES-002": "browser-storage-blocked",
+    "SES-003": "partial-journal-only",
+    "SES-004": "prompt-state-only",
+    "SES-005": "auth-runtime-blocked",
+    "SES-006": "validation-only",
+    "STATE-006": "codec-only;browser-runtime-blocked"
+  },
+  "blockers": {
+    "FLOW-001": "Strict YAML shape, unknown-field, single-action, secret, and nested line diagnostics are implemented and tested.",
+    "FLOW-002": "Browser-independent execution is implemented and tested; native browser transport remains blocked.",
+    "FLOW-003": "Trace file lifecycle and engine-backed replay are not implemented in Rust.",
+    "FLOW-004": "Go formflow remains public; Rust consumer migration and runtime parity are not claimed.",
+    "SES-002": "No Rust browser cookie/storage adapter exists; no browser parity is fabricated.",
+    "SES-003": "Journal watch/cancellation and hardened concurrent writers are not implemented in Rust.",
+    "SES-004": "Notifier execution and fallback delivery are not implemented in Rust.",
+    "SES-005": "Auth requires the existing symvault/browser runtime; no credential or auth success is fabricated.",
+    "SES-006": "Browser-backed persistent settings mutation is not implemented in Rust.",
+    "STATE-006": "Browser-backed state capture and restore are not implemented in Rust."
+  },
+  "flow": {
+    "name": "fixture-flow",
+    "version": 1,
+    "domains": [
+      "example.test"
+    ],
+    "inputs": [
+      "email"
+    ],
+    "steps": [
+      {
+        "open": {
+          "url": "https://example.test/start"
+        }
+      },
+      {
+        "fill": {
+          "label": "Email",
+          "value": "{{email}}"
+        }
+      },
+      {
+        "assert": {
+          "visible": "Continue"
+        }
+      },
+      {
+        "click": {
+          "label": "Continue"
+        }
+      },
+      {
+        "wait": {
+          "url": "**/done"
+        }
+      }
+    ],
+    "outputs": [
+      {
+        "name": "final_url",
+        "from": "url"
+      }
+    ]
+  },
+  "plan": [
+    {
+      "index": 0,
+      "action": "open",
+      "risk_class": "navigate"
+    },
+    {
+      "index": 1,
+      "action": "fill",
+      "risk_class": "interact"
+    },
+    {
+      "index": 2,
+      "action": "assert",
+      "risk_class": "read"
+    },
+    {
+      "index": 3,
+      "action": "click",
+      "risk_class": "interact"
+    },
+    {
+      "index": 4,
+      "action": "wait",
+      "risk_class": "navigate"
+    }
+  ],
+  "draft": {
+    "Name": "recorded-flow",
+    "Version": 1,
+    "Domains": [
+      "example.test"
+    ],
+    "Inputs": [
+      "input_1"
+    ],
+    "Steps": [
+      {
+        "open": {
+          "url": "https://example.test/start"
+        }
+      },
+      {
+        "assert": {
+          "url": "https://example.test/start"
+        }
+      },
+      {
+        "fill": {
+          "role": "textbox",
+          "name": "Email",
+          "value": "{{input_1}}",
+          "exact": true
+        }
+      },
+      {
+        "fill": {
+          "role": "textbox",
+          "name": "Password",
+          "value": "op://recording/secret-1",
+          "exact": true
+        }
+      },
+      {
+        "click": {
+          "role": "button",
+          "name": "Continue",
+          "exact": true
+        }
+      },
+      {
+        "assert": {
+          "url": "https://example.test/done"
+        }
+      }
+    ],
+    "Comments": [
+      "step 0: open https://example.test/start",
+      "input_1: recorded literal value \"ada@example.test\" — replace with a real input or op:// reference",
+      "secret placeholder op://recording/secret-1 — resolve via symvault/1Password before running",
+      "review: verify selectors, inputs and assertions before approving this draft"
+    ],
+    "SecretRefs": [
+      "op://recording/secret-1"
+    ]
+  },
+  "journal": [
+    {
+      "schema_version": 1,
+      "timestamp": "2026-08-06T12:00:00Z",
+      "session": "fixture",
+      "command": "open",
+      "args": {
+        "url": "https://example.test/start"
+      },
+      "risk_class": "navigate",
+      "result": "ok"
+    },
+    {
+      "schema_version": 1,
+      "timestamp": "2026-08-06T12:00:00Z",
+      "session": "fixture",
+      "command": "fill",
+      "args": {
+        "selector": "#password",
+        "value": "••••"
+      },
+      "risk_class": "credential",
+      "result": "ok"
+    },
+    {
+      "schema_version": 1,
+      "timestamp": "2026-08-06T12:00:00Z",
+      "session": "fixture",
+      "command": "click",
+      "args": {
+        "selector": "@e1"
+      },
+      "risk_class": "interact",
+      "result": "ok"
+    }
+  ],
+  "trace": {
+    "schema_version": 1,
+    "created_at": "2026-08-06T12:00:00Z",
+    "session": "fixture",
+    "steps": [
+      {
+        "command": "open",
+        "url": "https://example.test/start",
+        "expected_url": "https://example.test/start"
+      },
+      {
+        "command": "click",
+        "selector": "@e1"
+      }
+    ]
+  },
+  "oob": {
+    "status": "timeout",
+    "allowed": false,
+    "notification_program": "osascript"
+  },
+  "session": {
+    "states": [
+      "agent",
+      "agent_delegated"
+    ],
+    "hard_stop_code": "handoff_timeout"
+  },
+  "settings": {
+    "valid_viewport": true,
+    "invalid_geo": true,
+    "credential_header_rejected": true
+  },
+  "profiles": {
+    "names": [
+      "Default",
+      "Profile 1"
+    ],
+    "default_first": true
+  }
+}

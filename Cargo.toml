@@ -1,0 +1,53 @@
+[workspace]
+members = ["crates/symbrowse-cli", "crates/symbrowse-core", "crates/symbrowse-daemon", "crates/symbrowse-engine", "crates/symbrowse-engine-chrome", "crates/symbrowse-engine-safari", "crates/symbrowse-fetch", "crates/symbrowse-mcp", "crates/symbrowse-protocol"]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.98"
+license = "Apache-2.0"
+repository = "https://github.com/danieljustus/symaira-browse"
+
+[workspace.dependencies]
+aes-gcm = { version = "=0.11.1", features = ["zeroize"] }
+async-tungstenite = { version = "=0.32.1", default-features = false, features = ["tokio-runtime"] }
+chromiumoxide = { version = "=0.9.1", default-features = false }
+fs2 = "=0.4.3"
+interprocess = { version = "=2.4.4", features = ["tokio"] }
+widestring = "=1.2.1"
+futures = "=0.3.34"
+futures-util = { version = "=0.3.34", features = ["sink"] }
+getrandom = "=0.4.3"
+httpdate = "=1.0.3"
+html5ever = "=0.39.0"
+markup5ever_rcdom = "=0.39.0"
+rand = "=0.9.5"
+reqwest = { version = "=0.13.4", default-features = false, features = ["cookies", "http2", "native-tls", "socks", "stream"] }
+encoding_rs = "=0.8.35"
+brotli = "=8.0.2"
+flate2 = { version = "=1.1.8", default-features = false, features = ["rust_backend"] }
+ruzstd = "=0.9.0"
+rustix = { version = "=1.1.4", features = ["process"] }
+nix = { version = "=0.31.3", features = ["fs", "poll", "signal", "socket", "user"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+sha2 = "=0.10.9"
+symbrowse-core = { path = "crates/symbrowse-core", version = "=0.0.0" }
+symbrowse-daemon = { path = "crates/symbrowse-daemon", version = "=0.0.0" }
+symbrowse-engine = { path = "crates/symbrowse-engine", version = "=0.0.0" }
+symbrowse-mcp = { path = "crates/symbrowse-mcp", version = "=0.0.0" }
+symbrowse-protocol = { path = "crates/symbrowse-protocol", version = "=0.0.0" }
+time = { version = "=0.3.55", features = ["formatting", "local-offset", "macros", "parsing"] }
+tokio = { version = "=1.53.1", features = ["macros", "net", "process", "rt-multi-thread", "sync", "time"] }
+toml = "=1.1.5"
+url = "=2.5.8"
+wait-timeout = "=0.2.1"
+yaml-rust2 = "=0.12.0"
+zeroize = "=1.9.0"
+proptest = "=1.11.0"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"
+strip = true

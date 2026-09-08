@@ -1,0 +1,7 @@
+{
+  "frame": "{\"cmd\":\"fetch.url\",\"args\":{\"url\":\"https://example.com\"},\"session\":\"fixture\",\"request_id\":\"request-1\",\"max_tokens\":123,\"retrieval_surface\":\"mcp\"}",
+  "success": "{\"success\":true,\"data\":{\"ok\":true},\"warnings\":[{\"kind\":\"policy\",\"severity\":\"warning\",\"message\":\"fixture\",\"ref\":\"e1\",\"excerpt\":\"evidence\"}]}",
+  "failure": "{\"success\":false,\"error\":{\"code\":\"operation_failed\",\"message\":\"failed\",\"hint\":\"retry\",\"details\":{\"field\":\"value\"},\"retryable\":true,\"requires_user_confirmation\":false,\"resume_hint\":\"resume\"}}",
+  "warning": "{\"kind\":\"policy\",\"message\":\"message\"}",
+  "bad_frame_error": "missing cmd"
+}

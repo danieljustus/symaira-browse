@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "layout": "dual/{go,rust}/<goreleaser-archive>",
+  "default_implementation": "go",
+  "release_state": "go-default; rust-opt-in; no cutover",
+  "cutover_enabled": false,
+  "required_manifests": ["checksums.txt", "signature-inputs.json", "platform-proofs.json"],
+  "signing": "required; never fabricate .sig or .pem files",
+  "selection_contract": {
+    "default": "go",
+    "opt_in": "rust",
+    "forced_go": "go",
+    "selector": "SYMBROWSE_IMPL=go|rust (unset is go; auto is invalid)",
+    "availability_failure": "fallback_go",
+    "integrity_failure": "block_no_fallback"
+  },
+  "release_state": "prerelease-only; no cutover",
+  "targets": [
+    "darwin-amd64",
+    "darwin-arm64",
+    "linux-amd64",
+    "linux-arm64",
+    "windows-amd64",
+    "windows-arm64"
+  ]
+}

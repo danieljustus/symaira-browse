@@ -1,0 +1,151 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-09-06T12:44:22+02:00",
+  "oracle": {
+    "commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+    "stable_release": "v0.8.0",
+    "version_payload": {
+      "tool": "symbrowse",
+      "version": "v0.8.0",
+      "schema_version": 8
+    }
+  },
+  "toolchains": {
+    "go": "go1.26.6 darwin/arm64",
+    "rust_candidate_host": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+    "cargo_candidate_host": "cargo 1.98.0 (797e8a9bc 2026-08-05)"
+  },
+  "host": {
+    "os": "macOS 27.0 darwin/arm64",
+    "kernel": "Darwin 27.0.0",
+    "cpu": "Apple M4 Pro",
+    "memory_bytes": 25769803776
+  },
+  "owned_go_inventory": {
+    "files_total": 395,
+    "files_production": 214,
+    "files_test": 181,
+    "lines_total": 79071,
+    "lines_production": 38540,
+    "lines_test": 40531,
+    "packages": 40,
+    "direct_modules": 13
+  },
+  "release": {
+    "current_build_uncompressed_bytes": 18491538,
+    "v0_8_0_darwin_arm64_uncompressed_bytes": 18330466,
+    "v0_8_0_darwin_arm64_sha256": "543b8340b11b88ee570b679fc5ceafd00024d4d523920dfe2476d0b9738b7765",
+    "v0_8_0_darwin_arm64_archive_bytes": 7226242,
+    "targets": [
+      "darwin-amd64",
+      "darwin-arm64",
+      "linux-amd64",
+      "linux-arm64",
+      "windows-amd64",
+      "windows-arm64"
+    ]
+  },
+  "measurements": {
+    "version_startup": {
+      "command": "./symbrowse version --json",
+      "cold_single_ms": 14.328,
+      "warm_runs": 30,
+      "warm_min_ms": 12.244,
+      "warm_median_ms": 15.339,
+      "warm_p95_ms": 48.34,
+      "warm_max_ms": 65.666
+    },
+    "version_peak_rss": {
+      "command": "/usr/bin/time -l ./symbrowse version --json",
+      "runs": 10,
+      "median_bytes": 24190976,
+      "max_bytes": 24363008,
+      "samples_bytes": [
+        24363008,
+        24215552,
+        24002560,
+        24166400,
+        24035328,
+        24281088,
+        23969792,
+        24297472,
+        24264704,
+        24018944
+      ]
+    },
+    "warm_build": {
+      "command": "GOTOOLCHAIN=go1.26.6 CGO_ENABLED=0 make build",
+      "runs": 3,
+      "min_ms": 532.439,
+      "median_ms": 782.733,
+      "max_ms": 15660.237
+    },
+    "test": {
+      "command": "GOTOOLCHAIN=go1.26.6 CGO_ENABLED=0 make test",
+      "runs": 1,
+      "elapsed_ms": 46251.246,
+      "coverage_percent": 72.0
+    },
+    "stable_refs": {
+      "command": "GOTOOLCHAIN=go1.26.6 CGO_ENABLED=0 go test -count=1 -v ./internal/engine -run TestStableRefsAndSnapshotDiffBenchmark",
+      "fixtures": 17,
+      "retention_percent_each": 83.3,
+      "median_diff_tokens": 136,
+      "threshold_diff_tokens_less_than": 200
+    },
+    "injection_scan": {
+      "command": "GOTOOLCHAIN=go1.26.6 CGO_ENABLED=0 go test -bench=BenchmarkScan -benchmem -count=3 ./internal/injection",
+      "latency_ns_per_op": [
+        2810448,
+        1375211,
+        1536800
+      ],
+      "bytes_per_op": [
+        652075,
+        652042,
+        652042
+      ],
+      "allocs_per_op": [
+        13306,
+        13306,
+        13305
+      ]
+    },
+    "rust_001_portbench": {
+      "command": "make port-benchmark",
+      "binary_size_bytes": 18264882,
+      "binary_sha256": "27f9830d1ee10edff4bf2ae564b172fe1ca00562d151b726e9177ff61e41c91a",
+      "runs_per_workload": 30,
+      "workloads": {
+        "version-json": {
+          "median_ns": 8547084,
+          "p95_ns": 9015375,
+          "median_rss_bytes": 25362432
+        },
+        "root-help": {
+          "median_ns": 8685875,
+          "p95_ns": 13042417,
+          "median_rss_bytes": 25526272
+        },
+        "config-show-json": {
+          "median_ns": 18632250,
+          "p95_ns": 38582417,
+          "median_rss_bytes": 25542656
+        },
+        "mcp-initialize-list": {
+          "median_ns": 20375708,
+          "p95_ns": 34755125,
+          "median_rss_bytes": 26673152
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Startup and RSS were measured only on one Apple M4 Pro host.",
+    "The cold startup value is a single sample; it is not a distribution.",
+    "The warm-build sample includes one rebuild outlier and is not a clean-cache baseline.",
+    "The test duration is a single sample.",
+    "No real-Chrome navigation, MCP steady-state or daemon steady-state RSS/latency distribution is captured yet; RUST-001 must add paired benchmark fixtures before value-gate evaluation.",
+    "The stable-ref benchmark is protocol-neutral and does not measure CDP latency."
+  ]
+}

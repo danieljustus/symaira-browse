@@ -1,0 +1,20 @@
+[package]
+name = "symbrowse-mcp"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+symbrowse-daemon.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+interprocess = { workspace = true, features = ["tokio"] }
+tokio.workspace = true
