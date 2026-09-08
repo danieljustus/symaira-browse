@@ -125,15 +125,14 @@ impl DispatchRuntime {
                 ),
                 Vec::new(),
             )),
-            "open" | "goto" | "read" | "snapshot" | "click" | "fill" | "type" | "press"
-            | "wait" | "back" | "forward" | "reload" | "scrollintoview" | "get.text"
-            | "get.html" | "get.title" | "get.url" | "get.count" | "get.value" | "get.attr"
-            | "get.box" | "get.styles" | "is.visible" | "is.enabled" | "is.checked" | "find"
-            | "tabs.list" | "frames.list" | "dialog" | "network.capture" | "network.offline"
-            | "network.block" | "screenshot" | "pdf" | "upload" | "a11y" | "cookies.get"
-            | "cookies.set" | "storage.get" | "storage.set" | "download" => {
-                self.browser_command(&frame).await
-            }
+            "open" | "goto" | "read" | "snapshot" | "click" | "dblclick" | "fill" | "type"
+            | "press" | "focus" | "hover" | "select" | "check" | "uncheck" | "wait" | "back"
+            | "forward" | "reload" | "scrollintoview" | "get.text" | "get.html" | "get.title"
+            | "get.url" | "get.count" | "get.value" | "get.attr" | "get.box" | "get.styles"
+            | "is.visible" | "is.enabled" | "is.checked" | "find" | "tabs.list" | "frames.list"
+            | "dialog" | "network.capture" | "network.offline" | "network.block" | "screenshot"
+            | "pdf" | "upload" | "a11y" | "cookies.get" | "cookies.set" | "storage.get"
+            | "storage.set" | "download" => self.browser_command(&frame).await,
             "network.har" | "axe.audit" => Err(DaemonError {
                 code: "unsupported".into(),
                 message: format!("Chrome daemon does not implement {:?}", frame.cmd),
@@ -601,6 +600,12 @@ impl DispatchRuntime {
                     .map_err(runtime_error)?,
             )
             .map_err(runtime_error)?,
+            "dblclick" => serde_json::to_value(
+                page.double_click(required_string(args, "selector")?)
+                    .await
+                    .map_err(runtime_error)?,
+            )
+            .map_err(runtime_error)?,
             "fill" => serde_json::to_value(
                 page.fill(
                     required_string(args, "selector")?,
@@ -630,6 +635,39 @@ impl DispatchRuntime {
                 )
                 .await
                 .map_err(runtime_error)?,
+            )
+            .map_err(runtime_error)?,
+            "focus" => serde_json::to_value(
+                page.focus(required_string(args, "selector")?)
+                    .await
+                    .map_err(runtime_error)?,
+            )
+            .map_err(runtime_error)?,
+            "hover" => serde_json::to_value(
+                page.hover(required_string(args, "selector")?)
+                    .await
+                    .map_err(runtime_error)?,
+            )
+            .map_err(runtime_error)?,
+            "select" => serde_json::to_value(
+                page.select(
+                    required_string(args, "selector")?,
+                    required_string(args, "value")?,
+                )
+                .await
+                .map_err(runtime_error)?,
+            )
+            .map_err(runtime_error)?,
+            "check" => serde_json::to_value(
+                page.check(required_string(args, "selector")?)
+                    .await
+                    .map_err(runtime_error)?,
+            )
+            .map_err(runtime_error)?,
+            "uncheck" => serde_json::to_value(
+                page.uncheck(required_string(args, "selector")?)
+                    .await
+                    .map_err(runtime_error)?,
             )
             .map_err(runtime_error)?,
             "get.text" | "get.html" | "get.title" | "get.url" | "get.count" | "get.value"

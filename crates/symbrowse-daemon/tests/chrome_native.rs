@@ -87,6 +87,44 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     let ax = request(&socket, "a11y", json!({}));
     assert_eq!(ax["success"], true, "a11y response: {ax}");
 
+    let interactions = request(
+        &socket,
+        "open",
+        json!({"url": "data:text/html,%3Cinput%20id%3D%27text%27%3E%3Cselect%20id%3D%27choice%27%3E%3Coption%20value%3D%27one%27%3EOne%3C%2Foption%3E%3Coption%20value%3D%27two%27%3ETwo%3C%2Foption%3E%3C%2Fselect%3E%3Cinput%20id%3D%27check%27%20type%3D%27checkbox%27%3E%3Cdiv%20id%3D%27dbl%27%20ondblclick%3D%22this.dataset.doubled%3D%27yes%27%22%3EDouble%3C%2Fdiv%3E%3Cdiv%20id%3D%27hover%27%20onmouseenter%3D%22this.dataset.hovered%3D%27yes%27%22%3EHover%3C%2Fdiv%3E"}),
+    );
+    assert_eq!(
+        interactions["success"], true,
+        "interaction page: {interactions}"
+    );
+    for (command, args) in [
+        ("dblclick", json!({"selector":"#dbl"})),
+        ("focus", json!({"selector":"#text"})),
+        ("hover", json!({"selector":"#hover"})),
+        ("select", json!({"selector":"#choice","value":"two"})),
+        ("check", json!({"selector":"#check"})),
+        ("uncheck", json!({"selector":"#check"})),
+    ] {
+        let response = request(&socket, command, args);
+        assert_eq!(response["success"], true, "{command} response: {response}");
+        assert_eq!(response["data"]["action"], command);
+    }
+    let doubled = request(
+        &socket,
+        "get.attr",
+        json!({"selector":"#dbl","attribute":"data-doubled"}),
+    );
+    assert_eq!(doubled["data"], "yes", "double-click state: {doubled}");
+    let hovered = request(
+        &socket,
+        "get.attr",
+        json!({"selector":"#hover","attribute":"data-hovered"}),
+    );
+    assert_eq!(hovered["data"], "yes", "hover state: {hovered}");
+    let selected = request(&socket, "get.value", json!({"selector":"#choice"}));
+    assert_eq!(selected["data"], "two", "select state: {selected}");
+    let checked = request(&socket, "is.checked", json!({"selector":"#check"}));
+    assert_eq!(checked["data"], false, "uncheck state: {checked}");
+
     let unsupported = request(&socket, "network.har", json!({}));
     assert_eq!(unsupported["success"], false);
     assert_eq!(unsupported["error"]["code"], "unsupported");
