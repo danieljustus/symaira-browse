@@ -376,7 +376,6 @@ impl Server {
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                     wait_for_unix_listener(&listener, Duration::from_millis(25))?;
                 }
-                Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
                 Err(error) => return Err(error.into()),
             }
         }
@@ -409,13 +408,8 @@ fn wait_for_unix_listener(
         listener.as_fd(),
         nix::poll::PollFlags::POLLIN,
     )];
-    loop {
-        match nix::poll::poll(&mut descriptors, timeout_ms) {
-            Ok(_) => return Ok(()),
-            Err(error) if error == nix::errno::Errno::EINTR => continue,
-            Err(error) => return Err(io::Error::other(error)),
-        }
-    }
+    nix::poll::poll(&mut descriptors, timeout_ms).map_err(io::Error::other)?;
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -512,7 +506,6 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
             Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
                 thread::sleep(Duration::from_millis(25));
             }
-            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
             Err(error) => {
                 drop(sender);
                 for worker in workers {

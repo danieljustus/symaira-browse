@@ -6,7 +6,7 @@ import ast
 import importlib.util
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SCRIPT = Path(__file__).with_name("run.py")
 spec = importlib.util.spec_from_file_location("port_harness_run", SCRIPT)
@@ -37,6 +37,19 @@ class ChromeFullHarnessTests(unittest.TestCase):
         self.assertIn("chrome_daemon_suite", names)
         self.assertIn("start_daemon", names)
         self.assertIn("request", names)
+
+    def test_windows_chrome_discovery_uses_standard_install_root(self) -> None:
+        environment = {"PROGRAMFILES": r"C:\\Program Files"}
+        candidates = module.windows_chrome_candidates(environment)
+        self.assertIn(r"C:\\Program Files\Google\Chrome\Application\chrome.exe", candidates)
+
+    def test_fixture_server_shutdown_is_explicit(self) -> None:
+        server = Mock()
+        thread = Mock()
+        module.stop_fixture_server(server, thread)
+        server.shutdown.assert_called_once_with()
+        server.server_close.assert_called_once_with()
+        thread.join.assert_called_once_with(timeout=5)
 
 
 if __name__ == "__main__":
