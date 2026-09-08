@@ -283,6 +283,7 @@ ALL_SUITES = (
     "daemon",
     "chrome-full",
     "safari",
+    "browser-transport",
 )
 
 
@@ -350,6 +351,14 @@ def main() -> int:
             ["go", "test", "./internal/fetch/dom/...", "./internal/fetch/render/...", "./internal/fetch/relevance/...", "./internal/fetch/semantic/..."],
             ["cargo", "test", "-p", "symbrowse-fetch", "--test", "render_corpus", "--test", "static_controls", "--test", "pipeline_controls", "--locked"],
         ]
+    elif args.suite == "browser-transport":
+        fixture = json.loads((root / "testdata/port/core/transport-selection.json").read_text())
+        assert fixture["schema_version"] == 1 and len(fixture["cases"]) == 8
+        assert {case["id"] for case in fixture["cases"]} == {
+            "static-default", "browser-chrome", "browser-safari", "browser-firefox",
+            "browser-missing-engine", "static-engine-conflict", "unknown-mode", "unknown-engine",
+        }
+        commands = [["cargo", "test", "-p", "symbrowse-core", "selection_is_exhaustive", "--locked"]]
     elif args.suite == "workflows":
         commands = [
             ["go", "run", "./scripts/rust-port/cmd/workflowgen", "--check"],

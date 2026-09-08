@@ -40,6 +40,90 @@ const FIELDS: [&str; 26] = [
     "approval_timeout",
 ];
 
+/// Explicit transport selection; browser engines never describe static/compat.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportMode {
+    Static,
+    Browser,
+    Compat,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BrowserEngine {
+    Chrome,
+    Safari,
+    Firefox,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TransportSelection {
+    pub mode: TransportMode,
+    pub engine: Option<BrowserEngine>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SelectionError {
+    pub code: &'static str,
+    pub message: String,
+}
+impl fmt::Display for SelectionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+impl std::error::Error for SelectionError {}
+
+/// Resolve a mode and engine exhaustively, with no fallback.
+pub fn resolve_selection(
+    mode: Option<&str>,
+    engine: Option<&str>,
+) -> std::result::Result<TransportSelection, SelectionError> {
+    let mode = match mode.unwrap_or("browser") {
+        "static" => TransportMode::Static,
+        "browser" => TransportMode::Browser,
+        "compat" => TransportMode::Compat,
+        value => {
+            return Err(SelectionError {
+                code: "invalid_transport_mode",
+                message: format!(
+                    "unknown transport mode {value:?}: use static, browser, or compat"
+                ),
+            });
+        }
+    };
+    let engine = engine
+        .filter(|value| !value.is_empty())
+        .map(|value| match value {
+            "chrome" => Ok(BrowserEngine::Chrome),
+            "safari" | "safari-attach" | "safari-bidi" => Ok(BrowserEngine::Safari),
+            "firefox" => Ok(BrowserEngine::Firefox),
+            value => Err(SelectionError {
+                code: "invalid_browser_engine",
+                message: format!(
+                    "unknown browser engine {value:?}: use chrome, safari, or firefox"
+                ),
+            }),
+        })
+        .transpose()?;
+    match (mode, engine) {
+        (TransportMode::Browser, None) => Err(SelectionError {
+            code: "browser_engine_required",
+            message: "browser mode requires an explicit engine".into(),
+        }),
+        (TransportMode::Browser, Some(engine)) => Ok(TransportSelection {
+            mode,
+            engine: Some(engine),
+        }),
+        (mode, Some(_)) => Err(SelectionError {
+            code: "engine_not_allowed",
+            message: format!("browser engine is only valid in browser mode, not {mode:?}"),
+        }),
+        (mode, None) => Ok(TransportSelection { mode, engine: None }),
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct Config {
     pub log_level: String,
@@ -50,6 +134,8 @@ pub struct Config {
     pub executable_path: String,
     pub cdp_endpoint: String,
     pub engine: String,
+    #[serde(default = "default_mode")]
+    pub mode: String,
     pub allowed_domains: Vec<String>,
     pub ssrf_enabled: bool,
     pub allow_private: bool,
@@ -84,6 +170,8 @@ pub struct FlagOverrides {
     pub cache_dir: Option<String>,
     pub state_dir: Option<String>,
     pub executable_path: Option<String>,
+    pub mode: Option<String>,
+    pub engine: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -144,6 +232,7 @@ struct PartialConfig {
     executable_path: Option<String>,
     cdp_endpoint: Option<String>,
     engine: Option<String>,
+    mode: Option<String>,
     allowed_domains: Option<Vec<String>>,
     ssrf_enabled: Option<bool>,
     allow_private: Option<bool>,
@@ -187,6 +276,7 @@ pub fn load(context: &LoadContext) -> std::result::Result<Result, ConfigError> {
         executable_path: String::new(),
         cdp_endpoint: String::new(),
         engine: "chrome".to_owned(),
+        mode: "browser".to_owned(),
         allowed_domains: Vec::new(),
         ssrf_enabled: false,
         allow_private: false,
@@ -371,6 +461,7 @@ fn apply_partial(
     set!(executable_path);
     set!(cdp_endpoint);
     set!(engine);
+    set!(mode);
     set!(allowed_domains);
     set!(ssrf_enabled);
     set!(allow_private);
@@ -434,6 +525,7 @@ fn apply_env(
     string_env!(executable_path, "SYMBROWSE_EXECUTABLE_PATH");
     string_env!(cdp_endpoint, "SYMBROWSE_CDP_ENDPOINT");
     string_env!(engine, "SYMBROWSE_ENGINE");
+    string_env!(mode, "SYMBROWSE_MODE");
     string_env!(fetch_user_agent, "SYMBROWSE_FETCH_USER_AGENT");
     string_env!(autosave, "SYMBROWSE_AUTOSAVE");
     string_env!(autosave_key, "SYMBROWSE_AUTOSAVE_KEY");
@@ -492,6 +584,8 @@ fn apply_flags(config: &mut Config, sources: &mut BTreeMap<String, String>, flag
     flag!(cache_dir);
     flag!(state_dir);
     flag!(executable_path);
+    flag!(mode);
+    flag!(engine);
 }
 
 fn validate(config: &Config) -> std::result::Result<(), ConfigError> {
@@ -510,16 +604,25 @@ fn validate(config: &Config) -> std::result::Result<(), ConfigError> {
             config.autosave
         )));
     }
+    if config.engine == "static" {
+        return Ok(());
+    }
     if !matches!(
         config.engine.as_str(),
-        "" | "chrome" | "static" | "safari-attach" | "safari-bidi"
+        "" | "chrome" | "safari" | "safari-attach" | "safari-bidi" | "firefox"
     ) {
         return Err(ConfigError(format!(
             "invalid engine {:?}: use one of chrome, static, safari-attach, safari-bidi",
             config.engine
         )));
     }
+    resolve_selection(Some(&config.mode), Some(&config.engine))
+        .map_err(|error| ConfigError(format!("{}: {}", error.code, error.message)))?;
     Ok(())
+}
+
+fn default_mode() -> String {
+    "browser".to_owned()
 }
 
 fn nonempty<'a>(env: &'a HashMap<String, String>, name: &str) -> Option<&'a str> {
@@ -549,4 +652,45 @@ fn split_list(value: &str) -> Vec<String> {
 
 fn display(path: impl AsRef<Path>) -> String {
     path.as_ref().to_string_lossy().into_owned()
+}
+
+#[cfg(test)]
+mod selection_tests {
+    use super::*;
+
+    #[test]
+    fn selection_is_exhaustive_and_never_falls_back() {
+        assert_eq!(
+            resolve_selection(Some("static"), None).unwrap().mode,
+            TransportMode::Static
+        );
+        assert_eq!(
+            resolve_selection(Some("browser"), Some("firefox"))
+                .unwrap()
+                .engine,
+            Some(BrowserEngine::Firefox)
+        );
+        assert_eq!(
+            resolve_selection(Some("browser"), Some("safari"))
+                .unwrap()
+                .engine,
+            Some(BrowserEngine::Safari)
+        );
+        assert_eq!(
+            resolve_selection(Some("browser"), None).unwrap_err().code,
+            "browser_engine_required"
+        );
+        assert_eq!(
+            resolve_selection(Some("static"), Some("chrome"))
+                .unwrap_err()
+                .code,
+            "engine_not_allowed"
+        );
+        assert_eq!(
+            resolve_selection(Some("browser"), Some("wat"))
+                .unwrap_err()
+                .code,
+            "invalid_browser_engine"
+        );
+    }
 }
