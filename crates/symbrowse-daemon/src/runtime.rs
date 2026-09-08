@@ -96,12 +96,27 @@ impl DispatchRuntime {
             "cache.get" => self.cache_get(&frame),
             "wayback.snapshots" => self.wayback_snapshots(&frame).await,
             "flow.run" => self.flow_run(&frame),
+            "capabilities" => Ok((
+                Some(
+                    serde_json::to_value(symbrowse_engine_chrome::canonical_capabilities())
+                        .map_err(runtime_error)?,
+                ),
+                Vec::new(),
+            )),
             "open" | "goto" | "read" | "snapshot" | "click" | "fill" | "type" | "press"
             | "wait" | "back" | "forward" | "reload" | "scrollintoview" | "get.text"
             | "get.html" | "get.title" | "get.url" | "get.count" | "get.value" | "get.attr"
-            | "get.box" | "get.styles" | "is.visible" | "is.enabled" | "is.checked" | "find" => {
+            | "get.box" | "get.styles" | "is.visible" | "is.enabled" | "is.checked" | "find"
+            | "tabs.list" | "frames.list" | "dialog" | "network.capture" | "network.offline"
+            | "network.block" | "screenshot" | "pdf" | "upload" | "a11y" => {
                 self.browser_command(&frame).await
             }
+            "network.har" | "axe.audit" => Err(DaemonError {
+                code: "unsupported".into(),
+                message: format!("Chrome daemon does not implement {:?}", frame.cmd),
+                hint: "the operation is explicitly unsupported by this engine".into(),
+                ..Default::default()
+            }),
             "state.save" | "state.load" => self.state_browser_command(&frame).await,
             "state.list" | "state.show" | "state.clear" | "state.clean" => {
                 self.state_command(&frame)
@@ -363,6 +378,78 @@ impl DispatchRuntime {
         let page = self.ensure_browser().await?;
         let args = object_args(frame)?;
         let data = match frame.cmd.as_str() {
+            "tabs.list" => json!({"tabs": [json!({"id": page.target_id()})]}),
+            "frames.list" => json!({"frames": page.frames().await.map_err(runtime_error)?}),
+            "a11y" => json!({"nodes": page.accessibility_tree().await.map_err(runtime_error)?}),
+            "dialog" => {
+                let accept = args.get("accept").and_then(Value::as_bool).unwrap_or(false);
+                let prompt = args
+                    .get("prompt_text")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned);
+                serde_json::to_value(
+                    page.dialog(accept, prompt, self.spec.operation_timeout)
+                        .await
+                        .map_err(runtime_error)?,
+                )
+                .map_err(runtime_error)?
+            }
+            "network.capture" => {
+                let capture = page.start_network_capture().await.map_err(runtime_error)?;
+                json!({"events": capture.collect(self.spec.operation_timeout).await})
+            }
+            "network.offline" => {
+                page.set_offline(args.get("offline").and_then(Value::as_bool).unwrap_or(true))
+                    .await
+                    .map_err(runtime_error)?;
+                json!({"offline": args.get("offline").and_then(Value::as_bool).unwrap_or(true)})
+            }
+            "network.block" => {
+                let urls = args
+                    .get("urls")
+                    .and_then(Value::as_array)
+                    .ok_or_else(|| malformed("network.block requires urls"))?
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect();
+                page.block_urls(urls).await.map_err(runtime_error)?;
+                json!({"blocked": true})
+            }
+            "screenshot" => serde_json::to_value(
+                page.screenshot(
+                    serde_json::from_value(args.clone().into()).map_err(runtime_error)?,
+                )
+                .await
+                .map_err(runtime_error)?,
+            )
+            .map_err(runtime_error)?,
+            "pdf" => serde_json::to_value(page.pdf().await.map_err(runtime_error)?)
+                .map_err(runtime_error)?,
+            "upload" => {
+                let files = args
+                    .get("files")
+                    .and_then(Value::as_array)
+                    .ok_or_else(|| malformed("upload requires files"))?
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>();
+                let allowed = args
+                    .get("allowed_dirs")
+                    .and_then(Value::as_array)
+                    .map(|v| {
+                        v.iter()
+                            .filter_map(Value::as_str)
+                            .map(str::to_owned)
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                page.upload_files(required_string(args, "selector")?, &files, &allowed)
+                    .await
+                    .map_err(runtime_error)?;
+                json!({"uploaded": files})
+            }
             "open" | "goto" => page
                 .open(required_string(args, "url")?)
                 .await
