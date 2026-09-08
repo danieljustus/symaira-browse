@@ -293,14 +293,20 @@ async fn bidi_protocol_errors_remain_typed() {
 
 #[tokio::test]
 async fn real_safari_bidi_launch_is_opt_in_or_reports_typed_blocked_gate() {
-    let result = BidiEngine::launch(DriverOptions {
-        ready_timeout: std::time::Duration::from_millis(100),
-        session_timeout: std::time::Duration::from_millis(100),
-        request_timeout: std::time::Duration::from_millis(100),
-        ..DriverOptions::default()
-    })
-    .await;
-    if std::env::var_os("SYMBROWSE_NATIVE_TARGETS").as_deref() == Some(std::ffi::OsStr::new("1")) {
+    let native =
+        std::env::var_os("SYMBROWSE_NATIVE_TARGETS").as_deref() == Some(std::ffi::OsStr::new("1"));
+    let options = if native {
+        DriverOptions::default()
+    } else {
+        DriverOptions {
+            ready_timeout: std::time::Duration::from_millis(100),
+            session_timeout: std::time::Duration::from_millis(100),
+            request_timeout: std::time::Duration::from_millis(100),
+            ..DriverOptions::default()
+        }
+    };
+    let result = BidiEngine::launch(options).await;
+    if native {
         let mut engine = result.expect("launch isolated safaridriver BiDi session");
         let page = engine.new_page().expect("initial Safari automation page");
         let title = engine
