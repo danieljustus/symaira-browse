@@ -21,6 +21,12 @@ pub struct Entry {
     pub timestamp: String,
     pub session: String,
     pub command: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub ref_key: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub url_before: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub url_after: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub args: Option<Value>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -29,6 +35,10 @@ pub struct Entry {
     pub reason: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub risk_class: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub decider: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration_ms: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -235,6 +245,24 @@ impl Store {
         } else {
             Ok(entries[entries.len() - count..].to_vec())
         }
+    }
+
+    /// List journal sessions in deterministic order, ignoring unrelated files.
+    pub fn sessions(dir: &Path) -> std::io::Result<Vec<String>> {
+        let mut names = match fs::read_dir(dir) {
+            Ok(entries) => entries
+                .filter_map(Result::ok)
+                .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+                .filter_map(|entry| {
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    name.strip_suffix(".jsonl").map(ToOwned::to_owned)
+                })
+                .collect::<Vec<_>>(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(error),
+        };
+        names.sort();
+        Ok(names)
     }
 }
 

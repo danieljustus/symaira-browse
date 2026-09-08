@@ -177,6 +177,27 @@ pub fn compare_urls(file: &File, actual_urls: &[Result<String, String>]) -> Repl
     }
     result
 }
+
+/// Compare a trace while treating credential steps as explicit hard stops.
+/// Replay never silently reuses credentials captured in an old trace.
+#[must_use]
+pub fn replay(file: &File, actual_urls: &[Result<String, String>]) -> ReplayResult {
+    let mut result = compare_urls(file, actual_urls);
+    for outcome in &mut result.outcomes {
+        if outcome.command == "auth.login" {
+            if outcome.matched {
+                result.matched = result.matched.saturating_sub(1);
+            } else {
+                result.deviated = result.deviated.saturating_sub(1);
+            }
+            outcome.matched = false;
+            outcome.error = "credential step requires fresh auth.login confirmation".to_owned();
+            result.failed += 1;
+        }
+    }
+    result
+}
+
 fn normalize_url(url: &str) -> String {
     url.split('#')
         .next()
@@ -208,5 +229,26 @@ mod tests {
         assert_eq!(file.steps.len(), 1);
         let result = compare_urls(&file, &[Ok("https://example.test".into())]);
         assert_eq!(result.matched, 1);
+    }
+
+    #[test]
+    fn replay_turns_auth_into_an_explicit_hard_stop() {
+        let file = File {
+            schema_version: SCHEMA_VERSION,
+            created_at: "fixed".into(),
+            session: "s".into(),
+            steps: vec![Step {
+                command: "auth.login".into(),
+                selector: String::new(),
+                value: "op://vault/login/password".into(),
+                key: String::new(),
+                url: String::new(),
+                expected_url: String::new(),
+            }],
+        };
+        let result = replay(&file, &[Ok(String::new())]);
+        assert_eq!(result.failed, 1);
+        assert!(!result.outcomes[0].matched);
+        assert!(result.outcomes[0].error.contains("fresh auth"));
     }
 }
