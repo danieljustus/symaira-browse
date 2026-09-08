@@ -292,6 +292,24 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
         "no-pending dismiss: {no_pending}"
     );
 
+    let auto = request(&socket, "dialog.auto", json!({"mode":"dismiss"}));
+    assert_eq!(auto["success"], true, "dialog auto: {auto}");
+    assert_eq!(auto["data"], json!({"auto_mode":"dismiss"}));
+    let auto_alert = request(
+        &socket,
+        "open",
+        json!({"url":"data:text/html,%3Cscript%3EsetTimeout(()%3D%3Ealert('auto%20dismiss')%2C100)%3C%2Fscript%3E"}),
+    );
+    assert_eq!(auto_alert["success"], true, "auto alert page: {auto_alert}");
+    thread::sleep(Duration::from_millis(250));
+    let auto_status = request(&socket, "dialog.status", json!({}));
+    assert_eq!(auto_status["success"], true, "auto status: {auto_status}");
+    assert_eq!(auto_status["data"]["handled"], true);
+    assert_eq!(auto_status["data"]["auto_mode"], "dismiss");
+    let auto_off = request(&socket, "dialog.auto", json!({"mode":"off"}));
+    assert_eq!(auto_off["success"], true, "dialog auto off: {auto_off}");
+    assert_eq!(auto_off["data"], json!({"auto_mode":"off"}));
+
     let unsupported = request(&socket, "network.har", json!({}));
     assert_eq!(unsupported["success"], false);
     assert_eq!(unsupported["error"]["code"], "unsupported");

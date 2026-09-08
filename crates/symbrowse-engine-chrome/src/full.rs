@@ -243,6 +243,7 @@ struct DialogMonitor {
 #[derive(Default)]
 struct DialogState {
     pending: Option<PendingDialog>,
+    auto_mode: String,
 }
 
 impl ChromePage {
@@ -252,15 +253,32 @@ impl ChromePage {
             .await?;
         let state = Arc::new(Mutex::new(DialogState::default()));
         let monitor_state = Arc::clone(&state);
+        let monitor_page = page.clone();
         let task = tokio::spawn(async move {
             while let Some(event) = events.next().await {
-                monitor_state.lock().await.pending = Some(PendingDialog {
-                    dialog_type: format!("{:?}", event.r#type).to_ascii_lowercase(),
-                    message: event.message.clone(),
-                    default: event.default_prompt.clone().unwrap_or_default(),
-                    handled: false,
-                    auto_mode: String::new(),
-                });
+                let dialog_type = format!("{:?}", event.r#type).to_ascii_lowercase();
+                let auto_mode = {
+                    let mut state = monitor_state.lock().await;
+                    let auto_mode = state.auto_mode.clone();
+                    state.pending = Some(PendingDialog {
+                        dialog_type: dialog_type.clone(),
+                        message: event.message.clone(),
+                        default: event.default_prompt.clone().unwrap_or_default(),
+                        handled: false,
+                        auto_mode: auto_mode.clone(),
+                    });
+                    auto_mode
+                };
+                let should_dismiss = auto_mode == "dismiss"
+                    || (auto_mode.is_empty() && dialog_type == "beforeunload");
+                if should_dismiss
+                    && monitor_page
+                        .execute(page::HandleJavaScriptDialogParams::new(false))
+                        .await
+                        .is_ok()
+                {
+                    monitor_state.lock().await.pending = None;
+                }
             }
         });
         Ok(Self {
@@ -625,19 +643,27 @@ impl ChromePage {
     }
 
     pub async fn dialog_status(&self) -> PendingDialog {
-        self.dialogs
-            .state
-            .lock()
-            .await
-            .pending
-            .clone()
-            .unwrap_or(PendingDialog {
-                dialog_type: String::new(),
-                message: String::new(),
-                default: String::new(),
-                handled: true,
-                auto_mode: String::new(),
-            })
+        let state = self.dialogs.state.lock().await;
+        state.pending.clone().unwrap_or(PendingDialog {
+            dialog_type: String::new(),
+            message: String::new(),
+            default: String::new(),
+            handled: true,
+            auto_mode: state.auto_mode.clone(),
+        })
+    }
+
+    pub async fn set_dialog_auto_mode(
+        &self,
+        mode: &str,
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        if !matches!(mode, "accept" | "dismiss" | "off") {
+            return Err(
+                format!("invalid dialog auto mode {mode:?} (use accept, dismiss or off)").into(),
+            );
+        }
+        self.dialogs.state.lock().await.auto_mode = mode.to_owned();
+        Ok(())
     }
 
     pub async fn accept_dialog(
