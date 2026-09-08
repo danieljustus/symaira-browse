@@ -11,6 +11,7 @@ fs2.workspace = true
 interprocess.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+symbrowse-compat.workspace = true
 symbrowse-core = { path = "../symbrowse-core", version = "=0.0.0" }
 symbrowse-engine = { path = "../symbrowse-engine", version = "=0.0.0" }
 symbrowse-engine-chrome = { path = "../symbrowse-engine-chrome", version = "=0.0.0" }

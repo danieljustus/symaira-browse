@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "protocol": 1,
+  "oracle": "go-azuretls-v0.8.0",
+  "cases": [
+    {"id":"compat-handshake", "request_type":"handshake", "expected":"handshake_ack"},
+    {"id":"compat-request-id", "request_id":42, "expected":"response.id=42"},
+    {"id":"compat-bounded-frame", "max_frame_bytes":1048576, "expected":"typed frame_too_large"},
+    {"id":"compat-integrity-error", "expected_error":"compat_integrity_error", "fallback":"forbidden"},
+    {"id":"compat-sidecar-unavailable", "expected_error":"compat_unavailable", "fallback":"forbidden"},
+    {"id":"compat-crash-restart", "expected":"second request succeeds after child exit"},
+    {"id":"compat-private-endpoint", "directory_mode":"0700", "endpoint_mode":"0600"},
+    {"id":"compat-rollback-go", "build":"CGO_ENABLED=0 go build -trimpath -o dist/symbrowse-compat ./cmd/symbrowse", "entrypoint":"compat-sidecar"}
+  ]
+}
