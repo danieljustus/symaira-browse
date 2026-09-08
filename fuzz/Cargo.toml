@@ -1,0 +1,57 @@
+[package]
+name = "symbrowse-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+repository = "https://github.com/danieljustus/symaira-browse"
+
+[package.metadata]
+cargo-fuzz = true
+
+# Fuzzing is deliberately a separate Cargo workspace. Its lockfile is not
+# shared with the production workspace so fuzz-only tooling cannot enter a
+# release build by dependency resolution.
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "=0.4.13"
+serde_json = "=1.0.151"
+symbrowse-core = { path = "../crates/symbrowse-core", version = "=0.0.0" }
+symbrowse-daemon = { path = "../crates/symbrowse-daemon", version = "=0.0.0" }
+symbrowse-fetch = { path = "../crates/symbrowse-fetch", version = "=0.0.0" }
+
+[[bin]]
+name = "daemon_mcp_frames"
+path = "fuzz_targets/daemon_mcp_frames.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "flow_yaml"
+path = "fuzz_targets/flow_yaml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "state_headers"
+path = "fuzz_targets/state_headers.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "urls"
+path = "fuzz_targets/urls.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "html_boundaries"
+path = "fuzz_targets/html_boundaries.rs"
+test = false
+doc = false
+bench = false

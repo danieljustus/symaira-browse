@@ -1,0 +1,50 @@
+name: Rust hardening
+
+on:
+  schedule:
+    - cron: '37 4 * * 1'
+  workflow_dispatch: {}
+
+concurrency:
+  group: rust-hardening-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  full:
+    name: Rust hardening
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install pinned Rust toolchains
+        run: |
+          rustup toolchain install 1.98.0 --profile minimal --component rustfmt,clippy
+          rustup toolchain install nightly-2026-09-03 --profile minimal --component miri
+      - name: Install pinned Cargo tools
+        run: |
+          cargo install cargo-nextest --version 0.9.143 --locked
+          cargo install cargo-hack --version 0.6.45 --locked
+          cargo install cargo-audit --version 0.22.2 --locked
+          cargo install cargo-deny --version 0.20.2 --locked
+          cargo install cargo-geiger --version 0.13.0 --locked
+          cargo install cargo-fuzz --version 0.13.1 --locked
+      - name: Core quality gates
+        run: |
+          cargo fmt --all --check
+          cargo check --workspace --all-targets --all-features --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          cargo nextest run --workspace --all-features --locked
+          cargo test --workspace --doc --all-features --locked
+      - name: Hardening gates
+        env:
+          MIRI_TOOLCHAIN: nightly-2026-09-03
+        run: make rust-hardening
+      - name: Upload unsafe inventory
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rust-hardening-evidence
+          path: target/hardening/geiger/*.json

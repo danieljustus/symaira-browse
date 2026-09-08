@@ -1,0 +1,5560 @@
+{
+  "schema_version": 1,
+  "capabilities": {
+    "empty": {
+      "kind": "static",
+      "interfaces": [],
+      "unsupported": [
+        "A11yAuditor",
+        "AXSelectorResolver",
+        "ClickDiagnosticEngine",
+        "CookieEngine",
+        "DialogController",
+        "FileTransfer",
+        "FrameManager",
+        "InspectionEngine",
+        "InteractionEngine",
+        "NavigationStateProvider",
+        "NetworkEvents",
+        "NetworkPolicyReporter",
+        "OverlayHost",
+        "RuntimeEvents",
+        "ScreenshotEngine",
+        "ScreenshotOptionsEngine",
+        "ScriptDisabler",
+        "SettingsEngine",
+        "TabManager"
+      ]
+    },
+    "partial": {
+      "kind": "chrome",
+      "interfaces": [
+        "FileTransfer",
+        "TabManager"
+      ],
+      "unsupported": [
+        "A11yAuditor",
+        "AXSelectorResolver",
+        "ClickDiagnosticEngine",
+        "CookieEngine",
+        "DialogController",
+        "FrameManager",
+        "InspectionEngine",
+        "InteractionEngine",
+        "NavigationStateProvider",
+        "NetworkEvents",
+        "NetworkPolicyReporter",
+        "OverlayHost",
+        "RuntimeEvents",
+        "ScreenshotEngine",
+        "ScreenshotOptionsEngine",
+        "ScriptDisabler",
+        "SettingsEngine"
+      ]
+    }
+  },
+  "ref_keys": {
+    "button|Save|/document/button|0": "ed75369724487f0da63e23868b41f940c6479a1a3f245ebf541520b56bbf6364",
+    "button|Save|/document/button|1": "288a95cc534ca7a7e731676f44f5255072e9bea5f05e1416bb7f66e54765bede"
+  },
+  "registry": {
+    "first": {
+      "tree": "- button [ref=e1]",
+      "refs": {
+        "e1": {
+          "node_id": "",
+          "role": "button",
+          "name": "Save",
+          "visible": false,
+          "interactive": false,
+          "refkey": "key-save"
+        }
+      }
+    },
+    "stable": {
+      "tree": "- button [ref=e1]",
+      "refs": {
+        "e1": {
+          "node_id": "",
+          "role": "button",
+          "name": "Save",
+          "visible": false,
+          "interactive": false,
+          "refkey": "key-save"
+        }
+      }
+    },
+    "removed": {
+      "refkey": "key-save",
+      "ref": "e1",
+      "role": "button",
+      "name": "Save",
+      "reason": "removed"
+    },
+    "navigated": {
+      "tree": "",
+      "refs": {
+        "e1": {
+          "node_id": "",
+          "role": "button",
+          "visible": false,
+          "interactive": false,
+          "refkey": "key-save"
+        }
+      }
+    }
+  },
+  "snapshot": {
+    "nodes": [
+      {
+        "childIds": [
+          "2",
+          "3",
+          "4",
+          "5"
+        ],
+        "nodeId": "1",
+        "role": {
+          "value": "RootWebArea"
+        }
+      },
+      {
+        "childIds": [
+          "6"
+        ],
+        "nodeId": "2",
+        "role": {
+          "value": "navigation"
+        }
+      },
+      {
+        "name": {
+          "value": "Dashboard"
+        },
+        "nodeId": "3",
+        "role": {
+          "value": "heading"
+        }
+      },
+      {
+        "childIds": [
+          "7"
+        ],
+        "isShadowRoot": true,
+        "name": {
+          "value": "Billing"
+        },
+        "nodeId": "4",
+        "role": {
+          "value": "Iframe"
+        }
+      },
+      {
+        "childIds": [
+          "8"
+        ],
+        "nodeId": "5",
+        "role": {
+          "value": "generic"
+        }
+      },
+      {
+        "name": {
+          "value": "Settings"
+        },
+        "nodeId": "6",
+        "properties": [
+          {
+            "name": "url",
+            "value": {
+              "value": "https://example.test/settings"
+            }
+          }
+        ],
+        "role": {
+          "value": "link"
+        }
+      },
+      {
+        "name": {
+          "value": "Speichern"
+        },
+        "nodeId": "7",
+        "role": {
+          "value": "button"
+        }
+      },
+      {
+        "name": {
+          "value": "Search"
+        },
+        "nodeId": "8",
+        "role": {
+          "value": "textbox"
+        }
+      }
+    ],
+    "full": {
+      "tree": "- document [ref=e1]\n  - navigation [ref=e2]\n    - link \"Settings\" [ref=e3]\n  - heading \"Dashboard\" [ref=e4]\n  - iframe \"Billing\" [iframe] [shadow-root] [ref=e5]\n    - button \"Speichern\" [ref=e6]\n  - generic [ref=e7]\n    - textbox \"Search\" [ref=e8]",
+      "refs": {
+        "e1": {
+          "node_id": "1",
+          "role": "document",
+          "visible": true,
+          "interactive": false,
+          "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+          "dom_path": "/document"
+        },
+        "e2": {
+          "node_id": "2",
+          "role": "navigation",
+          "visible": true,
+          "interactive": false,
+          "refkey": "f30f3a29e880437039741a83da7ab1f91fdf6d06468918a9a5260bc89e06a074",
+          "dom_path": "/document/navigation",
+          "sibling_ordinal": 3
+        },
+        "e3": {
+          "node_id": "6",
+          "role": "link",
+          "name": "Settings",
+          "visible": true,
+          "interactive": true,
+          "url": "https://example.test/settings",
+          "refkey": "40599d05de0a36ca642b5f361ab0fbb575401fe6430f69984fa513d9c746ec3f",
+          "dom_path": "/document/navigation/link[Settings]"
+        },
+        "e4": {
+          "node_id": "3",
+          "role": "heading",
+          "name": "Dashboard",
+          "visible": true,
+          "interactive": false,
+          "refkey": "f1ba43f3cd3a095fb90802ebc6622154ed397a88ae943e600c6b5fdced5ca0f8",
+          "dom_path": "/document/heading[Dashboard]",
+          "sibling_ordinal": 1
+        },
+        "e5": {
+          "node_id": "4",
+          "role": "iframe",
+          "name": "Billing",
+          "visible": true,
+          "interactive": false,
+          "refkey": "09c3edd090c64f8f495a30458fb27ebd6e7f57806ee44e718c3332f407296514",
+          "dom_path": "/document/iframe[Billing]",
+          "sibling_ordinal": 2
+        },
+        "e6": {
+          "node_id": "7",
+          "role": "button",
+          "name": "Speichern",
+          "visible": true,
+          "interactive": true,
+          "refkey": "d665029c2c4b638710bc7bd68487ab4faadde9e96f0a06647461cb93c3f368fe",
+          "dom_path": "/document/iframe[Billing]/button[Speichern]"
+        },
+        "e7": {
+          "node_id": "5",
+          "role": "generic",
+          "visible": true,
+          "interactive": false,
+          "refkey": "7a38a762453bf4e01456f1a69292c98acdbc8945d435ce1160097f1219441cc5",
+          "dom_path": "/document/generic"
+        },
+        "e8": {
+          "node_id": "8",
+          "role": "textbox",
+          "name": "Search",
+          "visible": true,
+          "interactive": true,
+          "refkey": "678081139b4ac1aa66e299e79102bc4c5e082c5112021cc19b1de180f5825c3e",
+          "dom_path": "/document/generic/textbox[Search]"
+        }
+      }
+    },
+    "interactive_compact": {
+      "tree": "- link \"Settings\" [ref=e1]\n- iframe \"Billing\" [iframe] [shadow-root] [ref=e2]\n  - button \"Speichern\" [ref=e3]\n- textbox \"Search\" [ref=e4]",
+      "refs": {
+        "e1": {
+          "node_id": "6",
+          "role": "link",
+          "name": "Settings",
+          "visible": true,
+          "interactive": true,
+          "url": "https://example.test/settings",
+          "refkey": "40599d05de0a36ca642b5f361ab0fbb575401fe6430f69984fa513d9c746ec3f",
+          "dom_path": "/document/navigation/link[Settings]"
+        },
+        "e2": {
+          "node_id": "4",
+          "role": "iframe",
+          "name": "Billing",
+          "visible": true,
+          "interactive": false,
+          "refkey": "09c3edd090c64f8f495a30458fb27ebd6e7f57806ee44e718c3332f407296514",
+          "dom_path": "/document/iframe[Billing]",
+          "sibling_ordinal": 2
+        },
+        "e3": {
+          "node_id": "7",
+          "role": "button",
+          "name": "Speichern",
+          "visible": true,
+          "interactive": true,
+          "refkey": "d665029c2c4b638710bc7bd68487ab4faadde9e96f0a06647461cb93c3f368fe",
+          "dom_path": "/document/iframe[Billing]/button[Speichern]"
+        },
+        "e4": {
+          "node_id": "8",
+          "role": "textbox",
+          "name": "Search",
+          "visible": true,
+          "interactive": true,
+          "refkey": "678081139b4ac1aa66e299e79102bc4c5e082c5112021cc19b1de180f5825c3e",
+          "dom_path": "/document/generic/textbox[Search]"
+        }
+      }
+    },
+    "depth_1": {
+      "tree": "- document [ref=e1]\n  - navigation [ref=e2]\n  - heading \"Dashboard\" [ref=e3]\n  - iframe \"Billing\" [iframe] [shadow-root] [ref=e4]\n  - generic [ref=e5]",
+      "refs": {
+        "e1": {
+          "node_id": "1",
+          "role": "document",
+          "visible": true,
+          "interactive": false,
+          "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+          "dom_path": "/document"
+        },
+        "e2": {
+          "node_id": "2",
+          "role": "navigation",
+          "visible": true,
+          "interactive": false,
+          "refkey": "f30f3a29e880437039741a83da7ab1f91fdf6d06468918a9a5260bc89e06a074",
+          "dom_path": "/document/navigation",
+          "sibling_ordinal": 3
+        },
+        "e3": {
+          "node_id": "3",
+          "role": "heading",
+          "name": "Dashboard",
+          "visible": true,
+          "interactive": false,
+          "refkey": "f1ba43f3cd3a095fb90802ebc6622154ed397a88ae943e600c6b5fdced5ca0f8",
+          "dom_path": "/document/heading[Dashboard]",
+          "sibling_ordinal": 1
+        },
+        "e4": {
+          "node_id": "4",
+          "role": "iframe",
+          "name": "Billing",
+          "visible": true,
+          "interactive": false,
+          "refkey": "09c3edd090c64f8f495a30458fb27ebd6e7f57806ee44e718c3332f407296514",
+          "dom_path": "/document/iframe[Billing]",
+          "sibling_ordinal": 2
+        },
+        "e5": {
+          "node_id": "5",
+          "role": "generic",
+          "visible": true,
+          "interactive": false,
+          "refkey": "7a38a762453bf4e01456f1a69292c98acdbc8945d435ce1160097f1219441cc5",
+          "dom_path": "/document/generic"
+        }
+      }
+    },
+    "urls": {
+      "tree": "- document [ref=e1]\n  - navigation [ref=e2]\n    - link \"Settings\" (https://example.test/settings) [ref=e3]\n  - heading \"Dashboard\" [ref=e4]\n  - iframe \"Billing\" [iframe] [shadow-root] [ref=e5]\n    - button \"Speichern\" [ref=e6]\n  - generic [ref=e7]\n    - textbox \"Search\" [ref=e8]",
+      "refs": {
+        "e1": {
+          "node_id": "1",
+          "role": "document",
+          "visible": true,
+          "interactive": false,
+          "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+          "dom_path": "/document"
+        },
+        "e2": {
+          "node_id": "2",
+          "role": "navigation",
+          "visible": true,
+          "interactive": false,
+          "refkey": "f30f3a29e880437039741a83da7ab1f91fdf6d06468918a9a5260bc89e06a074",
+          "dom_path": "/document/navigation",
+          "sibling_ordinal": 3
+        },
+        "e3": {
+          "node_id": "6",
+          "role": "link",
+          "name": "Settings",
+          "visible": true,
+          "interactive": true,
+          "url": "https://example.test/settings",
+          "refkey": "40599d05de0a36ca642b5f361ab0fbb575401fe6430f69984fa513d9c746ec3f",
+          "dom_path": "/document/navigation/link[Settings]"
+        },
+        "e4": {
+          "node_id": "3",
+          "role": "heading",
+          "name": "Dashboard",
+          "visible": true,
+          "interactive": false,
+          "refkey": "f1ba43f3cd3a095fb90802ebc6622154ed397a88ae943e600c6b5fdced5ca0f8",
+          "dom_path": "/document/heading[Dashboard]",
+          "sibling_ordinal": 1
+        },
+        "e5": {
+          "node_id": "4",
+          "role": "iframe",
+          "name": "Billing",
+          "visible": true,
+          "interactive": false,
+          "refkey": "09c3edd090c64f8f495a30458fb27ebd6e7f57806ee44e718c3332f407296514",
+          "dom_path": "/document/iframe[Billing]",
+          "sibling_ordinal": 2
+        },
+        "e6": {
+          "node_id": "7",
+          "role": "button",
+          "name": "Speichern",
+          "visible": true,
+          "interactive": true,
+          "refkey": "d665029c2c4b638710bc7bd68487ab4faadde9e96f0a06647461cb93c3f368fe",
+          "dom_path": "/document/iframe[Billing]/button[Speichern]"
+        },
+        "e7": {
+          "node_id": "5",
+          "role": "generic",
+          "visible": true,
+          "interactive": false,
+          "refkey": "7a38a762453bf4e01456f1a69292c98acdbc8945d435ce1160097f1219441cc5",
+          "dom_path": "/document/generic"
+        },
+        "e8": {
+          "node_id": "8",
+          "role": "textbox",
+          "name": "Search",
+          "visible": true,
+          "interactive": true,
+          "refkey": "678081139b4ac1aa66e299e79102bc4c5e082c5112021cc19b1de180f5825c3e",
+          "dom_path": "/document/generic/textbox[Search]"
+        }
+      }
+    }
+  },
+  "routes": [
+    {
+      "name": "aria-label-mismatch",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "aria-label-mismatch fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/aria-label-mismatch"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "aria-label-mismatch fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/aria-label-mismatch"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "aria-label-mismatch fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "2cc004b11f1af4b56aff236123f142f6d3ef207e0f4c908263bd20a18f641105",
+            "dom_path": "/document/heading[aria-label-mismatch fixture]"
+          },
+          "e2": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/aria-label-mismatch",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "aria-label-mismatch fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "2cc004b11f1af4b56aff236123f142f6d3ef207e0f4c908263bd20a18f641105",
+            "dom_path": "/document/heading[aria-label-mismatch fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/aria-label-mismatch",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "botwall",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "botwall fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/botwall"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "botwall fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/botwall"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/botwall",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "botwall fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c9cf695b852cb09624339c5a3bf2dfa1574867351cd426a6d5c878feacf7e397",
+            "dom_path": "/document/heading[botwall fixture]"
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/botwall",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "botwall fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c9cf695b852cb09624339c5a3bf2dfa1574867351cd426a6d5c878feacf7e397",
+            "dom_path": "/document/heading[botwall fixture]"
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "confirm",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "confirm fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/confirm"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "confirm fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/confirm"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "confirm fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "2b3970dcd8add210defe7d37e81266c086452fc4488a2ab5a3ed280355deb594",
+            "dom_path": "/document/heading[confirm fixture]"
+          },
+          "e2": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/confirm",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "confirm fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "2b3970dcd8add210defe7d37e81266c086452fc4488a2ab5a3ed280355deb594",
+            "dom_path": "/document/heading[confirm fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/confirm",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "confirm-done",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "confirm-done fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/confirm/done"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "confirm-done fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/confirm/done"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "confirm-done fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "573a6d488c04a226f133717321152cad5630d01785648ef6d2f0610a6d38b0f3",
+            "dom_path": "/document/heading[confirm-done fixture]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/confirm/done",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "confirm-done fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "573a6d488c04a226f133717321152cad5630d01785648ef6d2f0610a6d38b0f3",
+            "dom_path": "/document/heading[confirm-done fixture]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/confirm/done",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "form",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "form fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/form"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "form fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/form"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/form",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "form fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "6785aa6d8289db1c07e9d1036ea6421ec71648b1276264ae58b5113f6f4af8c3",
+            "dom_path": "/document/heading[form fixture]"
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/form",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "form fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "6785aa6d8289db1c07e9d1036ea6421ec71648b1276264ae58b5113f6f4af8c3",
+            "dom_path": "/document/heading[form fixture]"
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "form-captcha",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "form-captcha fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/form-captcha"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "form-captcha fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/form-captcha"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/form-captcha",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "form-captcha fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "aba50deda96dcfff6c52a954b6ebe74faa92c4effa38dc2804b508a3b51688e8",
+            "dom_path": "/document/heading[form-captcha fixture]"
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/form-captcha",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "form-captcha fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "aba50deda96dcfff6c52a954b6ebe74faa92c4effa38dc2804b508a3b51688e8",
+            "dom_path": "/document/heading[form-captcha fixture]"
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "form-hostile",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "form-hostile fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/form-hostile"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "form-hostile fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/form-hostile"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "form-hostile fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "1e832baa5a7a6216f8bd84a2d2d4dd0450055aedf9b8eae89acfdbbf7f2b4b2d",
+            "dom_path": "/document/heading[form-hostile fixture]"
+          },
+          "e2": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/form-hostile",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "form-hostile fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "1e832baa5a7a6216f8bd84a2d2d4dd0450055aedf9b8eae89acfdbbf7f2b4b2d",
+            "dom_path": "/document/heading[form-hostile fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/form-hostile",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "hidden-text",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "hidden-text fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/hidden-text"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "hidden-text fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/hidden-text"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/hidden-text",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "hidden-text fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c50fca6df79daa94e7c368bd81afaeabee40b659e7ca64ce1932c83a4508dfe2",
+            "dom_path": "/document/heading[hidden-text fixture]"
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/hidden-text",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "hidden-text fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c50fca6df79daa94e7c368bd81afaeabee40b659e7ca64ce1932c83a4508dfe2",
+            "dom_path": "/document/heading[hidden-text fixture]"
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "iframe",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "iframe fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/iframe"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "iframe fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/iframe"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "iframe fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "42880e8e01675dea4d29b85a10f46769511c3a76dbffdf4d7fd71fea6000f850",
+            "dom_path": "/document/heading[iframe fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/iframe",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "iframe fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "42880e8e01675dea4d29b85a10f46769511c3a76dbffdf4d7fd71fea6000f850",
+            "dom_path": "/document/heading[iframe fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/iframe",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "internal-server-error",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "internal-server-error fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/server-error"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "internal-server-error fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/server-error"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "internal-server-error fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "072416317a6aad5d804a76c967c29d427844b8e86179bb2390a322ca1590863e",
+            "dom_path": "/document/heading[internal-server-error fixture]"
+          },
+          "e2": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/server-error",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "internal-server-error fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "072416317a6aad5d804a76c967c29d427844b8e86179bb2390a322ca1590863e",
+            "dom_path": "/document/heading[internal-server-error fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/server-error",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "not-found",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "not-found fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/not-found"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "not-found fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/not-found"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/not-found",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "not-found fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "bb22915855ed00e3d09ca46efaaecdbbf40c12ca52dace59b31d9462afd81811",
+            "dom_path": "/document/heading[not-found fixture]"
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/not-found",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "not-found fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "bb22915855ed00e3d09ca46efaaecdbbf40c12ca52dace59b31d9462afd81811",
+            "dom_path": "/document/heading[not-found fixture]"
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "overlay",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "overlay fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/overlay"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "overlay fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/overlay"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "overlay fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "3655d9d95269092ea4c9e88af26501fa8872414fc9f87b7ebf5774cc4d54a0d5",
+            "dom_path": "/document/heading[overlay fixture]"
+          },
+          "e2": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/overlay",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "overlay fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "3655d9d95269092ea4c9e88af26501fa8872414fc9f87b7ebf5774cc4d54a0d5",
+            "dom_path": "/document/heading[overlay fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/overlay",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "prompt-injection",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "prompt-injection fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/prompt-injection"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "prompt-injection fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/prompt-injection"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/prompt-injection",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "prompt-injection fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d121c410fca07c1b5842eb43d11fbd34aa17e4da975ce22fb9ea932916bacdc8",
+            "dom_path": "/document/heading[prompt-injection fixture]"
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/prompt-injection",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "prompt-injection fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d121c410fca07c1b5842eb43d11fbd34aa17e4da975ce22fb9ea932916bacdc8",
+            "dom_path": "/document/heading[prompt-injection fixture]"
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "redirect-loop",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "redirect-loop fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/redirect-loop"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "redirect-loop fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/redirect-loop"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "redirect-loop fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "4c124313eb6cf60f2ff4d261ba85ae270293b307f9fcbd4b5f388b240d48b45a",
+            "dom_path": "/document/heading[redirect-loop fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/redirect-loop",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "redirect-loop fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "4c124313eb6cf60f2ff4d261ba85ae270293b307f9fcbd4b5f388b240d48b45a",
+            "dom_path": "/document/heading[redirect-loop fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/redirect-loop",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "shadow-dom",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "shadow-dom fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/shadow-dom"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "shadow-dom fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/shadow-dom"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "shadow-dom fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "4315bcf77ed9b064bedd3fab95ab5cd9e77c87ee0a0c89ed1c443c72514363af",
+            "dom_path": "/document/heading[shadow-dom fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/shadow-dom",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "shadow-dom fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "4315bcf77ed9b064bedd3fab95ab5cd9e77c87ee0a0c89ed1c443c72514363af",
+            "dom_path": "/document/heading[shadow-dom fixture]"
+          },
+          "e3": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e4": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/shadow-dom",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "slow",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "slow fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/slow"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "slow fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/slow"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/slow",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "slow fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "b030a4f24247e3aa6a6325ebe27175ad47db08b45a337594f9fbe3f4376e904c",
+            "dom_path": "/document/heading[slow fixture]"
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/slow",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "slow fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "b030a4f24247e3aa6a6325ebe27175ad47db08b45a337594f9fbe3f4376e904c",
+            "dom_path": "/document/heading[slow fixture]"
+          },
+          "e5": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e6": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "static",
+      "nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "static fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Ready"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/static"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "after_nodes": [
+        {
+          "childIds": [
+            "heading",
+            "main"
+          ],
+          "nodeId": "root",
+          "role": {
+            "value": "RootWebArea"
+          }
+        },
+        {
+          "name": {
+            "value": "static fixture"
+          },
+          "nodeId": "heading",
+          "parentId": "root",
+          "role": {
+            "value": "heading"
+          }
+        },
+        {
+          "childIds": [
+            "action",
+            "status",
+            "link"
+          ],
+          "nodeId": "main",
+          "parentId": "root",
+          "role": {
+            "value": "main"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture action"
+          },
+          "nodeId": "action",
+          "parentId": "main",
+          "role": {
+            "value": "button"
+          }
+        },
+        {
+          "name": {
+            "value": "Clicked"
+          },
+          "nodeId": "status",
+          "parentId": "main",
+          "role": {
+            "value": "status"
+          }
+        },
+        {
+          "name": {
+            "value": "Fixture link"
+          },
+          "nodeId": "link",
+          "parentId": "main",
+          "properties": [
+            {
+              "name": "url",
+              "value": {
+                "value": "/static"
+              }
+            }
+          ],
+          "role": {
+            "value": "link"
+          }
+        }
+      ],
+      "before": {
+        "tree": "",
+        "refs": {
+          "e1": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Ready",
+            "visible": true,
+            "interactive": false,
+            "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+            "dom_path": "/document/main/status[Ready]",
+            "sibling_ordinal": 2
+          },
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/static",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e6": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "static fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "f9a8f9392c8d98181708a2884a6189baef511af613f1c3b0b9337fadec4a50a1",
+            "dom_path": "/document/heading[static fixture]"
+          }
+        }
+      },
+      "after": {
+        "tree": "",
+        "refs": {
+          "e2": {
+            "node_id": "action",
+            "role": "button",
+            "name": "Fixture action",
+            "visible": true,
+            "interactive": true,
+            "refkey": "547afda0152e753d931ab058df32631b21fa1c5cfd034bfe8ae072e6390bb2fb",
+            "dom_path": "/document/main/button[Fixture action]"
+          },
+          "e3": {
+            "node_id": "link",
+            "role": "link",
+            "name": "Fixture link",
+            "visible": true,
+            "interactive": true,
+            "url": "/static",
+            "refkey": "65b516d34c817353595a850d54aedfc97cf2394e611a8b2006708a699502f773",
+            "dom_path": "/document/main/link[Fixture link]",
+            "sibling_ordinal": 1
+          },
+          "e4": {
+            "node_id": "main",
+            "role": "main",
+            "visible": true,
+            "interactive": false,
+            "refkey": "c3922a1b0af082236f9034e8ccc806e5b078f16e9522222699a7cb4b7b46cb4a",
+            "dom_path": "/document/main",
+            "sibling_ordinal": 1
+          },
+          "e5": {
+            "node_id": "root",
+            "role": "document",
+            "visible": true,
+            "interactive": false,
+            "refkey": "d146dfa560ff32f901c1029acf8db284529bbe4356db6607f8ec269e0a3a86d6",
+            "dom_path": "/document"
+          },
+          "e6": {
+            "node_id": "heading",
+            "role": "heading",
+            "name": "static fixture",
+            "visible": true,
+            "interactive": false,
+            "refkey": "f9a8f9392c8d98181708a2884a6189baef511af613f1c3b0b9337fadec4a50a1",
+            "dom_path": "/document/heading[static fixture]"
+          },
+          "e7": {
+            "node_id": "status",
+            "role": "status",
+            "name": "Clicked",
+            "visible": true,
+            "interactive": false,
+            "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+            "dom_path": "/document/main/status[Clicked]",
+            "sibling_ordinal": 2
+          }
+        }
+      },
+      "diff": {
+        "added": [],
+        "removed": [],
+        "changed": [
+          {
+            "ref": "e7",
+            "before": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Ready",
+              "visible": true,
+              "interactive": false,
+              "refkey": "37e13d03b55feacf7f4307d23e94eca112d0841cc7a886c9c9d9f150e7cdbded",
+              "dom_path": "/document/main/status[Ready]",
+              "sibling_ordinal": 2
+            },
+            "after": {
+              "node_id": "status",
+              "role": "status",
+              "name": "Clicked",
+              "visible": true,
+              "interactive": false,
+              "refkey": "e4f677324a38914604e71af5fce66976f9f87ddc415eddef47518c7c1c91f6b4",
+              "dom_path": "/document/main/status[Clicked]",
+              "sibling_ordinal": 2
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "diff": {
+    "added": [
+      {
+        "node_id": "",
+        "role": "textbox",
+        "name": "Search",
+        "visible": true,
+        "interactive": false,
+        "refkey": "key-3"
+      }
+    ],
+    "removed": [
+      {
+        "node_id": "",
+        "role": "link",
+        "name": "Old",
+        "visible": true,
+        "interactive": false,
+        "refkey": "key-2"
+      }
+    ],
+    "changed": [
+      {
+        "ref": "e1",
+        "before": {
+          "node_id": "",
+          "role": "button",
+          "name": "Save",
+          "value": "old",
+          "visible": true,
+          "interactive": false,
+          "refkey": "key-1"
+        },
+        "after": {
+          "node_id": "",
+          "role": "button",
+          "name": "Save",
+          "value": "new",
+          "visible": true,
+          "interactive": false,
+          "refkey": "key-1"
+        }
+      }
+    ]
+  }
+}

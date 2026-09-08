@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "suite": "chrome-full",
+  "capabilities": {
+    "kind": "chrome",
+    "launch_mode": "launch",
+    "interfaces": [
+      "A11yAuditor",
+      "AXSelectorResolver",
+      "ClickDiagnosticEngine",
+      "CookieEngine",
+      "DialogController",
+      "FileTransfer",
+      "FrameManager",
+      "InspectionEngine",
+      "InteractionEngine",
+      "NavigationStateProvider",
+      "NetworkEvents",
+      "NetworkPolicyReporter",
+      "OverlayHost",
+      "RuntimeEvents",
+      "ScreenshotEngine",
+      "ScreenshotOptionsEngine",
+      "ScriptDisabler",
+      "SettingsEngine",
+      "TabManager"
+    ]
+  },
+  "chrome_args": [
+    "--user-data-dir=\u003cPROFILE\u003e",
+    "--remote-debugging-port=0",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-background-networking",
+    "--disable-component-update",
+    "--disable-domain-reliability",
+    "--disable-features=OptimizationHints,MediaRouter",
+    "--disable-sync",
+    "--disable-webrtc",
+    "--headless=new",
+    "about:blank"
+  ],
+  "frames": [
+    {
+      "id": "root",
+      "name": "main",
+      "url": "https://example.test/"
+    },
+    {
+      "id": "child",
+      "parent_id": "root",
+      "name": "nested",
+      "url": "https://example.test/frame"
+    }
+  ],
+  "policy": {
+    "allowlisted": true,
+    "allowlisted_reason": "",
+    "denied": false,
+    "denied_reason": "denied by the domain allowlist"
+  },
+  "upload": {
+    "inside": "\u003cROOT\u003e/upload.txt",
+    "outside": "rejected outside allowed directory",
+    "traversal": "rejected path escapes allowed directory"
+  },
+  "download": {
+    "behavior": "allow",
+    "events_enabled": true,
+    "identity": "guid-backed download event"
+  },
+  "errors": {
+    "empty_selector": "selector must not be empty",
+    "invalid_screenshot": "unsupported screenshot format \"bmp\" (want png or jpeg)",
+    "timeout": "bounded by request timeout"
+  },
+  "unsupported": [
+    "har-export",
+    "axe-core-audit"
+  ],
+  "cleanup": {
+    "close_is_idempotent": true,
+    "owned_process_killed": true,
+    "owned_process_reaped": true,
+    "private_profile_removed": true
+  }
+}

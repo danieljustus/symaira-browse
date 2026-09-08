@@ -1,0 +1,124 @@
+{
+  "attach": {
+    "capabilities": {
+      "interfaces": [
+        "InspectionEngine",
+        "NavigationStateProvider",
+        "TabManager"
+      ],
+      "kind": "safari-attach",
+      "launch_mode": "attach",
+      "unsupported": [
+        "A11yAuditor",
+        "AXSelectorResolver",
+        "ClickDiagnosticEngine",
+        "CookieEngine",
+        "DialogController",
+        "FileTransfer",
+        "FrameManager",
+        "InteractionEngine",
+        "NetworkEvents",
+        "NetworkPolicyReporter",
+        "OverlayHost",
+        "RuntimeEvents",
+        "ScreenshotEngine",
+        "ScreenshotOptionsEngine",
+        "ScriptDisabler",
+        "SettingsEngine"
+      ]
+    },
+    "engine_kind": "safari-attach",
+    "launch_mode": "attach",
+    "lifecycle": {
+      "close_is_idempotent": true,
+      "close_quits_safari": false,
+      "launch_starts_safari": false
+    },
+    "policy": {
+      "allowlist_denial_before_runner": true,
+      "invalid_target_before_runner": true,
+      "ssrf_denial_before_runner": true
+    },
+    "schema_version": 1,
+    "script_shape": "tell application \"Safari\"\ntell tab \"Symaira\" of window 1\ndo JavaScript \"window.location.href\"\nend tell\nend tell",
+    "unsupported": [
+      "ax-tree",
+      "screenshot",
+      "network",
+      "upload",
+      "arbitrary evaluation"
+    ]
+  },
+  "bidi": {
+    "capabilities": {
+      "interfaces": [
+        "FrameManager",
+        "InspectionEngine",
+        "NavigationStateProvider",
+        "NetworkPolicyReporter",
+        "TabManager"
+      ],
+      "kind": "safari-bidi",
+      "launch_mode": "launch",
+      "unsupported": [
+        "A11yAuditor",
+        "AXSelectorResolver",
+        "ClickDiagnosticEngine",
+        "CookieEngine",
+        "DialogController",
+        "FileTransfer",
+        "InteractionEngine",
+        "NetworkEvents",
+        "OverlayHost",
+        "RuntimeEvents",
+        "ScreenshotEngine",
+        "ScreenshotOptionsEngine",
+        "ScriptDisabler",
+        "SettingsEngine"
+      ]
+    },
+    "engine_kind": "safari-bidi",
+    "launch_mode": "launch",
+    "lifecycle": {
+      "close_is_idempotent": true,
+      "owned_process_killed_and_reaped": true,
+      "session_delete_before_driver_stop": true,
+      "transport_closed": true
+    },
+    "policy": {
+      "denials_before_transport": true,
+      "direct_navigation_checked": true,
+      "redirects_and_subresources_intercepted": false
+    },
+    "protocol": {
+      "boolean_websocket_url_rejected": true,
+      "commands": [
+        "browsingContext.getTree",
+        "browsingContext.navigate",
+        "script.evaluate"
+      ],
+      "foreign_socket_rejected": true,
+      "loopback_endpoint_accepted": true,
+      "typed_protocol_errors": true
+    },
+    "schema_version": 1,
+    "session_request": {
+      "capabilities": {
+        "alwaysMatch": {
+          "browserName": "safari",
+          "safari:experimentalWebSocketUrl": true,
+          "webSocketUrl": true
+        }
+      }
+    },
+    "unsupported": [
+      "screenshot",
+      "input",
+      "network interception",
+      "storage",
+      "runtime events"
+    ]
+  },
+  "schema_version": 1,
+  "suite": "safari"
+}

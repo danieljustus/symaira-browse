@@ -1,0 +1,12 @@
+AGENTS.md export-ignore
+CLAUDE.md export-ignore
+
+# Keep contract fixtures and source LF-only across Windows checkouts.
+*.go text eol=lf
+*.rs text eol=lf
+*.json text eol=lf
+Cargo.toml text eol=lf
+Cargo.lock text eol=lf
+rust-toolchain.toml text eol=lf
+deny.toml text eol=lf
+testdata/port/** text eol=lf

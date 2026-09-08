@@ -38,7 +38,7 @@ way.
 | `SYMBROWSE_STATE_EXPIRE_DAYS` | `30` days | env over TOML/default |
 | `SYMBROWSE_AUTOSAVE` | `auto` | env over TOML/default; `auto`, `always` or `never` |
 | `SYMBROWSE_AUTOSAVE_INTERVAL` | `30` seconds | env over TOML/default; `0` saves only on close |
-| `SYMBROWSE_AUTOSAVE_KEY` | empty; autosave disabled without a restore key | env over TOML/default |
+| `SYMBROWSE_AUTOSAVE_KEY` | empty; autosave disabled without a restore key | env over TOML/default; this is a named state target, not encryption key material, and is visible in `config show` |
 | `SYMBROWSE_UPLOAD_DIRS` | current working directory | env over TOML/default; comma-separated roots |
 | `SYMBROWSE_DAEMON_LOG` | `<state_dir>/daemon.log` | env over the resolved state directory; explicit path wins |
 | `SYMBROWSE_APPROVAL_TIMEOUT` | `60` seconds | env over TOML/default |

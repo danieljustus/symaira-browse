@@ -1,0 +1,1530 @@
+{
+  "oracle_commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+  "generated_by": "scripts/rust-port/fetch_fixture_gen.go",
+  "source_digest": "4924c02927471d138aef6ba9b13be237d6f4bd0ad91472e322c1a50505750ac1",
+  "vector_count": 28,
+  "vectors": [
+    {
+      "name": "malformed-cleanup",
+      "html": "\u003chtml lang=\"en\"\u003e\u003chead\u003e\u003ctitle\u003e  Static Guide \u003c/title\u003e\u003cscript\u003edrop()\u003c/script\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain id=\"content\" data-noise=\"x\"\u003e\u003ch1\u003eStatic Guide\u003c/h1\u003e\u003cp\u003eKeep \u003cstrong\u003eimportant\u003c/strong\u003e content.\u003c/p\u003e\u003cdiv hidden\u003esecret\u003c/div\u003e\u003ca href=\"https://example.com/docs\"\u003eDocs\u003c/a\u003e\u003c/main\u003e\u003cscript type=\"application/ld+json\"\u003e{\"@type\":\"Article\",\"headline\":\"Static Guide\"}\u003c/script\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "important",
+      "top_k": 1,
+      "title": "Static Guide",
+      "lang": "en",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003ctitle\u003e  Static Guide \u003c/title\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain id=\"content\"\u003e\u003ch1\u003eStatic Guide\u003c/h1\u003e\u003cp\u003eKeep \u003cstrong\u003eimportant\u003c/strong\u003e content.\u003c/p\u003e\u003ca href=\"https://example.com/docs\"\u003eDocs\u003c/a\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# Static Guide\n\nKeep **important** content.\n\n[Docs](https://example.com/docs)\n\n## Interactive Elements\n\n- **@e1** `link`: Docs → https://example.com/docs\n\n## Links\n\n- [Docs](https://example.com/docs)\n\n## Data\n\n```json\n// Source: ld+json\n{\"@type\":\"Article\",\"headline\":\"Static Guide\"}\n```\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "Static Guide",
+        "lang": "en",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "Static Guide"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Keep important content."
+          },
+          {
+            "id": "@e1",
+            "category": "link",
+            "tag": "a",
+            "text": "Docs",
+            "attrs": {
+              "href": "https://example.com/docs"
+            }
+          }
+        ],
+        "interactive": [
+          {
+            "id": "@e1",
+            "category": "link",
+            "tag": "a",
+            "text": "Docs",
+            "attrs": {
+              "href": "https://example.com/docs"
+            }
+          }
+        ],
+        "islands": [
+          {
+            "source": "ld+json",
+            "json": {
+              "@type": "Article",
+              "headline": "Static Guide"
+            }
+          }
+        ]
+      },
+      "ranked_headings": [
+        "Static Guide"
+      ]
+    },
+    {
+      "name": "metadata-links",
+      "html": "\u003chtml lang=\"pt-BR\"\u003e\u003chead\u003e\u003ctitle\u003eLinks\u003c/title\u003e\u003cstyle\u003e.x{}\u003c/style\u003e\u003c/head\u003e\u003cbody\u003e\u003carticle class=\"article\"\u003e\u003ch2\u003eFetch details\u003c/h2\u003e\u003cp\u003eReliable static fetching preserves metadata and useful links.\u003c/p\u003e\u003ca href=\"https://example.com/fetch\"\u003eFetch docs\u003c/a\u003e\u003cimg src=\"/hero.png\" alt=\"Hero\"\u003e\u003c/article\u003e\u003cnav\u003e\u003ca href=\"/menu\"\u003eMenu\u003c/a\u003e\u003c/nav\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "metadata",
+      "top_k": 2,
+      "title": "Links",
+      "lang": "pt-BR",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003ctitle\u003eLinks\u003c/title\u003e\u003c/head\u003e\u003cbody\u003e\u003carticle\u003e\u003ch2\u003eFetch details\u003c/h2\u003e\u003cp\u003eReliable static fetching preserves metadata and useful links.\u003c/p\u003e\u003ca href=\"https://example.com/fetch\"\u003eFetch docs\u003c/a\u003e\u003cimg src=\"/hero.png\" alt=\"Hero\"/\u003e\u003c/article\u003e\u003cnav\u003e\u003ca href=\"/menu\"\u003eMenu\u003c/a\u003e\u003c/nav\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "## Fetch details\n\nReliable static fetching preserves metadata and useful links.\n\n[Fetch docs](https://example.com/fetch)![Hero](/hero.png)\n\n## Interactive Elements\n\n- **@e1** `link`: Fetch docs → https://example.com/fetch\n\n## Links\n\n- [Fetch docs](https://example.com/fetch)\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "Links",
+        "lang": "pt-BR",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h2",
+            "text": "Fetch details"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Reliable static fetching preserves metadata and useful links."
+          },
+          {
+            "id": "@e1",
+            "category": "link",
+            "tag": "a",
+            "text": "Fetch docs",
+            "attrs": {
+              "href": "https://example.com/fetch"
+            }
+          },
+          {
+            "category": "image",
+            "tag": "img",
+            "attrs": {
+              "alt": "Hero",
+              "src": "/hero.png"
+            }
+          }
+        ],
+        "interactive": [
+          {
+            "id": "@e1",
+            "category": "link",
+            "tag": "a",
+            "text": "Fetch docs",
+            "attrs": {
+              "href": "https://example.com/fetch"
+            }
+          }
+        ]
+      },
+      "ranked_headings": [
+        "Fetch details",
+        "Interactive Elements"
+      ]
+    },
+    {
+      "name": "aria-hidden",
+      "html": "\u003chtml lang=\"fr\"\u003e\u003cbody\u003e\u003cmain\u003e\u003ch1\u003eVisible résumé\u003c/h1\u003e\u003cp aria-hidden=\"true\"\u003eDo not include this.\u003c/p\u003e\u003cp style=\"display: none\"\u003eAlso hidden.\u003c/p\u003e\u003cp class=\"sr-only\"\u003eSecret assistive text.\u003c/p\u003e\u003cp\u003eKeep this sentence.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "visible",
+      "top_k": 1,
+      "title": "",
+      "lang": "fr",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003ch1\u003eVisible résumé\u003c/h1\u003e\u003cp\u003eKeep this sentence.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# Visible résumé\n\nKeep this sentence.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "lang": "fr",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "Visible résumé"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Keep this sentence."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Visible résumé"
+      ]
+    },
+    {
+      "name": "preloaded-json",
+      "html": "\u003chtml lang=\"ja\"\u003e\u003chead\u003e\u003ctitle\u003e状態\u003c/title\u003e\u003cscript id=\"__NEXT_DATA__\"\u003e{\"page\":\"home\",\"ok\":true}\u003c/script\u003e\u003cscript id=\"preloaded-state\"\u003e{\"items\":[1,2]}\u003c/script\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003ch1\u003e日本語の状態\u003c/h1\u003e\u003cp\u003eUnicode content survives static extraction.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "unicode",
+      "top_k": 3,
+      "title": "状態",
+      "lang": "ja",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003ctitle\u003e状態\u003c/title\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003ch1\u003e日本語の状態\u003c/h1\u003e\u003cp\u003eUnicode content survives static extraction.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# 日本語の状態\n\nUnicode content survives static extraction.\n\n## Data\n\n```json\n// Source: __NEXT_DATA__\n{\"page\":\"home\",\"ok\":true}\n```\n\n```json\n// Source: preloaded-state\n{\"items\":[1,2]}\n```\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "状態",
+        "lang": "ja",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "日本語の状態"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Unicode content survives static extraction."
+          }
+        ],
+        "interactive": null,
+        "islands": [
+          {
+            "source": "__NEXT_DATA__",
+            "json": {
+              "page": "home",
+              "ok": true
+            }
+          },
+          {
+            "source": "preloaded-state",
+            "json": {
+              "items": [
+                1,
+                2
+              ]
+            }
+          }
+        ]
+      },
+      "ranked_headings": [
+        "日本語の状態",
+        "Data"
+      ]
+    },
+    {
+      "name": "role-controls",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003cmain\u003e\u003ch1\u003eControls\u003c/h1\u003e\u003cdiv role=\"button\" aria-label=\"Run\"\u003eRun\u003c/div\u003e\u003cdiv role=\"textbox\" placeholder=\"Name\"\u003e\u003c/div\u003e\u003cdiv role=\"combobox\"\u003eChoose\u003c/div\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "controls",
+      "top_k": 0,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003ch1\u003eControls\u003c/h1\u003e\u003cdiv role=\"button\" aria-label=\"Run\"\u003eRun\u003c/div\u003e\u003cdiv role=\"textbox\" placeholder=\"Name\"\u003e\u003c/div\u003e\u003cdiv role=\"combobox\"\u003eChoose\u003c/div\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# Controls\n\nRun\n\nChoose\n\n## Interactive Elements\n\n- **@e1** `button`: Run\n- **@e2** `input` [Name]\n- **@e3** `select`: Choose\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "Controls"
+          },
+          {
+            "id": "@e1",
+            "category": "button",
+            "tag": "div",
+            "text": "Run",
+            "attrs": {
+              "aria-label": "Run",
+              "role": "button"
+            }
+          },
+          {
+            "id": "@e2",
+            "category": "input",
+            "tag": "div",
+            "attrs": {
+              "placeholder": "Name",
+              "role": "textbox"
+            }
+          },
+          {
+            "id": "@e3",
+            "category": "select",
+            "tag": "div",
+            "text": "Choose",
+            "attrs": {
+              "role": "combobox"
+            }
+          }
+        ],
+        "interactive": [
+          {
+            "id": "@e1",
+            "category": "button",
+            "tag": "div",
+            "text": "Run",
+            "attrs": {
+              "aria-label": "Run",
+              "role": "button"
+            }
+          },
+          {
+            "id": "@e2",
+            "category": "input",
+            "tag": "div",
+            "attrs": {
+              "placeholder": "Name",
+              "role": "textbox"
+            }
+          },
+          {
+            "id": "@e3",
+            "category": "select",
+            "tag": "div",
+            "text": "Choose",
+            "attrs": {
+              "role": "combobox"
+            }
+          }
+        ]
+      },
+      "ranked_headings": [
+        "Controls",
+        "Interactive Elements"
+      ]
+    },
+    {
+      "name": "form-controls",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003cform action=\"/submit\" method=\"post\"\u003e\u003clabel for=\"name\"\u003eName\u003c/label\u003e\u003cinput id=\"name\" type=\"text\" value=\"Ada\"\u003e\u003cbutton type=\"submit\"\u003eSend\u003c/button\u003e\u003cselect name=\"kind\"\u003e\u003coption\u003eOne\u003c/option\u003e\u003c/select\u003e\u003c/form\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "name",
+      "top_k": 0,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cform action=\"/submit\" method=\"post\"\u003e\u003clabel for=\"name\"\u003eName\u003c/label\u003e\u003cinput id=\"name\" type=\"text\" value=\"Ada\"/\u003e\u003cbutton type=\"submit\"\u003eSend\u003c/button\u003e\u003cselect name=\"kind\"\u003e\u003coption\u003eOne\u003c/option\u003e\u003c/select\u003e\u003c/form\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "NameSendOne\n\n## Interactive Elements\n\n- **@e2** `input` (text)\n- **@e3** `button`: Send (submit)\n- **@e4** `select`: One\n- **@e1** `form`: Name Send One\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "id": "@e1",
+            "category": "form",
+            "tag": "form",
+            "text": "Name Send One",
+            "attrs": {
+              "action": "/submit",
+              "method": "post"
+            },
+            "children": [
+              {
+                "id": "@e2",
+                "category": "input",
+                "tag": "input",
+                "attrs": {
+                  "id": "name",
+                  "type": "text",
+                  "value": "Ada"
+                }
+              },
+              {
+                "id": "@e3",
+                "category": "button",
+                "tag": "button",
+                "text": "Send",
+                "attrs": {
+                  "type": "submit"
+                }
+              },
+              {
+                "id": "@e4",
+                "category": "select",
+                "tag": "select",
+                "text": "One",
+                "attrs": {
+                  "name": "kind"
+                }
+              }
+            ]
+          }
+        ],
+        "interactive": [
+          {
+            "id": "@e2",
+            "category": "input",
+            "tag": "input",
+            "attrs": {
+              "id": "name",
+              "type": "text",
+              "value": "Ada"
+            }
+          },
+          {
+            "id": "@e3",
+            "category": "button",
+            "tag": "button",
+            "text": "Send",
+            "attrs": {
+              "type": "submit"
+            }
+          },
+          {
+            "id": "@e4",
+            "category": "select",
+            "tag": "select",
+            "text": "One",
+            "attrs": {
+              "name": "kind"
+            }
+          },
+          {
+            "id": "@e1",
+            "category": "form",
+            "tag": "form",
+            "text": "Name Send One",
+            "attrs": {
+              "action": "/submit",
+              "method": "post"
+            },
+            "children": [
+              {
+                "id": "@e2",
+                "category": "input",
+                "tag": "input",
+                "attrs": {
+                  "id": "name",
+                  "type": "text",
+                  "value": "Ada"
+                }
+              },
+              {
+                "id": "@e3",
+                "category": "button",
+                "tag": "button",
+                "text": "Send",
+                "attrs": {
+                  "type": "submit"
+                }
+              },
+              {
+                "id": "@e4",
+                "category": "select",
+                "tag": "select",
+                "text": "One",
+                "attrs": {
+                  "name": "kind"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "ranked_headings": [
+        "Interactive Elements",
+        ""
+      ]
+    },
+    {
+      "name": "lists-blockquotes",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003carticle\u003e\u003ch2\u003eExamples\u003c/h2\u003e\u003cul\u003e\u003cli\u003eFirst item\u003c/li\u003e\u003cli\u003eSecond item\u003c/li\u003e\u003c/ul\u003e\u003cblockquote\u003eQuoted words.\u003c/blockquote\u003e\u003cpre\u003e\u003ccode\u003elet x = 1;\u003c/code\u003e\u003c/pre\u003e\u003c/article\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "item",
+      "top_k": 2,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003carticle\u003e\u003ch2\u003eExamples\u003c/h2\u003e\u003cul\u003e\u003cli\u003eFirst item\u003c/li\u003e\u003cli\u003eSecond item\u003c/li\u003e\u003c/ul\u003e\u003cblockquote\u003eQuoted words.\u003c/blockquote\u003e\u003cpre\u003e\u003ccode\u003elet x = 1;\u003c/code\u003e\u003c/pre\u003e\u003c/article\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "## Examples\n\n- First item\n- Second item\n\n\u003e Quoted words.\n\n```\nlet x = 1;\n```\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h2",
+            "text": "Examples"
+          },
+          {
+            "category": "text",
+            "tag": "li",
+            "text": "First item"
+          },
+          {
+            "category": "text",
+            "tag": "li",
+            "text": "Second item"
+          },
+          {
+            "category": "text",
+            "tag": "blockquote",
+            "text": "Quoted words."
+          },
+          {
+            "category": "text",
+            "tag": "pre",
+            "text": "let x = 1;"
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Examples"
+      ]
+    },
+    {
+      "name": "images-and-empty-links",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003cmain\u003e\u003ch2\u003eMedia\u003c/h2\u003e\u003cimg src=\"/a.png\" alt=\"A\"\u003e\u003cimg src=\"/ignored.png\"\u003e\u003ca href=\"/one\"\u003eOne\u003c/a\u003e\u003ca href=\"\"\u003eNo target\u003c/a\u003e\u003cbr\u003etail\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "media",
+      "top_k": 1,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003ch2\u003eMedia\u003c/h2\u003e\u003cimg src=\"/a.png\" alt=\"A\"/\u003e\u003cimg src=\"/ignored.png\"/\u003e\u003ca href=\"/one\"\u003eOne\u003c/a\u003e\u003ca href=\"\"\u003eNo target\u003c/a\u003e\u003cbr/\u003etail\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "## Media\n\n![A](/a.png)![](/ignored.png)[One](/one)[No target]()  \ntail\n\n## Interactive Elements\n\n- **@e1** `link`: One → /one\n\n## Links\n\n- [One](/one)\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h2",
+            "text": "Media"
+          },
+          {
+            "category": "image",
+            "tag": "img",
+            "attrs": {
+              "alt": "A",
+              "src": "/a.png"
+            }
+          },
+          {
+            "id": "@e1",
+            "category": "link",
+            "tag": "a",
+            "text": "One",
+            "attrs": {
+              "href": "/one"
+            }
+          },
+          {
+            "category": "text",
+            "tag": "a",
+            "text": "No target",
+            "attrs": {
+              "href": ""
+            }
+          }
+        ],
+        "interactive": [
+          {
+            "id": "@e1",
+            "category": "link",
+            "tag": "a",
+            "text": "One",
+            "attrs": {
+              "href": "/one"
+            }
+          }
+        ]
+      },
+      "ranked_headings": [
+        "Media"
+      ]
+    },
+    {
+      "name": "language-casing",
+      "html": "\u003cHTML LANG=\"zh-Hant\"\u003e\u003cHEAD\u003e\u003cTITLE\u003e  Mixed Case  \u003c/TITLE\u003e\u003c/HEAD\u003e\u003cBODY\u003e\u003cSECTION id=\"story\"\u003e\u003cP\u003eMixed case tags remain semantic.\u003c/P\u003e\u003c/SECTION\u003e\u003c/BODY\u003e\u003c/HTML\u003e",
+      "query": "semantic",
+      "top_k": 1,
+      "title": "Mixed Case",
+      "lang": "zh-Hant",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003ctitle\u003e  Mixed Case  \u003c/title\u003e\u003c/head\u003e\u003cbody\u003e\u003csection id=\"story\"\u003e\u003cp\u003eMixed case tags remain semantic.\u003c/p\u003e\u003c/section\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "Mixed case tags remain semantic.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "Mixed Case",
+        "lang": "zh-Hant",
+        "content": [
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Mixed case tags remain semantic."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        ""
+      ]
+    },
+    {
+      "name": "nested-sections",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003cmain\u003e\u003csection\u003e\u003ch2\u003eAlpha\u003c/h2\u003e\u003cp\u003ealpha paragraph with enough content for the static corpus.\u003c/p\u003e\u003c/section\u003e\u003csection\u003e\u003ch2\u003eBeta\u003c/h2\u003e\u003cp\u003ebeta paragraph with different relevance terms.\u003c/p\u003e\u003c/section\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "beta",
+      "top_k": 1,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003csection\u003e\u003ch2\u003eAlpha\u003c/h2\u003e\u003cp\u003ealpha paragraph with enough content for the static corpus.\u003c/p\u003e\u003c/section\u003e\u003csection\u003e\u003ch2\u003eBeta\u003c/h2\u003e\u003cp\u003ebeta paragraph with different relevance terms.\u003c/p\u003e\u003c/section\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "## Alpha\n\nalpha paragraph with enough content for the static corpus.\n\n## Beta\n\nbeta paragraph with different relevance terms.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h2",
+            "text": "Alpha"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "alpha paragraph with enough content for the static corpus."
+          },
+          {
+            "category": "text",
+            "tag": "h2",
+            "text": "Beta"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "beta paragraph with different relevance terms."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Beta"
+      ]
+    },
+    {
+      "name": "data-graph",
+      "html": "\u003chtml\u003e\u003chead\u003e\u003cscript type=\"application/ld+json\"\u003e{\"@graph\":[{\"@type\":\"Recipe\",\"name\":\"Soup\"}]}\u003c/script\u003e\u003c/head\u003e\u003cbody\u003e\u003carticle\u003e\u003ch1\u003eSoup\u003c/h1\u003e\u003cp\u003eA recipe with ingredients and method.\u003c/p\u003e\u003c/article\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "recipe",
+      "top_k": 1,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003carticle\u003e\u003ch1\u003eSoup\u003c/h1\u003e\u003cp\u003eA recipe with ingredients and method.\u003c/p\u003e\u003c/article\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# Soup\n\nA recipe with ingredients and method.\n\n## Data\n\n```json\n// Source: ld+json\n{\"@graph\":[{\"@type\":\"Recipe\",\"name\":\"Soup\"}]}\n```\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "Soup"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "A recipe with ingredients and method."
+          }
+        ],
+        "interactive": null,
+        "islands": [
+          {
+            "source": "ld+json",
+            "json": {
+              "@graph": [
+                {
+                  "@type": "Recipe",
+                  "name": "Soup"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "ranked_headings": [
+        "Soup"
+      ]
+    },
+    {
+      "name": "malformed-json",
+      "html": "\u003chtml\u003e\u003chead\u003e\u003cscript type=\"application/ld+json\"\u003enot-json\u003c/script\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003cp\u003eMalformed data does not become a document island.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "malformed",
+      "top_k": 0,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003cp\u003eMalformed data does not become a document island.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "Malformed data does not become a document island.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Malformed data does not become a document island."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        ""
+      ]
+    },
+    {
+      "name": "table-definition",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003cmain\u003e\u003ch2\u003eReference\u003c/h2\u003e\u003ctable\u003e\u003ctr\u003e\u003cth\u003eTerm\u003c/th\u003e\u003cth\u003eMeaning\u003c/th\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eFetch\u003c/td\u003e\u003ctd\u003eRetrieve a resource.\u003c/td\u003e\u003c/tr\u003e\u003c/table\u003e\u003cdl\u003e\u003cdt\u003eURL\u003c/dt\u003e\u003cdd\u003eUniform resource locator.\u003c/dd\u003e\u003c/dl\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "fetch",
+      "top_k": 2,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003ch2\u003eReference\u003c/h2\u003e\u003ctable\u003e\u003ctbody\u003e\u003ctr\u003e\u003cth\u003eTerm\u003c/th\u003e\u003cth\u003eMeaning\u003c/th\u003e\u003c/tr\u003e\u003ctr\u003e\u003ctd\u003eFetch\u003c/td\u003e\u003ctd\u003eRetrieve a resource.\u003c/td\u003e\u003c/tr\u003e\u003c/tbody\u003e\u003c/table\u003e\u003cdl\u003e\u003cdt\u003eURL\u003c/dt\u003e\u003cdd\u003eUniform resource locator.\u003c/dd\u003e\u003c/dl\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "## Reference\n\nTermMeaningFetchRetrieve a resource.\n\nURL\n\nUniform resource locator.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h2",
+            "text": "Reference"
+          },
+          {
+            "category": "text",
+            "tag": "th",
+            "text": "Term"
+          },
+          {
+            "category": "text",
+            "tag": "th",
+            "text": "Meaning"
+          },
+          {
+            "category": "text",
+            "tag": "td",
+            "text": "Fetch"
+          },
+          {
+            "category": "text",
+            "tag": "td",
+            "text": "Retrieve a resource."
+          },
+          {
+            "category": "text",
+            "tag": "dt",
+            "text": "URL"
+          },
+          {
+            "category": "text",
+            "tag": "dd",
+            "text": "Uniform resource locator."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Reference"
+      ]
+    },
+    {
+      "name": "whitespace",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003carticle\u003e\u003ch1\u003eWhitespace\u003c/h1\u003e\u003cp\u003eMany\\n   spaces\\tbecome one.\u003c/p\u003e\u003cp\u003eSecond paragraph.\u003c/p\u003e\u003c/article\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "spaces",
+      "top_k": 0,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003carticle\u003e\u003ch1\u003eWhitespace\u003c/h1\u003e\u003cp\u003eMany\\n   spaces\\tbecome one.\u003c/p\u003e\u003cp\u003eSecond paragraph.\u003c/p\u003e\u003c/article\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# Whitespace\n\nMany\\\\n spaces\\\\tbecome one.\n\nSecond paragraph.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "Whitespace"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Many\\n spaces\\tbecome one."
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Second paragraph."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Whitespace"
+      ]
+    },
+    {
+      "name": "hidden-class",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003cmain class=\"content\"\u003e\u003cp class=\"hide\"\u003egone\u003c/p\u003e\u003cp class=\"visible\"\u003estays\u003c/p\u003e\u003cdiv style=\"visibility:hidden\"\u003egone too\u003c/div\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "stays",
+      "top_k": 0,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003cp\u003estays\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "stays\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "stays"
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        ""
+      ]
+    },
+    {
+      "name": "anchors",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003cmain\u003e\u003ch2\u003eLinks\u003c/h2\u003e\u003cp\u003e\u003ca href=\"https://example.test/a\"\u003eAlpha\u003c/a\u003e and \u003ca href=\"#local\"\u003eLocal\u003c/a\u003e.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "alpha",
+      "top_k": 0,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003ch2\u003eLinks\u003c/h2\u003e\u003cp\u003e\u003ca href=\"https://example.test/a\"\u003eAlpha\u003c/a\u003e and \u003ca href=\"#local\"\u003eLocal\u003c/a\u003e.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "## Links\n\n[Alpha](https://example.test/a) and [Local](#local).\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h2",
+            "text": "Links"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Alpha and Local ."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Links"
+      ]
+    },
+    {
+      "name": "unicode-budget",
+      "html": "\u003chtml lang=\"de\"\u003e\u003cbody\u003e\u003cmain\u003e\u003ch1\u003eGrüße 🌍\u003c/h1\u003e\u003cp\u003eÄpfel, Öl und Straße sind Unicode.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "straße",
+      "top_k": 1,
+      "title": "",
+      "lang": "de",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003e\u003ch1\u003eGrüße 🌍\u003c/h1\u003e\u003cp\u003eÄpfel, Öl und Straße sind Unicode.\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# Grüße 🌍\n\nÄpfel, Öl und Straße sind Unicode.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "lang": "de",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "Grüße 🌍"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Äpfel, Öl und Straße sind Unicode."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Grüße 🌍"
+      ]
+    },
+    {
+      "name": "empty-body",
+      "html": "\u003chtml\u003e\u003chead\u003e\u003ctitle\u003eEmpty\u003c/title\u003e\u003c/head\u003e\u003cbody\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "",
+      "top_k": 0,
+      "title": "Empty",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003ctitle\u003eEmpty\u003c/title\u003e\u003c/head\u003e\u003cbody\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "Empty",
+        "content": null,
+        "interactive": null
+      },
+      "ranked_headings": [
+        ""
+      ]
+    },
+    {
+      "name": "article-class",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003cdiv class=\"post\"\u003e\u003ch2\u003ePost\u003c/h2\u003e\u003cp\u003eArticle-like content in a div is still rendered.\u003c/p\u003e\u003c/div\u003e\u003cfooter\u003eFooter navigation\u003c/footer\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "article",
+      "top_k": 1,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cdiv\u003e\u003ch2\u003ePost\u003c/h2\u003e\u003cp\u003eArticle-like content in a div is still rendered.\u003c/p\u003e\u003c/div\u003e\u003cfooter\u003eFooter navigation\u003c/footer\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "## Post\n\nArticle-like content in a div is still rendered.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h2",
+            "text": "Post"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Article-like content in a div is still rendered."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Post"
+      ]
+    },
+    {
+      "name": "all-cleanup",
+      "html": "\u003chtml\u003e\u003cbody\u003e\u003cmain\u003e\u003cscript\u003ex\u003c/script\u003e\u003cstyle\u003ex\u003c/style\u003e\u003cnoscript\u003ex\u003c/noscript\u003e\u003csvg\u003ex\u003c/svg\u003e\u003ciframe\u003ex\u003c/iframe\u003e\u003cobject\u003ex\u003c/object\u003e\u003cembed\u003ex\u003c/embed\u003e\u003ccanvas\u003ex\u003c/canvas\u003e\u003caudio\u003ex\u003c/audio\u003e\u003cvideo\u003ex\u003c/video\u003e\u003ctemplate\u003ex\u003c/template\u003e\u003cpicture\u003ex\u003c/picture\u003e\u003cp\u003esurvives\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "query": "survives",
+      "top_k": 1,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e\u003cmain\u003ex\u003cp\u003esurvives\u003c/p\u003e\u003c/main\u003e\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "x\n\nsurvives\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": [
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "survives"
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        ""
+      ]
+    },
+    {
+      "name": "form_page.html",
+      "html": "\u003c!DOCTYPE html\u003e\n\u003chtml lang=\"en\"\u003e\n\u003chead\u003e\u003ctitle\u003eContact Form\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cmain\u003e\n  \u003ch1\u003eContact Us\u003c/h1\u003e\n  \u003cform id=\"contact-form\" action=\"/submit\" method=\"POST\"\u003e\n    \u003clabel for=\"name\"\u003eName\u003c/label\u003e\n    \u003cinput type=\"text\" id=\"name\" name=\"name\" placeholder=\"Your full name\" /\u003e\n    \u003clabel for=\"email\"\u003eEmail\u003c/label\u003e\n    \u003cinput type=\"email\" id=\"email\" name=\"email\" placeholder=\"your@email.com\" /\u003e\n    \u003clabel for=\"message\"\u003eMessage\u003c/label\u003e\n    \u003ctextarea id=\"message\" name=\"message\" placeholder=\"Your message here\"\u003e\u003c/textarea\u003e\n    \u003clabel for=\"topic\"\u003eTopic\u003c/label\u003e\n    \u003cselect id=\"topic\" name=\"topic\"\u003e\n      \u003coption value=\"general\"\u003eGeneral\u003c/option\u003e\n      \u003coption value=\"support\"\u003eSupport\u003c/option\u003e\n      \u003coption value=\"billing\"\u003eBilling\u003c/option\u003e\n    \u003c/select\u003e\n    \u003cbutton type=\"submit\"\u003eSend Message\u003c/button\u003e\n    \u003cbutton type=\"reset\"\u003eClear\u003c/button\u003e\n  \u003c/form\u003e\n\u003c/main\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n",
+      "query": "name",
+      "top_k": 1,
+      "title": "Contact Form",
+      "lang": "en",
+      "clean_html": "\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\u003ctitle\u003eContact Form\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cmain\u003e\n  \u003ch1\u003eContact Us\u003c/h1\u003e\n  \u003cform id=\"contact-form\" action=\"/submit\" method=\"POST\"\u003e\n    \u003clabel for=\"name\"\u003eName\u003c/label\u003e\n    \u003cinput type=\"text\" id=\"name\" name=\"name\" placeholder=\"Your full name\"/\u003e\n    \u003clabel for=\"email\"\u003eEmail\u003c/label\u003e\n    \u003cinput type=\"email\" id=\"email\" name=\"email\" placeholder=\"your@email.com\"/\u003e\n    \u003clabel for=\"message\"\u003eMessage\u003c/label\u003e\n    \u003ctextarea id=\"message\" name=\"message\" placeholder=\"Your message here\"\u003e\u003c/textarea\u003e\n    \u003clabel for=\"topic\"\u003eTopic\u003c/label\u003e\n    \u003cselect id=\"topic\" name=\"topic\"\u003e\n      \u003coption value=\"general\"\u003eGeneral\u003c/option\u003e\n      \u003coption value=\"support\"\u003eSupport\u003c/option\u003e\n      \u003coption value=\"billing\"\u003eBilling\u003c/option\u003e\n    \u003c/select\u003e\n    \u003cbutton type=\"submit\"\u003eSend Message\u003c/button\u003e\n    \u003cbutton type=\"reset\"\u003eClear\u003c/button\u003e\n  \u003c/form\u003e\n\u003c/main\u003e\n\n\n\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# Contact Us\n\nName Email Message Topic General Support Billing Send Message Clear\n\n## Interactive Elements\n\n- **@e2** `input` [Your full name] (text)\n- **@e3** `input` [your@email.com] (email)\n- **@e4** `textarea` [Your message here]\n- **@e5** `select`: General Support Billing\n- **@e6** `button`: Send Message (submit)\n- **@e7** `button`: Clear (reset)\n- **@e1** `form`: Name Email Message Topic General Support Billing Send Message Clear\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "Contact Form",
+        "lang": "en",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "Contact Us"
+          },
+          {
+            "id": "@e1",
+            "category": "form",
+            "tag": "form",
+            "text": "Name Email Message Topic General Support Billing Send Message Clear",
+            "attrs": {
+              "action": "/submit",
+              "id": "contact-form",
+              "method": "POST"
+            },
+            "children": [
+              {
+                "id": "@e2",
+                "category": "input",
+                "tag": "input",
+                "attrs": {
+                  "id": "name",
+                  "name": "name",
+                  "placeholder": "Your full name",
+                  "type": "text"
+                }
+              },
+              {
+                "id": "@e3",
+                "category": "input",
+                "tag": "input",
+                "attrs": {
+                  "id": "email",
+                  "name": "email",
+                  "placeholder": "your@email.com",
+                  "type": "email"
+                }
+              },
+              {
+                "id": "@e4",
+                "category": "textarea",
+                "tag": "textarea",
+                "attrs": {
+                  "id": "message",
+                  "name": "message",
+                  "placeholder": "Your message here"
+                }
+              },
+              {
+                "id": "@e5",
+                "category": "select",
+                "tag": "select",
+                "text": "General Support Billing",
+                "attrs": {
+                  "id": "topic",
+                  "name": "topic"
+                }
+              },
+              {
+                "id": "@e6",
+                "category": "button",
+                "tag": "button",
+                "text": "Send Message",
+                "attrs": {
+                  "type": "submit"
+                }
+              },
+              {
+                "id": "@e7",
+                "category": "button",
+                "tag": "button",
+                "text": "Clear",
+                "attrs": {
+                  "type": "reset"
+                }
+              }
+            ]
+          }
+        ],
+        "interactive": [
+          {
+            "id": "@e2",
+            "category": "input",
+            "tag": "input",
+            "attrs": {
+              "id": "name",
+              "name": "name",
+              "placeholder": "Your full name",
+              "type": "text"
+            }
+          },
+          {
+            "id": "@e3",
+            "category": "input",
+            "tag": "input",
+            "attrs": {
+              "id": "email",
+              "name": "email",
+              "placeholder": "your@email.com",
+              "type": "email"
+            }
+          },
+          {
+            "id": "@e4",
+            "category": "textarea",
+            "tag": "textarea",
+            "attrs": {
+              "id": "message",
+              "name": "message",
+              "placeholder": "Your message here"
+            }
+          },
+          {
+            "id": "@e5",
+            "category": "select",
+            "tag": "select",
+            "text": "General Support Billing",
+            "attrs": {
+              "id": "topic",
+              "name": "topic"
+            }
+          },
+          {
+            "id": "@e6",
+            "category": "button",
+            "tag": "button",
+            "text": "Send Message",
+            "attrs": {
+              "type": "submit"
+            }
+          },
+          {
+            "id": "@e7",
+            "category": "button",
+            "tag": "button",
+            "text": "Clear",
+            "attrs": {
+              "type": "reset"
+            }
+          },
+          {
+            "id": "@e1",
+            "category": "form",
+            "tag": "form",
+            "text": "Name Email Message Topic General Support Billing Send Message Clear",
+            "attrs": {
+              "action": "/submit",
+              "id": "contact-form",
+              "method": "POST"
+            },
+            "children": [
+              {
+                "id": "@e2",
+                "category": "input",
+                "tag": "input",
+                "attrs": {
+                  "id": "name",
+                  "name": "name",
+                  "placeholder": "Your full name",
+                  "type": "text"
+                }
+              },
+              {
+                "id": "@e3",
+                "category": "input",
+                "tag": "input",
+                "attrs": {
+                  "id": "email",
+                  "name": "email",
+                  "placeholder": "your@email.com",
+                  "type": "email"
+                }
+              },
+              {
+                "id": "@e4",
+                "category": "textarea",
+                "tag": "textarea",
+                "attrs": {
+                  "id": "message",
+                  "name": "message",
+                  "placeholder": "Your message here"
+                }
+              },
+              {
+                "id": "@e5",
+                "category": "select",
+                "tag": "select",
+                "text": "General Support Billing",
+                "attrs": {
+                  "id": "topic",
+                  "name": "topic"
+                }
+              },
+              {
+                "id": "@e6",
+                "category": "button",
+                "tag": "button",
+                "text": "Send Message",
+                "attrs": {
+                  "type": "submit"
+                }
+              },
+              {
+                "id": "@e7",
+                "category": "button",
+                "tag": "button",
+                "text": "Clear",
+                "attrs": {
+                  "type": "reset"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "ranked_headings": [
+        "Contact Us"
+      ]
+    },
+    {
+      "name": "iso_8859_1.html",
+      "html": "\u003c!DOCTYPE html\u003e\n\u003chtml lang=\"de\"\u003e\n\u003chead\u003e\n\u003cmeta http-equiv=\"Content-Type\" content=\"text/html; charset=iso-8859-1\"\u003e\n\u003ctitle\u003e\ufffdber die \ufffdlteren Semester\u003c/title\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n\u003carticle\u003e\n\u003ch1\u003eDie sch\ufffdne Welt der Universit\ufffdt\u003c/h1\u003e\n\u003cp\u003eDie \ufffdlteren Studenten freuen sich \ufffdber die M\ufffdglichkeit, an der Universit\ufffdt zu studieren.\nEs ist ihnen eine gro\ufffde Freude, da\ufffd sie hier lernen k\ufffdnnen. Die B\ufffdcher \ufffdber Geschichte,\nPhilosophie und Naturwissenschaften stehen ihnen jederzeit zur Verf\ufffdgung.\u003c/p\u003e\n\u003cp\u003eIm Caf\ufffd gibt es k\ufffdstlichen Kuchen und hei\ufffden Kaffee. Die Stra\ufffde f\ufffdhrt am Schlo\ufffd vorbei\nzu einem sch\ufffdnen Garten, wo man die Ruhe genie\ufffden kann.\u003c/p\u003e\n\u003cp\u003eProf. Wei\ufffd h\ufffdlt eine Vorlesung \ufffdber die franz\ufffdsische Sprache: \"Les \ufffdl\ufffdves \ufffdtudient\navec passion les oeuvres classiques de Moli\ufffdre et Racine.\" Er erkl\ufffdrt die Unterschiede\nzwischen den verschiedenen Sprachfamilien.\u003c/p\u003e\n\u003c/article\u003e\n\u003c/body\u003e\n\u003c/html\u003e",
+      "query": "",
+      "top_k": 0,
+      "title": "\ufffdber die \ufffdlteren Semester",
+      "lang": "de",
+      "clean_html": "\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\n\u003cmeta/\u003e\n\u003ctitle\u003e\ufffdber die \ufffdlteren Semester\u003c/title\u003e\n\u003c/head\u003e\n\u003cbody\u003e\n\u003carticle\u003e\n\u003ch1\u003eDie sch\ufffdne Welt der Universit\ufffdt\u003c/h1\u003e\n\u003cp\u003eDie \ufffdlteren Studenten freuen sich \ufffdber die M\ufffdglichkeit, an der Universit\ufffdt zu studieren.\nEs ist ihnen eine gro\ufffde Freude, da\ufffd sie hier lernen k\ufffdnnen. Die B\ufffdcher \ufffdber Geschichte,\nPhilosophie und Naturwissenschaften stehen ihnen jederzeit zur Verf\ufffdgung.\u003c/p\u003e\n\u003cp\u003eIm Caf\ufffd gibt es k\ufffdstlichen Kuchen und hei\ufffden Kaffee. Die Stra\ufffde f\ufffdhrt am Schlo\ufffd vorbei\nzu einem sch\ufffdnen Garten, wo man die Ruhe genie\ufffden kann.\u003c/p\u003e\n\u003cp\u003eProf. Wei\ufffd h\ufffdlt eine Vorlesung \ufffdber die franz\ufffdsische Sprache: \u0026#34;Les \ufffdl\ufffdves \ufffdtudient\navec passion les oeuvres classiques de Moli\ufffdre et Racine.\u0026#34; Er erkl\ufffdrt die Unterschiede\nzwischen den verschiedenen Sprachfamilien.\u003c/p\u003e\n\u003c/article\u003e\n\n\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# Die sch\ufffdne Welt der Universit\ufffdt\n\nDie \ufffdlteren Studenten freuen sich \ufffdber die M\ufffdglichkeit, an der Universit\ufffdt zu studieren. Es ist ihnen eine gro\ufffde Freude, da\ufffd sie hier lernen k\ufffdnnen. Die B\ufffdcher \ufffdber Geschichte, Philosophie und Naturwissenschaften stehen ihnen jederzeit zur Verf\ufffdgung.\n\nIm Caf\ufffd gibt es k\ufffdstlichen Kuchen und hei\ufffden Kaffee. Die Stra\ufffde f\ufffdhrt am Schlo\ufffd vorbei zu einem sch\ufffdnen Garten, wo man die Ruhe genie\ufffden kann.\n\nProf. Wei\ufffd h\ufffdlt eine Vorlesung \ufffdber die franz\ufffdsische Sprache: \"Les \ufffdl\ufffdves \ufffdtudient avec passion les oeuvres classiques de Moli\ufffdre et Racine.\" Er erkl\ufffdrt die Unterschiede zwischen den verschiedenen Sprachfamilien.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "\ufffdber die \ufffdlteren Semester",
+        "lang": "de",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "Die sch�ne Welt der Universit�t"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Die �lteren Studenten freuen sich �ber die M�glichkeit, an der Universit�t zu studieren. Es ist ihnen eine gro�e Freude, da� sie hier lernen k�nnen. Die B�cher �ber Geschichte, Philosophie und Naturwissenschaften stehen ihnen jederzeit zur Verf�gung."
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Im Caf� gibt es k�stlichen Kuchen und hei�en Kaffee. Die Stra�e f�hrt am Schlo� vorbei zu einem sch�nen Garten, wo man die Ruhe genie�en kann."
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Prof. Wei� h�lt eine Vorlesung �ber die franz�sische Sprache: \"Les �l�ves �tudient avec passion les oeuvres classiques de Moli�re et Racine.\" Er erkl�rt die Unterschiede zwischen den verschiedenen Sprachfamilien."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Die sch\ufffdne Welt der Universit\ufffdt"
+      ]
+    },
+    {
+      "name": "nav_heavy.html",
+      "html": "\u003c!DOCTYPE html\u003e\n\u003chtml lang=\"en\"\u003e\n\u003chead\u003e\u003ctitle\u003ePortal\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cnav id=\"main-nav\"\u003e\n  \u003ca href=\"/home\"\u003eHome\u003c/a\u003e \u003ca href=\"/news\"\u003eNews\u003c/a\u003e \u003ca href=\"/sport\"\u003eSport\u003c/a\u003e\n  \u003ca href=\"/tech\"\u003eTech\u003c/a\u003e \u003ca href=\"/finance\"\u003eFinance\u003c/a\u003e \u003ca href=\"/health\"\u003eHealth\u003c/a\u003e\n  \u003ca href=\"/travel\"\u003eTravel\u003c/a\u003e \u003ca href=\"/food\"\u003eFood\u003c/a\u003e \u003ca href=\"/style\"\u003eStyle\u003c/a\u003e\n  \u003ca href=\"/culture\"\u003eCulture\u003c/a\u003e \u003ca href=\"/science\"\u003eScience\u003c/a\u003e \u003ca href=\"/politics\"\u003ePolitics\u003c/a\u003e\n\u003c/nav\u003e\n\u003cheader class=\"banner\"\u003e\u003ca href=\"/subscribe\"\u003eSubscribe now\u003c/a\u003e \u003ca href=\"/login\"\u003eLog in\u003c/a\u003e\u003c/header\u003e\n\u003cmain id=\"content-main\"\u003e\n  \u003carticle class=\"article\"\u003e\n    \u003ch1\u003eThe Future of Renewable Energy\u003c/h1\u003e\n    \u003cp\u003eRenewable energy sources such as solar and wind are transforming the global energy landscape. Investment in clean energy reached a record $500 billion in 2025.\u003c/p\u003e\n    \u003cp\u003eSolar panel efficiency has improved dramatically, with new perovskite cells achieving over 30% efficiency in laboratory conditions. This compares favorably to traditional silicon cells.\u003c/p\u003e\n    \u003cp\u003eWind energy capacity doubled in the last five years, driven by offshore installations in the North Sea and along the US Atlantic coast.\u003c/p\u003e\n  \u003c/article\u003e\n\u003c/main\u003e\n\u003caside class=\"sidebar\"\u003e\n  \u003ca href=\"/ad/1\"\u003eAdvertisement\u003c/a\u003e \u003ca href=\"/ad/2\"\u003eSponsored content\u003c/a\u003e\n  \u003ca href=\"/related/1\"\u003eRelated 1\u003c/a\u003e \u003ca href=\"/related/2\"\u003eRelated 2\u003c/a\u003e\n  \u003ca href=\"/related/3\"\u003eRelated 3\u003c/a\u003e \u003ca href=\"/related/4\"\u003eRelated 4\u003c/a\u003e\n\u003c/aside\u003e\n\u003cfooter class=\"footer\"\u003e\n  \u003ca href=\"/privacy\"\u003ePrivacy\u003c/a\u003e \u003ca href=\"/terms\"\u003eTerms\u003c/a\u003e \u003ca href=\"/contact\"\u003eContact\u003c/a\u003e\n  \u003ca href=\"/advertise\"\u003eAdvertise\u003c/a\u003e \u003ca href=\"/jobs\"\u003eJobs\u003c/a\u003e\n\u003c/footer\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n",
+      "query": "energy",
+      "top_k": 1,
+      "title": "Portal",
+      "lang": "en",
+      "clean_html": "\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\u003ctitle\u003ePortal\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cnav id=\"main-nav\"\u003e\n  \u003ca href=\"/home\"\u003eHome\u003c/a\u003e \u003ca href=\"/news\"\u003eNews\u003c/a\u003e \u003ca href=\"/sport\"\u003eSport\u003c/a\u003e\n  \u003ca href=\"/tech\"\u003eTech\u003c/a\u003e \u003ca href=\"/finance\"\u003eFinance\u003c/a\u003e \u003ca href=\"/health\"\u003eHealth\u003c/a\u003e\n  \u003ca href=\"/travel\"\u003eTravel\u003c/a\u003e \u003ca href=\"/food\"\u003eFood\u003c/a\u003e \u003ca href=\"/style\"\u003eStyle\u003c/a\u003e\n  \u003ca href=\"/culture\"\u003eCulture\u003c/a\u003e \u003ca href=\"/science\"\u003eScience\u003c/a\u003e \u003ca href=\"/politics\"\u003ePolitics\u003c/a\u003e\n\u003c/nav\u003e\n\u003cheader\u003e\u003ca href=\"/subscribe\"\u003eSubscribe now\u003c/a\u003e \u003ca href=\"/login\"\u003eLog in\u003c/a\u003e\u003c/header\u003e\n\u003cmain id=\"content-main\"\u003e\n  \u003carticle\u003e\n    \u003ch1\u003eThe Future of Renewable Energy\u003c/h1\u003e\n    \u003cp\u003eRenewable energy sources such as solar and wind are transforming the global energy landscape. Investment in clean energy reached a record $500 billion in 2025.\u003c/p\u003e\n    \u003cp\u003eSolar panel efficiency has improved dramatically, with new perovskite cells achieving over 30% efficiency in laboratory conditions. This compares favorably to traditional silicon cells.\u003c/p\u003e\n    \u003cp\u003eWind energy capacity doubled in the last five years, driven by offshore installations in the North Sea and along the US Atlantic coast.\u003c/p\u003e\n  \u003c/article\u003e\n\u003c/main\u003e\n\u003caside\u003e\n  \u003ca href=\"/ad/1\"\u003eAdvertisement\u003c/a\u003e \u003ca href=\"/ad/2\"\u003eSponsored content\u003c/a\u003e\n  \u003ca href=\"/related/1\"\u003eRelated 1\u003c/a\u003e \u003ca href=\"/related/2\"\u003eRelated 2\u003c/a\u003e\n  \u003ca href=\"/related/3\"\u003eRelated 3\u003c/a\u003e \u003ca href=\"/related/4\"\u003eRelated 4\u003c/a\u003e\n\u003c/aside\u003e\n\u003cfooter\u003e\n  \u003ca href=\"/privacy\"\u003ePrivacy\u003c/a\u003e \u003ca href=\"/terms\"\u003eTerms\u003c/a\u003e \u003ca href=\"/contact\"\u003eContact\u003c/a\u003e\n  \u003ca href=\"/advertise\"\u003eAdvertise\u003c/a\u003e \u003ca href=\"/jobs\"\u003eJobs\u003c/a\u003e\n\u003c/footer\u003e\n\n\n\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# The Future of Renewable Energy\n\nRenewable energy sources such as solar and wind are transforming the global energy landscape. Investment in clean energy reached a record $500 billion in 2025.\n\nSolar panel efficiency has improved dramatically, with new perovskite cells achieving over 30% efficiency in laboratory conditions. This compares favorably to traditional silicon cells.\n\nWind energy capacity doubled in the last five years, driven by offshore installations in the North Sea and along the US Atlantic coast.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "Portal",
+        "lang": "en",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "The Future of Renewable Energy"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Renewable energy sources such as solar and wind are transforming the global energy landscape. Investment in clean energy reached a record $500 billion in 2025."
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Solar panel efficiency has improved dramatically, with new perovskite cells achieving over 30% efficiency in laboratory conditions. This compares favorably to traditional silicon cells."
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Wind energy capacity doubled in the last five years, driven by offshore installations in the North Sea and along the US Atlantic coast."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "The Future of Renewable Energy"
+      ]
+    },
+    {
+      "name": "news_article.html",
+      "html": "\u003c!DOCTYPE html\u003e\n\u003chtml lang=\"en\"\u003e\n\u003chead\u003e\u003ctitle\u003eBig News Story\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cnav id=\"main-nav\"\u003e\u003ca href=\"/\"\u003eHome\u003c/a\u003e \u003ca href=\"/about\"\u003eAbout\u003c/a\u003e \u003ca href=\"/contact\"\u003eContact\u003c/a\u003e\u003c/nav\u003e\n\u003carticle id=\"article-main\"\u003e\n  \u003ch1\u003eScientists Discover Water on Mars\u003c/h1\u003e\n  \u003cp class=\"byline\"\u003eBy Jane Doe | June 11, 2026\u003c/p\u003e\n  \u003cp\u003eIn a groundbreaking discovery, scientists at NASA have confirmed the presence of liquid water beneath the surface of Mars. This finding has profound implications for the search for extraterrestrial life.\u003c/p\u003e\n  \u003cp\u003eThe team used advanced radar technology to detect subsurface lakes at the southern polar region of the red planet. The discovery was published in the journal Science.\u003c/p\u003e\n  \u003cblockquote\u003e\"This changes everything we thought we knew about Mars,\" said lead researcher Dr. Smith.\u003c/blockquote\u003e\n  \u003cp\u003eFurther missions are planned to investigate the chemical composition of the water and assess its potential to support microbial life.\u003c/p\u003e\n\u003c/article\u003e\n\u003caside class=\"sidebar\"\u003e\n  \u003ch3\u003eRelated Articles\u003c/h3\u003e\n  \u003cul\u003e\n    \u003cli\u003e\u003ca href=\"/article/1\"\u003eMoon Base Plans\u003c/a\u003e\u003c/li\u003e\n    \u003cli\u003e\u003ca href=\"/article/2\"\u003eSpace Tourism\u003c/a\u003e\u003c/li\u003e\n  \u003c/ul\u003e\n\u003c/aside\u003e\n\u003cfooter id=\"site-footer\"\u003e\u003cp\u003e© 2026 News Corp\u003c/p\u003e\u003c/footer\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n",
+      "query": "mars",
+      "top_k": 1,
+      "title": "Big News Story",
+      "lang": "en",
+      "clean_html": "\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\u003ctitle\u003eBig News Story\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cnav id=\"main-nav\"\u003e\u003ca href=\"/\"\u003eHome\u003c/a\u003e \u003ca href=\"/about\"\u003eAbout\u003c/a\u003e \u003ca href=\"/contact\"\u003eContact\u003c/a\u003e\u003c/nav\u003e\n\u003carticle id=\"article-main\"\u003e\n  \u003ch1\u003eScientists Discover Water on Mars\u003c/h1\u003e\n  \u003cp\u003eBy Jane Doe | June 11, 2026\u003c/p\u003e\n  \u003cp\u003eIn a groundbreaking discovery, scientists at NASA have confirmed the presence of liquid water beneath the surface of Mars. This finding has profound implications for the search for extraterrestrial life.\u003c/p\u003e\n  \u003cp\u003eThe team used advanced radar technology to detect subsurface lakes at the southern polar region of the red planet. The discovery was published in the journal Science.\u003c/p\u003e\n  \u003cblockquote\u003e\u0026#34;This changes everything we thought we knew about Mars,\u0026#34; said lead researcher Dr. Smith.\u003c/blockquote\u003e\n  \u003cp\u003eFurther missions are planned to investigate the chemical composition of the water and assess its potential to support microbial life.\u003c/p\u003e\n\u003c/article\u003e\n\u003caside\u003e\n  \u003ch3\u003eRelated Articles\u003c/h3\u003e\n  \u003cul\u003e\n    \u003cli\u003e\u003ca href=\"/article/1\"\u003eMoon Base Plans\u003c/a\u003e\u003c/li\u003e\n    \u003cli\u003e\u003ca href=\"/article/2\"\u003eSpace Tourism\u003c/a\u003e\u003c/li\u003e\n  \u003c/ul\u003e\n\u003c/aside\u003e\n\u003cfooter id=\"site-footer\"\u003e\u003cp\u003e© 2026 News Corp\u003c/p\u003e\u003c/footer\u003e\n\n\n\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "# Scientists Discover Water on Mars\n\nBy Jane Doe | June 11, 2026\n\nIn a groundbreaking discovery, scientists at NASA have confirmed the presence of liquid water beneath the surface of Mars. This finding has profound implications for the search for extraterrestrial life.\n\nThe team used advanced radar technology to detect subsurface lakes at the southern polar region of the red planet. The discovery was published in the journal Science.\n\n\u003e \"This changes everything we thought we knew about Mars,\" said lead researcher Dr. Smith.\n\nFurther missions are planned to investigate the chemical composition of the water and assess its potential to support microbial life.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "Big News Story",
+        "lang": "en",
+        "content": [
+          {
+            "category": "text",
+            "tag": "h1",
+            "text": "Scientists Discover Water on Mars"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "By Jane Doe | June 11, 2026"
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "In a groundbreaking discovery, scientists at NASA have confirmed the presence of liquid water beneath the surface of Mars. This finding has profound implications for the search for extraterrestrial life."
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "The team used advanced radar technology to detect subsurface lakes at the southern polar region of the red planet. The discovery was published in the journal Science."
+          },
+          {
+            "category": "text",
+            "tag": "blockquote",
+            "text": "\"This changes everything we thought we knew about Mars,\" said lead researcher Dr. Smith."
+          },
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Further missions are planned to investigate the chemical composition of the water and assess its potential to support microbial life."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        "Scientists Discover Water on Mars"
+      ]
+    },
+    {
+      "name": "nextjs_shell.html",
+      "html": "\u003c!DOCTYPE html\u003e\n\u003chtml lang=\"de\"\u003e\n\u003chead\u003e\u003ctitle\u003eNext.js App\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cdiv id=\"__next\"\u003e\u003cp\u003eLoading...\u003c/p\u003e\u003c/div\u003e\n\u003cscript id=\"__NEXT_DATA__\" type=\"application/json\"\u003e{\"props\":{\"pageProps\":{\"title\":\"Willkommen\",\"content\":\"Dies ist der Hauptinhalt der Seite.\",\"items\":[\"Item 1\",\"Item 2\",\"Item 3\"]}},\"page\":\"/\",\"query\":{},\"buildId\":\"abc123\"}\u003c/script\u003e\n\u003c/body\u003e\n\u003c/html\u003e\n",
+      "query": "page",
+      "top_k": 1,
+      "title": "Next.js App",
+      "lang": "de",
+      "clean_html": "\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\u003ctitle\u003eNext.js App\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cdiv id=\"__next\"\u003e\u003cp\u003eLoading...\u003c/p\u003e\u003c/div\u003e\n\n\n\n\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "Loading...\n\n## Data\n\n```json\n// Source: __NEXT_DATA__\n{\"props\":{\"pageProps\":{\"title\":\"Willkommen\",\"content\":\"Dies ist der Hauptinhalt der Seite.\",\"items\":[\"Item 1\",\"Item 2\",\"Item 3\"]}},\"page\":\"/\",\"query\":{},\"buildId\":\"abc123\"}\n```\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "Next.js App",
+        "lang": "de",
+        "content": [
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Loading..."
+          }
+        ],
+        "interactive": null,
+        "islands": [
+          {
+            "source": "__NEXT_DATA__",
+            "json": {
+              "props": {
+                "pageProps": {
+                  "title": "Willkommen",
+                  "content": "Dies ist der Hauptinhalt der Seite.",
+                  "items": [
+                    "Item 1",
+                    "Item 2",
+                    "Item 3"
+                  ]
+                }
+              },
+              "page": "/",
+              "query": {},
+              "buildId": "abc123"
+            }
+          }
+        ]
+      },
+      "ranked_headings": [
+        "Data"
+      ]
+    },
+    {
+      "name": "spa_shell.html",
+      "html": "\u003c!DOCTYPE html\u003e\n\u003chtml lang=\"en\"\u003e\u003chead\u003e\u003ctitle\u003eSPA Dashboard\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cnav\u003e\n  \u003ca href=\"/dashboard\"\u003eDashboard\u003c/a\u003e\n  \u003ca href=\"/settings\"\u003eSettings\u003c/a\u003e\n  \u003ca href=\"/profile\"\u003eProfile\u003c/a\u003e\n  \u003ca href=\"/analytics\"\u003eAnalytics\u003c/a\u003e\n  \u003ca href=\"/reports\"\u003eReports\u003c/a\u003e\n  \u003ca href=\"/team\"\u003eTeam\u003c/a\u003e\n  \u003ca href=\"/billing\"\u003eBilling\u003c/a\u003e\n  \u003ca href=\"/help\"\u003eHelp\u003c/a\u003e\n\u003c/nav\u003e\n\u003cdiv id=\"app\"\u003e\n  \u003cdiv id=\"shell\"\u003e\n    \u003ca href=\"/dashboard\"\u003eDashboard\u003c/a\u003e\n    \u003ca href=\"/settings\"\u003eSettings\u003c/a\u003e\n    \u003ca href=\"/profile\"\u003eProfile\u003c/a\u003e\n    \u003ca href=\"/analytics\"\u003eAnalytics\u003c/a\u003e\n    \u003ca href=\"/reports\"\u003eReports\u003c/a\u003e\n    \u003ca href=\"/team\"\u003eTeam\u003c/a\u003e\n    \u003ca href=\"/billing\"\u003eBilling\u003c/a\u003e\n    \u003ca href=\"/help\"\u003eHelp\u003c/a\u003e\n  \u003c/div\u003e\n\u003c/div\u003e\n\u003cscript id=\"__NEXT_DATA__\" type=\"application/json\"\u003e{\"page\":\"/dashboard\",\"props\":{\"pageProps\":{}}}\u003c/script\u003e\n\u003c/body\u003e\u003c/html\u003e\n",
+      "query": "",
+      "top_k": 0,
+      "title": "SPA Dashboard",
+      "lang": "en",
+      "clean_html": "\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\u003ctitle\u003eSPA Dashboard\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\n\u003cnav\u003e\n  \u003ca href=\"/dashboard\"\u003eDashboard\u003c/a\u003e\n  \u003ca href=\"/settings\"\u003eSettings\u003c/a\u003e\n  \u003ca href=\"/profile\"\u003eProfile\u003c/a\u003e\n  \u003ca href=\"/analytics\"\u003eAnalytics\u003c/a\u003e\n  \u003ca href=\"/reports\"\u003eReports\u003c/a\u003e\n  \u003ca href=\"/team\"\u003eTeam\u003c/a\u003e\n  \u003ca href=\"/billing\"\u003eBilling\u003c/a\u003e\n  \u003ca href=\"/help\"\u003eHelp\u003c/a\u003e\n\u003c/nav\u003e\n\u003cdiv id=\"app\"\u003e\n  \u003cdiv id=\"shell\"\u003e\n    \u003ca href=\"/dashboard\"\u003eDashboard\u003c/a\u003e\n    \u003ca href=\"/settings\"\u003eSettings\u003c/a\u003e\n    \u003ca href=\"/profile\"\u003eProfile\u003c/a\u003e\n    \u003ca href=\"/analytics\"\u003eAnalytics\u003c/a\u003e\n    \u003ca href=\"/reports\"\u003eReports\u003c/a\u003e\n    \u003ca href=\"/team\"\u003eTeam\u003c/a\u003e\n    \u003ca href=\"/billing\"\u003eBilling\u003c/a\u003e\n    \u003ca href=\"/help\"\u003eHelp\u003c/a\u003e\n  \u003c/div\u003e\n\u003c/div\u003e\n\n\n\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "[Dashboard](/dashboard) [Settings](/settings) [Profile](/profile) [Analytics](/analytics) [Reports](/reports) [Team](/team) [Billing](/billing) [Help](/help)\n\n## Interactive Elements\n\n- **@e1** `link`: Dashboard → /dashboard\n- **@e2** `link`: Settings → /settings\n- **@e3** `link`: Profile → /profile\n- **@e4** `link`: Analytics → /analytics\n- **@e5** `link`: Reports → /reports\n- **@e6** `link`: Team → /team\n- **@e7** `link`: Billing → /billing\n- **@e8** `link`: Help → /help\n\n## Links\n\n- [Dashboard](/dashboard)\n- [Settings](/settings)\n- [Profile](/profile)\n- [Analytics](/analytics)\n- [Reports](/reports)\n- [Team](/team)\n- [Billing](/billing)\n- [Help](/help)\n\n## Data\n\n```json\n// Source: __NEXT_DATA__\n{\"page\":\"/dashboard\",\"props\":{\"pageProps\":{}}}\n```\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "SPA Dashboard",
+        "lang": "en",
+        "content": [
+          {
+            "id": "@e1",
+            "category": "link",
+            "tag": "a",
+            "text": "Dashboard",
+            "attrs": {
+              "href": "/dashboard"
+            }
+          },
+          {
+            "id": "@e2",
+            "category": "link",
+            "tag": "a",
+            "text": "Settings",
+            "attrs": {
+              "href": "/settings"
+            }
+          },
+          {
+            "id": "@e3",
+            "category": "link",
+            "tag": "a",
+            "text": "Profile",
+            "attrs": {
+              "href": "/profile"
+            }
+          },
+          {
+            "id": "@e4",
+            "category": "link",
+            "tag": "a",
+            "text": "Analytics",
+            "attrs": {
+              "href": "/analytics"
+            }
+          },
+          {
+            "id": "@e5",
+            "category": "link",
+            "tag": "a",
+            "text": "Reports",
+            "attrs": {
+              "href": "/reports"
+            }
+          },
+          {
+            "id": "@e6",
+            "category": "link",
+            "tag": "a",
+            "text": "Team",
+            "attrs": {
+              "href": "/team"
+            }
+          },
+          {
+            "id": "@e7",
+            "category": "link",
+            "tag": "a",
+            "text": "Billing",
+            "attrs": {
+              "href": "/billing"
+            }
+          },
+          {
+            "id": "@e8",
+            "category": "link",
+            "tag": "a",
+            "text": "Help",
+            "attrs": {
+              "href": "/help"
+            }
+          }
+        ],
+        "interactive": [
+          {
+            "id": "@e1",
+            "category": "link",
+            "tag": "a",
+            "text": "Dashboard",
+            "attrs": {
+              "href": "/dashboard"
+            }
+          },
+          {
+            "id": "@e2",
+            "category": "link",
+            "tag": "a",
+            "text": "Settings",
+            "attrs": {
+              "href": "/settings"
+            }
+          },
+          {
+            "id": "@e3",
+            "category": "link",
+            "tag": "a",
+            "text": "Profile",
+            "attrs": {
+              "href": "/profile"
+            }
+          },
+          {
+            "id": "@e4",
+            "category": "link",
+            "tag": "a",
+            "text": "Analytics",
+            "attrs": {
+              "href": "/analytics"
+            }
+          },
+          {
+            "id": "@e5",
+            "category": "link",
+            "tag": "a",
+            "text": "Reports",
+            "attrs": {
+              "href": "/reports"
+            }
+          },
+          {
+            "id": "@e6",
+            "category": "link",
+            "tag": "a",
+            "text": "Team",
+            "attrs": {
+              "href": "/team"
+            }
+          },
+          {
+            "id": "@e7",
+            "category": "link",
+            "tag": "a",
+            "text": "Billing",
+            "attrs": {
+              "href": "/billing"
+            }
+          },
+          {
+            "id": "@e8",
+            "category": "link",
+            "tag": "a",
+            "text": "Help",
+            "attrs": {
+              "href": "/help"
+            }
+          }
+        ],
+        "islands": [
+          {
+            "source": "__NEXT_DATA__",
+            "json": {
+              "page": "/dashboard",
+              "props": {
+                "pageProps": {}
+              }
+            }
+          }
+        ]
+      },
+      "ranked_headings": [
+        "",
+        "Interactive Elements",
+        "Links",
+        "Data"
+      ]
+    },
+    {
+      "name": "spa_shell.md",
+      "html": "# Dashboard Guide\n\nWelcome to the dashboard. This page provides an overview of your account activity and key metrics.\n\n## Getting Started\n\nThe dashboard displays real-time analytics for your projects. You can track user engagement, revenue trends, and conversion rates from a single view.\n\n## Key Metrics\n\n- **Active Users**: 12,450 this month\n- **Revenue**: $45,200 this quarter\n- **Conversion Rate**: 3.2% average across all funnels\n- **Bounce Rate**: 24% — well below industry average\n\n## Recent Activity\n\nThe activity feed shows the latest events across all your connected services. Each entry includes a timestamp, event type, and relevant metadata.\n\n## Customization\n\nYou can rearrange dashboard widgets by dragging them into your preferred layout. Changes are saved automatically to your profile.\n",
+      "query": "",
+      "top_k": 0,
+      "title": "",
+      "lang": "",
+      "clean_html": "\u003chtml\u003e\u003chead\u003e\u003c/head\u003e\u003cbody\u003e# Dashboard Guide\n\nWelcome to the dashboard. This page provides an overview of your account activity and key metrics.\n\n## Getting Started\n\nThe dashboard displays real-time analytics for your projects. You can track user engagement, revenue trends, and conversion rates from a single view.\n\n## Key Metrics\n\n- **Active Users**: 12,450 this month\n- **Revenue**: $45,200 this quarter\n- **Conversion Rate**: 3.2% average across all funnels\n- **Bounce Rate**: 24% — well below industry average\n\n## Recent Activity\n\nThe activity feed shows the latest events across all your connected services. Each entry includes a timestamp, event type, and relevant metadata.\n\n## Customization\n\nYou can rearrange dashboard widgets by dragging them into your preferred layout. Changes are saved automatically to your profile.\n\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "\\# Dashboard Guide Welcome to the dashboard. This page provides an overview of your account activity and key metrics. ## Getting Started The dashboard displays real-time analytics for your projects. You can track user engagement, revenue trends, and conversion rates from a single view. ## Key Metrics - \\*\\*Active Users\\*\\*: 12,450 this month - \\*\\*Revenue\\*\\*: $45,200 this quarter - \\*\\*Conversion Rate\\*\\*: 3.2% average across all funnels - \\*\\*Bounce Rate\\*\\*: 24% — well below industry average ## Recent Activity The activity feed shows the latest events across all your connected services. Each entry includes a timestamp, event type, and relevant metadata. ## Customization You can rearrange dashboard widgets by dragging them into your preferred layout. Changes are saved automatically to your profile.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "content": null,
+        "interactive": null
+      },
+      "ranked_headings": [
+        ""
+      ]
+    },
+    {
+      "name": "tiny_page.html",
+      "html": "\u003c!DOCTYPE html\u003e\n\u003chtml\u003e\u003chead\u003e\u003ctitle\u003eTiny\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\u003cp\u003eHi.\u003c/p\u003e\u003c/body\u003e\n\u003c/html\u003e\n",
+      "query": "",
+      "top_k": 0,
+      "title": "Tiny",
+      "lang": "",
+      "clean_html": "\u003c!DOCTYPE html\u003e\u003chtml\u003e\u003chead\u003e\u003ctitle\u003eTiny\u003c/title\u003e\u003c/head\u003e\n\u003cbody\u003e\u003cp\u003eHi.\u003c/p\u003e\n\n\u003c/body\u003e\u003c/html\u003e",
+      "markdown": "Hi.\n\n",
+      "document": {
+        "url": "https://example.com/source",
+        "title": "Tiny",
+        "content": [
+          {
+            "category": "text",
+            "tag": "p",
+            "text": "Hi."
+          }
+        ],
+        "interactive": null
+      },
+      "ranked_headings": [
+        ""
+      ]
+    }
+  ]
+}

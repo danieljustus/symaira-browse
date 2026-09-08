@@ -52,6 +52,7 @@ Konvention (`internal/exitcodes`); die Zuordnung `code → exit code` steht in
 | `permission` | Operation nicht erlaubt | 4 forbidden | permission |
 | `validation` | Ein Wert besteht die Validierung nicht | 2 no_input | validation |
 | `no_input` | Benötigte Eingabe fehlt | 2 no_input | validation |
+| `flow_failed` | Ein Flow-Schritt oder der gesamte Flow-Lauf ist fehlgeschlagen | 7 software | internal |
 | `config` | Konfiguration ungültig oder nicht lesbar | 9 config | config |
 | `conflict` | Operation kollidiert mit dem aktuellen Zustand | 6 conflict | conflict |
 | `unavailable` | Benötigter Dienst oder Ressource nicht verfügbar | 1 generic | unavailable |

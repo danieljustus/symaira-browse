@@ -4,6 +4,13 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      rust_dual_release:
+        description: 'Build opt-in dual Go/Rust artifacts; Go remains the default'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   vulnerability-scan:
@@ -22,6 +29,7 @@ jobs:
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
 
   release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: vulnerability-scan
     permissions:
       contents: write
@@ -42,9 +50,8 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           if [ -z "${CERTIFICATE_P12:-}" ]; then
-            echo "::warning::CERTIFICATE_P12 secret is not set. Building unsigned."
-            echo "signed=false" >> "$GITHUB_OUTPUT"
-            exit 0
+            echo "::error::CERTIFICATE_P12 secret is not set; refusing to publish unsigned artifacts."
+            exit 1
           fi
           echo "signed=true" >> "$GITHUB_OUTPUT"
           KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
@@ -53,7 +60,7 @@ jobs:
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           CERTIFICATE_PATH="$RUNNER_TEMP/certificate.p12"
           echo -n "$CERTIFICATE_P12" | base64 --decode -o "$CERTIFICATE_PATH"
-          security import "$CERTIFICATE_PATH" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$CERTIFICATE_PASSWORD" -A -f pkcs12 -k "$KEYCHAIN_PATH"
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH"
           IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep "Developer ID Application" | head -1 | sed 's/.*"\(.*\)".*/\1/')
@@ -109,8 +116,8 @@ jobs:
           NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
         run: |
           if [ -z "${NOTARY_API_KEY:-}" ] || [ -z "${NOTARY_API_KEY_ID:-}" ] || [ -z "${NOTARY_API_ISSUER:-}" ]; then
-            echo "::warning::Notary API key, key ID, or issuer secret is not set. Skipping notarization."
-            exit 0
+            echo "::error::Notary API secrets are required for signed release artifacts."
+            exit 1
           fi
           NOTARY_KEY_PATH="$RUNNER_TEMP/notary-api-key.p8"
           if ! printf '%s' "$NOTARY_API_KEY" | base64 --decode > "$NOTARY_KEY_PATH"; then
@@ -120,7 +127,7 @@ jobs:
           chmod 600 "$NOTARY_KEY_PATH"
           trap 'rm -f "$NOTARY_KEY_PATH"' EXIT
           for ARCH in amd64 arm64; do
-            for f in "dist/*_darwin_${ARCH}"/*; do
+            for f in "dist/*_darwin_${ARCH}"*/*; do
               if [ -f "$f" ] && file "$f" | grep -q "Mach-O"; then
                 echo "Notarizing $f..."
                 ZIP_PATH="$RUNNER_TEMP/notarize_${ARCH}.zip"
@@ -141,3 +148,47 @@ jobs:
           if [ -n "${KEYCHAIN_PATH:-}" ] && [ -f "$KEYCHAIN_PATH" ]; then
             security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
           fi
+
+  dual-rust-artifacts:
+    name: Release / opt-in dual Go-Rust artifacts
+    if: github.event_name == 'workflow_dispatch' && inputs.rust_dual_release == true
+    needs: vulnerability-scan
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.26.6'
+      - name: Set up Rust
+        run: rustup toolchain install 1.98.0 --profile minimal
+      - name: Build permitted dual targets
+        env:
+          GOTOOLCHAIN: go1.26.6
+        run: |
+          set -euo pipefail
+          python3 port/release/build_dual.py \
+            --version "${GITHUB_REF_NAME:-dual-${GITHUB_RUN_NUMBER}}" \
+            --all-targets \
+            --output target/rust016-dual
+      - name: Prove unsigned output is not accepted
+        run: |
+          set -euo pipefail
+          if python3 port/release/verify.py \
+            --oracle-tag "${GITHUB_REF_NAME:-0.0.0}" \
+            --candidate target/rust016-dual; then
+            echo '::error::Unsigned or incomplete dual output passed the verifier.'
+            exit 1
+          fi
+          echo 'Verifier correctly blocked unsigned/incomplete dual output.'
+      - name: Upload dual build evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: rust016-dual-${{ github.run_id }}
+          path: target/rust016-dual

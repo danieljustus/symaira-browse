@@ -1,0 +1,15 @@
+{
+  "fixture": "testdata/port/engine/engine-neutral.json",
+  "generator_sha256": "cb388c1f51ee5dbcfc4d7d2a37091f09b0e8362594f64690deb85d3465b13efa",
+  "normalization": "route tree strings omitted; refs/diffs preserved pending issue #401",
+  "oracle_commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+  "route_count": 17,
+  "schema_version": 1,
+  "source_files": {
+    "internal/engine/engine.go": "df9cbf5107cdd84f2828787ee8bff3ab954b05dcfa204791d3acd85cc6ada7c9",
+    "internal/engine/navigation.go": "52f1694435872c268527645b5895904439bafd49ca0725ba7e648eced02c49f8",
+    "internal/engine/snapshot.go": "a32e8dec0c807c5462dec1264db5877682f41e3b6b68f26df5719a3652cb74c9",
+    "internal/engine/snapshot_diff.go": "374ffcfda506c7ce97056090b88d679fad2f7394c52f17730837fb4d7966f6ef",
+    "internal/engine/stable_refs.go": "c945c5d53aec602773f69a4ed81e3f21e522056522d9cb15099237094e81dd08"
+  }
+}

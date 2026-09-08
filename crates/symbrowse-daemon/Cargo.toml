@@ -1,0 +1,26 @@
+[package]
+name = "symbrowse-daemon"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+fs2.workspace = true
+interprocess.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+symbrowse-core = { path = "../symbrowse-core", version = "=0.0.0" }
+symbrowse-engine = { path = "../symbrowse-engine", version = "=0.0.0" }
+symbrowse-engine-chrome = { path = "../symbrowse-engine-chrome", version = "=0.0.0" }
+symbrowse-fetch = { path = "../symbrowse-fetch", version = "=0.0.0" }
+time.workspace = true
+tokio.workspace = true
+widestring.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+nix.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+symbrowse-engine-safari = { path = "../symbrowse-engine-safari", version = "=0.0.0" }

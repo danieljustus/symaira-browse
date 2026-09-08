@@ -1,0 +1,21 @@
+[package]
+name = "symbrowse-engine-safari"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[target.'cfg(target_os = "macos")'.dependencies]
+async-tungstenite.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
+rustix.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+symbrowse-core.workspace = true
+symbrowse-engine.workspace = true
+tokio.workspace = true
+url.workspace = true
+wait-timeout.workspace = true
