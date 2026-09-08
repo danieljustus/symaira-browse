@@ -2,19 +2,18 @@
 
 //! Language-neutral wire contracts for the staged Symaira Browse Rust port.
 
-use serde::Serialize;
+use symaira_core_version::{Info, new as new_version_info};
 
 /// Public binary and protocol tool name.
 pub const TOOL_NAME: &str = "symbrowse";
 
 /// Current stable machine-readable output schema.
-pub const SCHEMA_VERSION: u8 = 8;
+pub const SCHEMA_VERSION: i32 = 8;
 
-#[derive(Debug, Serialize)]
-struct VersionDocument<'a> {
-    tool: &'static str,
-    version: &'a str,
-    schema_version: u8,
+fn version_info(version: &str) -> Info {
+    // Keep Browse's tool/schema values explicit: CoreKit supplies only the
+    // byte-compatible payload and formatting implementation.
+    new_version_info(TOOL_NAME, version, SCHEMA_VERSION)
 }
 
 /// Renders the exact plain-text `version` subcommand contract.
@@ -27,7 +26,9 @@ struct VersionDocument<'a> {
 /// ```
 #[must_use]
 pub fn render_version_text(version: &str) -> String {
-    format!("{TOOL_NAME} {version}\n")
+    let mut output = version_info(version).to_string();
+    output.push('\n');
+    output
 }
 
 /// Renders the exact Cobra root `--version`/`-v` contract.
@@ -42,12 +43,8 @@ pub fn render_root_version(version: &str) -> String {
 ///
 /// Returns an error only when JSON serialization fails.
 pub fn render_version_json(version: &str) -> Result<String, serde_json::Error> {
-    let document = VersionDocument {
-        tool: TOOL_NAME,
-        version,
-        schema_version: SCHEMA_VERSION,
-    };
-    let mut output = serde_json::to_string(&document)?;
+    let mut output = String::from_utf8(version_info(version).json()?)
+        .expect("CoreKit JSON serialization always emits UTF-8");
     output.push('\n');
     Ok(output)
 }
