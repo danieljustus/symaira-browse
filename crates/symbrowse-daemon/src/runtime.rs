@@ -591,6 +591,61 @@ impl DispatchRuntime {
                     .page = tab.page;
                 json!({"tab": format!("t{}", index + 1), "label": tab.label})
             }
+            "tab.close" => {
+                let (index, closing) = match args.get("tab").and_then(Value::as_str) {
+                    Some(target) if !target.trim().is_empty() => self.chrome_tab(target)?,
+                    _ => self.chrome_active_tab()?,
+                };
+                let closing_id = closing.page.target_id();
+                let next = {
+                    let browser = self
+                        .browser
+                        .lock()
+                        .map_err(|_| runtime_error("browser lock poisoned"))?;
+                    let browser = browser
+                        .as_ref()
+                        .ok_or_else(|| runtime_error("browser was not initialized"))?;
+                    if browser.tabs.len() == 1 {
+                        return Err(runtime_error("cannot close the last tab of a session"));
+                    }
+                    browser
+                        .tabs
+                        .get(if index + 1 < browser.tabs.len() {
+                            index + 1
+                        } else {
+                            index - 1
+                        })
+                        .cloned()
+                        .ok_or_else(|| runtime_error("next tab was not available"))?
+                };
+                closing
+                    .page
+                    .raw()
+                    .clone()
+                    .close()
+                    .await
+                    .map_err(runtime_error)?;
+                let mut guard = self
+                    .browser
+                    .lock()
+                    .map_err(|_| runtime_error("browser lock poisoned"))?;
+                let browser = guard
+                    .as_mut()
+                    .ok_or_else(|| runtime_error("browser was not initialized"))?;
+                let closed_index = browser
+                    .tabs
+                    .iter()
+                    .position(|tab| tab.page.target_id() == closing_id)
+                    .ok_or_else(|| runtime_error("tab disappeared before it could be closed"))?;
+                browser.tabs.remove(closed_index);
+                let active_index = browser
+                    .tabs
+                    .iter()
+                    .position(|tab| tab.page.target_id() == next.page.target_id())
+                    .ok_or_else(|| runtime_error("next tab disappeared while closing tab"))?;
+                browser.page = next.page;
+                json!({"closed": format!("t{}", closed_index + 1), "active": format!("t{}", active_index + 1)})
+            }
             "frames.list" | "frame.tree" => {
                 json!({"frames": page.frames().await.map_err(runtime_error)?})
             }
@@ -1188,6 +1243,24 @@ impl DispatchRuntime {
             .find(|(_, tab)| tab.label == target)
             .map(|(index, tab)| (index, tab.clone()))
             .ok_or_else(|| runtime_error(format!("tab {target:?} not found")))
+    }
+
+    fn chrome_active_tab(&self) -> Result<(usize, BrowserTab), DaemonError> {
+        let browser = self
+            .browser
+            .lock()
+            .map_err(|_| runtime_error("browser lock poisoned"))?;
+        let browser = browser
+            .as_ref()
+            .ok_or_else(|| runtime_error("browser was not initialized"))?;
+        let active_id = browser.page.target_id();
+        browser
+            .tabs
+            .iter()
+            .enumerate()
+            .find(|(_, tab)| tab.page.target_id() == active_id)
+            .map(|(index, tab)| (index, tab.clone()))
+            .ok_or_else(|| runtime_error("active tab is not tracked"))
     }
 
     async fn ensure_browser(&self) -> Result<ChromePage, DaemonError> {
