@@ -9,6 +9,7 @@ the JSON report and never become a passing value gate.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -172,8 +173,16 @@ def summarize(samples: list[dict[str, object]]) -> dict[str, object]:
     summary = {
         "status": "pass",
         "samples": len(passed),
+        "raw_samples": [
+            {
+                "duration_ns": item.get("duration_ns"),
+                "peak_rss_bytes": item.get("peak_rss_bytes"),
+            }
+            for item in samples
+        ],
         "median_duration_ns": int(statistics.median(passed)),
         "p95_duration_ns": p95,
+        "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
         "statuses": statuses,
     }
     if peak_rss:
@@ -244,6 +253,39 @@ def daemon_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> di
     return summarize(results)
 
 
+def fetch_semantics(response: bytes, expected_url: str) -> tuple[bool, str]:
+    """Validate the complete static-fetch contract, not just success:true."""
+    try:
+        frame = json.loads(response.decode("utf-8"))
+        data = frame.get("data", frame)
+        meta = data.get("meta", {})
+        body = data.get("content", data.get("markdown"))
+        title = data.get("title", meta.get("title", ""))
+        document_ok = (
+            data.get("final_url", meta.get("final_url")) == expected_url
+            and data.get("status_code", meta.get("status_code")) == 200
+            and title == "RUST-016"
+            and isinstance(body, str)
+            and "fixture" in body
+            and meta.get("final_url") == expected_url
+            and meta.get("status_code") == 200
+            and meta.get("protocol", "HTTP/1.1") in {"HTTP/1.1", "HTTP/2.0"}
+        )
+        return document_ok, "exact response/document metadata" if document_ok else "response semantics mismatch"
+    except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, TypeError):
+        return False, "invalid JSON response"
+
+
+def negative_control_rejected(expected_url: str) -> bool:
+    """Ensure a fast success-shaped but wrong document cannot pass."""
+    wrong = {"success": True, "data": {"final_url": expected_url, "status_code": 200,
+                                      "title": "wrong", "content": "wrong", "meta": {
+                                          "final_url": expected_url, "status_code": 200,
+                                          "title": "wrong", "protocol": "HTTP/1.1"}}}
+    accepted, _ = fetch_semantics(json.dumps(wrong).encode(), expected_url)
+    return not accepted
+
+
 def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dict[str, object]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -300,10 +342,26 @@ def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dic
                 elif b'"success":true' not in response:
                     samples.append({"status": "error", "reason": "fetch daemon request failed"})
                 else:
-                    samples.append({"status": "pass", "duration_ns": duration})
+                    semantic_pass, reason = fetch_semantics(response, frame["args"]["url"])
+                    samples.append({
+                        "status": "pass" if semantic_pass else "error",
+                        "duration_ns": duration,
+                        "semantic_check": reason,
+                    })
             except OSError as error:
                 samples.append({"status": "error", "reason": str(error)})
-        return summarize(samples)
+        result = summarize(samples)
+        result["semantic_contract"] = {
+            "fixture_id": "rust016-static-fetch-html-v1",
+            "checks": ["final_url", "status_code", "body", "document_metadata", "errors"],
+            "negative_control": {
+                "candidate": "success=true with wrong title/body",
+                "rejected": negative_control_rejected(
+                    f"http://127.0.0.1:{server.server_port}/fixture.html?run=negative"
+                ),
+            },
+        }
+        return result
     finally:
         socket_path = next((path for path in socket_paths if path.exists()), None)
         if socket_path is not None:
@@ -330,7 +388,23 @@ def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dic
         server.server_close()
 
 
-def run_binary(binary: Path, selected: set[str], runs: int, root: Path) -> dict[str, object]:
+def binary_identity(binary: Path, repo_root: Path) -> dict[str, object]:
+    digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+    try:
+        revision = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo_root, text=True, stderr=subprocess.DEVNULL
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        revision = "unknown"
+    return {
+        "path": str(binary),
+        "size_bytes": binary.stat().st_size,
+        "sha256": digest,
+        "vcs_revision": revision,
+    }
+
+
+def run_binary(binary: Path, selected: set[str], runs: int, root: Path, repo_root: Path) -> dict[str, object]:
     if not binary.is_file() or not os.access(binary, os.X_OK):
         return {"status": "blocked", "reason": f"missing or non-executable binary: {binary}"}
     env = base_env(root)
@@ -343,7 +417,7 @@ def run_binary(binary: Path, selected: set[str], runs: int, root: Path) -> dict[
             '{"jsonrpc":"2.0","id":2,"method":"tools/list"}\n',
         ),
     }
-    result: dict[str, object] = {"binary": str(binary), "size_bytes": binary.stat().st_size}
+    result: dict[str, object] = {"identity": binary_identity(binary, repo_root)}
     for name, probe in probes.items():
         if name in selected:
             result[name] = summarize([run_once(binary, probe, env, root) for _ in range(runs)])
@@ -370,11 +444,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     with tempfile.TemporaryDirectory(prefix="rust016-bench-", dir=temp_parent) as raw:
         root = Path(raw)
         report: dict[str, Any] = {
-            "schema_version": 1,
+            "schema_version": 2,
+            "report_version": "rust016-benchmark-v2",
             "captured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "source_revision": subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parents[2], text=True
+            ).strip(),
             "host": {"system": platform.system(), "machine": platform.machine()},
             "runs_per_workload": args.runs,
+            "cache_policy": "no_cache=true for fetch requests; fresh HOME/XDG roots per process probe",
+            "workload_fixture": "rust016-static-fetch-html-v1",
             "workloads": sorted(selected),
+            "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
             "binaries": {},
             "gate": "blocked",
             "limitations": [
@@ -387,11 +468,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             if path is None:
                 report["binaries"][name] = {"status": "blocked", "reason": "binary argument not supplied"}
                 continue
-            report["binaries"][name] = run_binary(path.resolve(), selected, args.runs, root)
+            report["binaries"][name] = run_binary(path.resolve(), selected, args.runs, root, Path(__file__).resolve().parents[2])
         rust_result = report["binaries"].get("rust")
         if isinstance(rust_result, dict):
-            if isinstance(rust_result.get("size_bytes"), int):
-                report["candidate_size_bytes"] = rust_result["size_bytes"]
+            if isinstance(rust_result.get("identity"), dict) and isinstance(rust_result["identity"].get("size_bytes"), int):
+                report["candidate_size_bytes"] = rust_result["identity"]["size_bytes"]
             rss_values = [
                 workload["median_peak_rss_bytes"]
                 for name, workload in rust_result.items()
@@ -402,8 +483,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             if rss_values:
                 report["candidate_median_peak_rss_bytes"] = int(statistics.median(rss_values))
         go_result = report["binaries"].get("go")
-        if isinstance(go_result, dict) and isinstance(go_result.get("size_bytes"), int):
-            report["reference_size_bytes"] = go_result["size_bytes"]
+        if isinstance(go_result, dict) and isinstance(go_result.get("identity"), dict) and isinstance(go_result["identity"].get("size_bytes"), int):
+            report["reference_size_bytes"] = go_result["identity"]["size_bytes"]
         all_pass = True
         for binary_result in report["binaries"].values():
             if not isinstance(binary_result, dict) or binary_result.get("status") == "blocked":

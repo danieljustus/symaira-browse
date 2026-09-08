@@ -33,6 +33,11 @@ def load(path: Path) -> dict[str, Any]:
     return value
 
 
+def nearest_rank(samples: list[dict[str, Any]]) -> float:
+    values = sorted(float(item["duration_ns"]) for item in samples)
+    return values[max(0, (len(values) * 95 + 99) // 100 - 1)]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("baseline", type=Path)
@@ -47,11 +52,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"BLOCK: {error}", file=sys.stderr)
         return 1
 
-    result: dict[str, Any] = {"schema_version": 1, "gate": "blocked", "workloads": {}, "reasons": []}
+    result: dict[str, Any] = {"schema_version": 2, "gate": "blocked", "workloads": {}, "reasons": []}
+    if report.get("schema_version") != 2 or report.get("report_version") != "rust016-benchmark-v2":
+        result["reasons"].append("versioned rust016-benchmark-v2 report is required")
+    if report.get("cache_policy") != "no_cache=true for fetch requests; fresh HOME/XDG roots per process probe":
+        result["reasons"].append("required cache policy is missing")
     if report.get("runs_per_workload") != 30:
         result["reasons"].append("exactly 30 runs per workload are required")
-    if report.get("gate") != "pass":
-        result["reasons"].append("benchmark report did not pass its paired execution gate")
+    if report.get("p95_calculation") != "nearest-rank: sorted_samples[ceil(0.95*n)-1]":
+        result["reasons"].append("declared p95 calculation is missing or changed")
     binaries = report.get("binaries")
     if not isinstance(binaries, dict):
         result["reasons"].append("benchmark report has no binaries object")
@@ -64,6 +73,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps(result, indent=2))
         return 1
 
+    if report.get("gate") != "pass":
+        result["reasons"].append("benchmark report did not pass its paired execution gate")
+    for label, value in ((args.reference, reference), (args.candidate, candidate)):
+        identity = value.get("identity")
+        if not isinstance(identity, dict) or not identity.get("sha256") or not identity.get("vcs_revision"):
+            result["reasons"].append(f"{label} binary identity digest and revision are required")
     comparable = []
     for name in REQUIRED_WORKLOADS:
         left = reference.get(name)
@@ -79,10 +94,27 @@ def main(argv: Sequence[str] | None = None) -> int:
                 f"workload {name} does not contain 30 complete paired samples"
             )
             continue
-        left_p95 = float(left.get("p95_duration_ns", 0))
-        right_p95 = float(right.get("p95_duration_ns", 0))
+        if not isinstance(left.get("raw_samples"), list) or not isinstance(right.get("raw_samples"), list) or len(left["raw_samples"]) != 30 or len(right["raw_samples"]) != 30:
+            result["reasons"].append(f"workload {name} raw samples are missing or incomplete")
+            continue
+        try:
+            left_p95 = nearest_rank(left["raw_samples"])
+            right_p95 = nearest_rank(right["raw_samples"])
+        except (KeyError, TypeError, ValueError):
+            result["reasons"].append(f"workload {name} contains invalid raw samples")
+            continue
+        if left.get("p95_duration_ns") != left_p95 or right.get("p95_duration_ns") != right_p95:
+            result["reasons"].append(f"workload {name} declared p95 does not match raw samples")
+            continue
         change = pct(left_p95, right_p95)
         result["workloads"][name] = {"p95_change_percent": change}
+        if name == "fetch":
+            for label, workload in ((args.reference, left), (args.candidate, right)):
+                semantic = workload.get("semantic_contract", {})
+                negative = semantic.get("negative_control", {}) if isinstance(semantic, dict) else {}
+                if not isinstance(negative, dict) or negative.get("rejected") is not True:
+                    result["reasons"].append(f"{label} fetch negative control was not rejected")
+            result["workloads"][name]["hard_gate"] = "<=10%"
         comparable.append(change)
 
     baseline_release = baseline.get("release", {})

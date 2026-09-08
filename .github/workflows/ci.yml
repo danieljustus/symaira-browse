@@ -76,6 +76,34 @@ jobs:
       - name: Audit Rust dependencies and licenses
         run: make rust-security
 
+  rust016-benchmark-evidence:
+    name: RUST-016 / benchmark evidence (allowed to fail)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Set up Rust
+        run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal
+      - name: Build paired binaries
+        run: |
+          set -euo pipefail
+          git worktree add --detach /tmp/symbrowse-go 652453d1595fc302bd69c328e7da8a21dbee28b9
+          trap 'git worktree remove /tmp/symbrowse-go >/dev/null 2>&1 || true' EXIT
+          (cd /tmp/symbrowse-go && GOTOOLCHAIN=go${GO_VERSION} CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v0.8.0" -o "$GITHUB_WORKSPACE/symbrowse-go" ./cmd/symbrowse)
+          cargo build --release -p symbrowse-cli --bin symbrowse --locked
+      - name: Run and compare raw evidence
+        run: |
+          python3 port/bench/run.py --go ./symbrowse-go --rust target/release/symbrowse --runs 30 --output port/results/rust016-benchmark.json
+          python3 port/bench/compare.py docs/rust-port/baseline.json port/results/rust016-benchmark.json
+
   vulnerability-scan:
     name: PR / Go vulnerability scan
     if: github.event_name == 'pull_request' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
