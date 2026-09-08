@@ -177,5 +177,31 @@
       "confirmed": false,
       "at": "2026-08-06T12:00:00Z"
     }
-  ]
+  ],
+  "fixture_families": [
+    "lifecycle",
+    "journal-watch",
+    "oob-notifier",
+    "auth-runtime",
+    "persistent-settings",
+    "cookie-storage"
+  ],
+  "runtime": {
+    "auth": {
+      "reference": "op://fixture/login",
+      "replay": "hard_stop"
+    },
+    "journal_watch": {
+      "cancelled": true,
+      "timeout_is_deny": true
+    },
+    "oob_notifier": {
+      "credential_safe": true,
+      "program": "osascript"
+    },
+    "settings": {
+      "invalid_geo_rejected": true,
+      "persistent": true
+    }
+  }
 }

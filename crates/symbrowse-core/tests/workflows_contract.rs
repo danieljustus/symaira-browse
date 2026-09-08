@@ -1,6 +1,6 @@
 use serde_json::Value;
 use std::collections::BTreeMap;
-use symbrowse_core::{flows, journal, oob, profiles, settings, trace};
+use symbrowse_core::{browser_state, flows, journal, oob, profiles, runner, settings, trace};
 
 const FIXTURE: &str = include_str!("../../../testdata/port/workflows/workflows.json");
 
@@ -36,18 +36,11 @@ fn pinned_go_fixture_covers_requested_contracts_without_secrets() {
     assert!(!text.contains("password123"));
     assert_eq!(root["oob"]["allowed"], false);
     assert_eq!(root["session"]["hard_stop_code"], "handoff_timeout");
-    assert!(
-        root["blockers"]["FLOW-004"]
-            .as_str()
-            .unwrap()
-            .contains("not claimed")
+    assert_eq!(
+        root["auth"]["replay_hard_stop"],
+        "credential step requires symvault re-resolution; replay it with auth login"
     );
-    assert!(
-        root["blockers"]["SES-002"]
-            .as_str()
-            .unwrap()
-            .contains("browser parity is fabricated")
-    );
+    assert!(root.get("blockers").is_none() || root["blockers"].as_object().unwrap().is_empty());
 }
 
 #[test]
@@ -108,4 +101,86 @@ fn journal_trace_oob_settings_and_profiles_are_pure_contracts() {
     assert!(settings::validate_headers(&headers).is_err());
     assert!(profiles::is_profile_name("Default"));
     assert!(!profiles::is_profile_name("Cache"));
+}
+
+#[test]
+fn generated_runtime_families_are_executable_without_secret_material() {
+    let root: Value = serde_json::from_str(FIXTURE).unwrap();
+    assert_eq!(root["cookies_storage"]["origin"], "https://example.test");
+    assert_eq!(
+        root["cookies_storage"]["after_clear"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(root["auth"]["reference"], "op://fixture/login");
+    assert_eq!(root["auth"]["plaintext_rejected"], true);
+
+    let flow = flows::parse(
+        br#"name: fixture-flow
+version: 1
+domains: [example.test]
+steps:
+  - open: {url: https://example.test/start}
+  - click: {label: Continue}
+  - wait: {url: '**/done'}
+outputs:
+  - {name: final_url, from: url}
+"#,
+        "fixture",
+    )
+    .unwrap();
+    let mut calls = Vec::new();
+    let mut executor = |command: &str, args: Value| {
+        calls.push(command.to_owned());
+        Ok(match command {
+            "get.url" => Value::String("https://example.test/done".into()),
+            "find" => serde_json::json!({"ref": "e1"}),
+            _ => args,
+        })
+    };
+    let report = runner::run(
+        &mut executor,
+        runner::RunOptions {
+            flow,
+            inputs: Default::default(),
+            dry_run: false,
+        },
+    )
+    .unwrap();
+    assert!(report.success);
+    assert_eq!(report.outputs["final_url"], "https://example.test/done");
+    assert_eq!(
+        calls,
+        ["open", "find", "scrollintoview", "click", "wait", "get.url"]
+    );
+}
+
+#[test]
+fn cookie_storage_contract_preserves_origin_scope_and_mutation_order() {
+    let mut state = browser_state::OriginState::default();
+    let make = |name: &str| browser_state::Cookie {
+        name: name.into(),
+        value: "secret".into(),
+        domain: ".example.test".into(),
+        path: "/".into(),
+        secure: true,
+        http_only: true,
+    };
+    browser_state::set_cookie(&mut state, make("z")).unwrap();
+    browser_state::set_cookie(&mut state, make("a")).unwrap();
+    browser_state::storage_mut(&mut state, browser_state::StorageKind::Local)
+        .insert("theme".into(), "dark".into());
+    assert_eq!(
+        browser_state::origin("https://example.test/").unwrap(),
+        "https://example.test"
+    );
+    assert_eq!(browser_state::list_cookies(&state).unwrap()[0].name, "a");
+    assert_eq!(
+        browser_state::storage(&state, browser_state::StorageKind::Local)["theme"],
+        "dark"
+    );
+    browser_state::clear_cookie(&mut state, "a").unwrap();
+    assert_eq!(browser_state::list_cookies(&state).unwrap().len(), 1);
 }

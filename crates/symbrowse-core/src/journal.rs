@@ -9,6 +9,9 @@ use std::{
     fs::{self, File},
     io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering},
+    thread,
+    time::{Duration, Instant},
 };
 
 pub const SCHEMA_VERSION: i64 = 1;
@@ -244,6 +247,30 @@ impl Store {
             Ok(entries)
         } else {
             Ok(entries[entries.len() - count..].to_vec())
+        }
+    }
+
+    /// Wait for entries appended after `after`, bounded by `timeout`.
+    /// Cancellation is explicit and never turns a partial stream into success.
+    pub fn watch_until(
+        &self,
+        after: usize,
+        timeout: Duration,
+        cancelled: &AtomicBool,
+    ) -> std::io::Result<Vec<Entry>> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if cancelled.load(Ordering::Acquire) {
+                return Ok(Vec::new());
+            }
+            let entries = self.read()?;
+            if entries.len() > after {
+                return Ok(entries.into_iter().skip(after).collect());
+            }
+            if Instant::now() >= deadline {
+                return Ok(Vec::new());
+            }
+            thread::sleep(Duration::from_millis(5));
         }
     }
 
