@@ -284,6 +284,7 @@ ALL_SUITES = (
     "chrome-full",
     "safari",
     "browser-transport",
+    "compat-sidecar",
 )
 
 
@@ -359,6 +360,13 @@ def main() -> int:
             "browser-missing-engine", "static-engine-conflict", "unknown-mode", "unknown-engine",
         }
         commands = [["cargo", "test", "-p", "symbrowse-core", "selection_is_exhaustive", "--locked"]]
+    elif args.suite == "compat-sidecar":
+        fixture = json.loads((root / "port/harness/cases/compat-sidecar.json").read_text())
+        assert fixture["schema_version"] == 1 and len(fixture["cases"]) == 8
+        commands = [
+            ["go", "build", "-trimpath", "-o", str(root / "dist/symbrowse-compat"), "./cmd/symbrowse"],
+            ["cargo", "test", "-p", "symbrowse-compat", "-p", "symbrowse-daemon", "--locked"],
+        ]
     elif args.suite == "workflows":
         commands = [
             ["go", "run", "./scripts/rust-port/cmd/workflowgen", "--check"],
