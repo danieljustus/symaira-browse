@@ -121,6 +121,12 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
             .is_some_and(|text| text.contains("native")),
         "switched tab read: {original}"
     );
+    let closed = request(&socket, "tab.close", json!({"tab":"second"}));
+    assert_eq!(closed["success"], true, "tab.close response: {closed}");
+    assert_eq!(closed["data"]["closed"], "t2");
+    assert_eq!(closed["data"]["active"], "t1");
+    let remaining = request(&socket, "tab.list", json!({}));
+    assert_eq!(remaining["data"]["tabs"].as_array().map(Vec::len), Some(1));
     let framed = request(
         &socket,
         "open",
