@@ -44,6 +44,22 @@ type controls struct {
 	Retry    retryControl  `json:"retry"`
 	Robots   []robotsCase  `json:"robots"`
 	Batch    []int         `json:"batch_counts"`
+	CaseIDs  []string      `json:"case_ids"`
+	Static   staticControl `json:"static"`
+}
+
+type staticControl struct {
+	Mode            string       `json:"mode"`
+	BrowserIdentity *string      `json:"browser_identity"`
+	TLSProfile      *string      `json:"tls_profile"`
+	Selection       []staticCase `json:"selection"`
+	TypedErrors     []staticCase `json:"typed_errors"`
+}
+
+type staticCase struct {
+	ID     string `json:"id"`
+	Input  string `json:"input"`
+	Result string `json:"result"`
 }
 
 type profileCase struct {
@@ -167,6 +183,16 @@ func generate() fixture {
 		}
 		return robotsCases[i].Path < robotsCases[j].Path
 	})
+	caseIDs := []string{
+		"FETCH-001-profile-selection",
+		"FETCH-003-http-semantics",
+		"FETCH-004-redirect-proxy-cookie",
+		"FETCH-005-robots-retry-rate-limit",
+		"FETCH-009-static-selection",
+		"FETCH-009-browser-unavailable",
+		"FETCH-009-compat-unavailable",
+		"FETCH-010-static-honesty",
+	}
 	return fixture{
 		OracleCommit: oracleCommit,
 		GeneratedBy:  "scripts/rust-port/cmd/fetchcontrolgen",
@@ -176,6 +202,19 @@ func generate() fixture {
 			Retry:    retryControl{Transient: transient, Backoff: backoffs, RetryAfter: retryAfter},
 			Robots:   robotsCases,
 			Batch:    []int{0, 1, 20, 21},
+			CaseIDs:  caseIDs,
+			Static: staticControl{
+				Mode:            "static",
+				BrowserIdentity: nil,
+				TLSProfile:      nil,
+				Selection: []staticCase{
+					{ID: "FETCH-009-static-selection", Input: "static", Result: "selected"},
+				},
+				TypedErrors: []staticCase{
+					{ID: "FETCH-009-browser-unavailable", Input: "browser", Result: "typed_unavailable"},
+					{ID: "FETCH-009-compat-unavailable", Input: "compat", Result: "typed_unavailable"},
+				},
+			},
 		},
 	}
 }

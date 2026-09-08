@@ -250,7 +250,7 @@ fn run_dispatch(
         session: session.clone(),
         ..Frame::default()
     };
-    let direct = if frame.cmd == "fetch.url" {
+    let direct = if matches!(frame.cmd.as_str(), "fetch.url" | "fetch.batch") {
         LoadContext::from_process(FlagOverrides::default())
             .ok()
             .and_then(|context| load(&context).ok())

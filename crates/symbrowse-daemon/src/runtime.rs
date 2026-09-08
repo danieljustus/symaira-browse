@@ -194,7 +194,7 @@ impl DispatchRuntime {
             Some(&self.output_cache),
         )
         .map_err(runtime_error)?;
-        let data = json!({
+        let mut data = json!({
             "url": url,
             "final_url": response.final_url,
             "status_code": response.status_code,
@@ -203,6 +203,13 @@ impl DispatchRuntime {
             "cache_id": output.cache_id,
             "meta": output.meta,
         });
+        if self.spec.engine == "static" {
+            data["transport"] = json!({
+                "mode": "static",
+                "browser_identity": Value::Null,
+                "tls_profile": Value::Null,
+            });
+        }
         Ok((Some(data), Vec::new()))
     }
 
