@@ -34,6 +34,9 @@ pub struct Page {
 pub struct NavigationResult {
     pub frame_id: String,
     pub loader_id: String,
+    /// The URL observed after navigation settled, including redirects.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub url: String,
     pub error_text: String,
 }
 
