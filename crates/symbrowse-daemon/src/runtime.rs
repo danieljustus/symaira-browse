@@ -7,7 +7,7 @@ use symbrowse_compat::{CompatClient, Request as CompatRequest};
 use symbrowse_core::{
     flows,
     policy::Allowlist,
-    runner::{self, ExecutionError, RunOptions},
+    runner::{self, AsyncExecutor, ExecutionError, RunOptions},
     state::{Cookie, OriginState},
     state_store::Store,
 };
@@ -55,6 +55,47 @@ struct BrowserState {
 struct BrowserTab {
     label: String,
     page: ChromePage,
+}
+
+struct FlowExecutor<'a> {
+    runtime: &'a DispatchRuntime,
+    operation: OperationContext,
+}
+
+impl AsyncExecutor for FlowExecutor<'_> {
+    fn execute<'a>(
+        &'a mut self,
+        command: &'a str,
+        args: Value,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Value, ExecutionError>> + Send + 'a>,
+    > {
+        Box::pin(async move {
+            if self.operation.is_cancelled() || self.operation.remaining().is_zero() {
+                return Err(ExecutionError::new("daemon operation was cancelled"));
+            }
+            let request = Frame {
+                cmd: command.to_owned(),
+                args: Some(args),
+                session: self.runtime.spec.session.clone(),
+                ..Frame::default()
+            };
+            // Dropping the in-flight command closes the local transport. It
+            // cannot undo a remote side effect that already reached the
+            // browser; cancellation only prevents later flow steps.
+            let result = tokio::select! {
+                result = self.runtime.dispatch(request, self.operation.clone()) => result,
+                _ = DispatchRuntime::wait_for_cancellation(self.operation.clone()) => {
+                    return Err(ExecutionError::new("daemon operation was cancelled"));
+                }
+            };
+            match result {
+                Ok((Some(data), _)) => Ok(data),
+                Ok((None, _)) => Ok(Value::Null),
+                Err(error) => Err(ExecutionError::new(error.message)),
+            }
+        })
+    }
 }
 
 impl DispatchRuntime {
@@ -108,7 +149,7 @@ impl DispatchRuntime {
         }
         self.runtime.block_on(async {
             tokio::select! {
-                result = self.dispatch(frame) => result,
+                result = self.dispatch(frame, operation.clone()) => result,
                 _ = Self::wait_for_cancellation(operation.clone()) => Err(DaemonError {
                     code: codes::OPERATION_TIMEOUT.into(),
                     message: "daemon operation was cancelled".into(),
@@ -129,7 +170,7 @@ impl DispatchRuntime {
         }
     }
 
-    async fn dispatch(&self, frame: Frame) -> HandlerResult {
+    async fn dispatch(&self, frame: Frame, operation: OperationContext) -> HandlerResult {
         if self.spec.mode == "compat" && !matches!(frame.cmd.as_str(), "fetch.url" | "fetch.batch")
         {
             return Err(DaemonError {
@@ -143,7 +184,7 @@ impl DispatchRuntime {
             "fetch.batch" => self.fetch_batch(&frame).await,
             "cache.get" => self.cache_get(&frame),
             "wayback.snapshots" => self.wayback_snapshots(&frame).await,
-            "flow.run" => self.flow_run(&frame),
+            "flow.run" => self.flow_run(&frame, operation.clone()).await,
             "capabilities" => Ok((
                 Some(
                     serde_json::to_value(if self.spec.engine == "firefox" {
@@ -1065,7 +1106,7 @@ impl DispatchRuntime {
         Ok((Some(data), Vec::new()))
     }
 
-    fn flow_run(&self, frame: &Frame) -> HandlerResult {
+    async fn flow_run(&self, frame: &Frame, operation: OperationContext) -> HandlerResult {
         let args = object_args(frame)?;
         let source = required_string(args, "yaml")?;
         let flow = flows::parse(source.as_bytes(), "cli").map_err(|error| DaemonError {
@@ -1086,23 +1127,11 @@ impl DispatchRuntime {
             .get("dry_run")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        let mut executor = |command: &str, command_args: Value| {
-            let request = Frame {
-                cmd: command.to_owned(),
-                args: Some(command_args),
-                session: self.spec.session.clone(),
-                ..Frame::default()
-            };
-            let response = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(self.dispatch(request))
-            });
-            match response {
-                Ok((Some(data), _)) => Ok(data),
-                Ok((None, _)) => Ok(Value::Null),
-                Err(error) => Err(ExecutionError::new(error.message)),
-            }
+        let mut executor = FlowExecutor {
+            runtime: self,
+            operation,
         };
-        let report = runner::run(
+        let report = runner::run_async(
             &mut executor,
             RunOptions {
                 flow,
@@ -1110,9 +1139,18 @@ impl DispatchRuntime {
                 dry_run,
             },
         )
+        .await
         .map_err(|error| DaemonError {
-            code: "flow_failed".into(),
-            message: error.to_string(),
+            code: if executor.operation.is_cancelled() {
+                codes::OPERATION_TIMEOUT.into()
+            } else {
+                "flow_failed".into()
+            },
+            message: if executor.operation.is_cancelled() {
+                "daemon operation was cancelled".into()
+            } else {
+                error.to_string()
+            },
             details: Some(json!({"step_index": error.step_index, "action": error.action})),
             ..Default::default()
         })?;
@@ -1121,6 +1159,7 @@ impl DispatchRuntime {
             Vec::new(),
         ))
     }
+
     #[cfg(target_os = "macos")]
     async fn ensure_safari(&self) -> Result<(), DaemonError> {
         {
@@ -1592,9 +1631,11 @@ pub fn handler(spec: SessionSpec) -> Result<crate::DaemonHandler, DaemonError> {
 
 /// Execute one command in-process through the same typed runtime used by the daemon.
 pub fn dispatch_once(spec: SessionSpec, frame: Frame) -> crate::Response {
-    match DispatchRuntime::new(spec)
-        .and_then(|runtime| runtime.runtime.block_on(runtime.dispatch(frame)))
-    {
+    match DispatchRuntime::new(spec).and_then(|runtime| {
+        runtime
+            .runtime
+            .block_on(runtime.dispatch(frame, OperationContext::for_test()))
+    }) {
         Ok((data, warnings)) => crate::success_response(data, warnings),
         Err(error) => crate::Response {
             success: false,
@@ -1847,7 +1888,7 @@ mod tests {
         };
         let (data, _) = runtime
             .runtime
-            .block_on(runtime.dispatch(frame))
+            .block_on(runtime.dispatch(frame, OperationContext::for_test()))
             .expect("cache dispatch");
         let data = data.expect("cache data");
         assert_eq!(data["cache_id"], id);
@@ -1870,7 +1911,7 @@ mod tests {
         };
         let (data, _) = runtime
             .runtime
-            .block_on(runtime.dispatch(frame))
+            .block_on(runtime.dispatch(frame, OperationContext::for_test()))
             .expect("wayback dispatch");
         let data = data.expect("wayback data");
         let snapshots = data.as_array().expect("snapshot array");
@@ -1892,7 +1933,7 @@ mod tests {
         };
         let (data, _) = runtime
             .runtime
-            .block_on(runtime.dispatch(frame))
+            .block_on(runtime.dispatch(frame, OperationContext::for_test()))
             .expect("browser dispatch");
         assert!(data.expect("browser data")["content"].as_str().is_some());
     }
@@ -1906,26 +1947,32 @@ mod tests {
         let runtime = DispatchRuntime::new(temp_spec("cache-roundtrip")).expect("runtime");
         let (data, _) = runtime
             .runtime
-            .block_on(runtime.dispatch(Frame {
-                cmd: "fetch.url".into(),
-                args: Some(json!({
-                    "url": endpoint,
-                    "store_full_text": true,
-                    "char_limit": 20,
-                    "max_chars": 20,
-                })),
-                ..Frame::default()
-            }))
+            .block_on(runtime.dispatch(
+                Frame {
+                    cmd: "fetch.url".into(),
+                    args: Some(json!({
+                        "url": endpoint,
+                        "store_full_text": true,
+                        "char_limit": 20,
+                        "max_chars": 20,
+                    })),
+                    ..Frame::default()
+                },
+                OperationContext::for_test(),
+            ))
             .expect("fetch dispatch");
         let data = data.expect("fetch data");
         let cache_id = data["cache_id"].as_str().expect("cache id").to_owned();
         let (cached, _) = runtime
             .runtime
-            .block_on(runtime.dispatch(Frame {
-                cmd: "cache.get".into(),
-                args: Some(json!({"cache_id": cache_id})),
-                ..Frame::default()
-            }))
+            .block_on(runtime.dispatch(
+                Frame {
+                    cmd: "cache.get".into(),
+                    args: Some(json!({"cache_id": cache_id})),
+                    ..Frame::default()
+                },
+                OperationContext::for_test(),
+            ))
             .expect("cache dispatch");
         assert!(
             cached.expect("cached data")["content"]
@@ -1935,14 +1982,76 @@ mod tests {
     }
 
     #[test]
+    fn production_flow_cancellation_closes_blocked_open_without_followup_action() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::time::Duration;
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind blocked endpoint");
+        listener
+            .set_nonblocking(true)
+            .expect("nonblocking listener");
+        let address = listener.local_addr().expect("endpoint address");
+        let connections = Arc::new(AtomicUsize::new(0));
+        let observed = connections.clone();
+        thread::spawn(move || {
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while std::time::Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        let number = observed.fetch_add(1, Ordering::SeqCst) + 1;
+                        if number == 1 {
+                            let mut byte = [0_u8; 1];
+                            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                            let _ = stream.read(&mut byte);
+                        }
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+
+        let runtime = DispatchRuntime::new(temp_spec("flow-cancel")).expect("runtime");
+        let operation = OperationContext::for_test();
+        let cancel = operation.clone();
+        let yaml = format!(
+            "name: blocked\nversion: 1\ndomains: [127.0.0.1]\nsteps:\n  - open: {{url: http://{address}/blocked}}\n  - click: {{label: followup}}\n"
+        );
+        let frame = Frame {
+            cmd: "flow.run".into(),
+            args: Some(json!({"yaml": yaml})),
+            ..Frame::default()
+        };
+        let result = runtime.runtime.block_on(async {
+            let running = runtime.clone();
+            let task = tokio::spawn(async move { running.flow_run(&frame, operation).await });
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            cancel.cancel_for_test();
+            task.await.expect("flow task")
+        });
+        assert!(result.is_err(), "cancelled flow must fail");
+        thread::sleep(Duration::from_millis(100));
+        assert_eq!(
+            connections.load(Ordering::SeqCst),
+            1,
+            "followup action dispatched"
+        );
+    }
+
+    #[test]
     fn unknown_commands_are_typed_errors() {
         let runtime = DispatchRuntime::new(temp_spec("unknown")).expect("runtime");
         let error = runtime
             .runtime
-            .block_on(runtime.dispatch(Frame {
-                cmd: "not.advertised".into(),
-                ..Frame::default()
-            }))
+            .block_on(runtime.dispatch(
+                Frame {
+                    cmd: "not.advertised".into(),
+                    ..Frame::default()
+                },
+                OperationContext::for_test(),
+            ))
             .expect_err("unknown command must fail");
         assert_eq!(error.code, codes::UNKNOWN_COMMAND);
     }

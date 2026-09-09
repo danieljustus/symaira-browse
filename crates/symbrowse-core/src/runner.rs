@@ -4,7 +4,7 @@
 //! transport, while this module owns input resolution, domain checks, step
 //! ordering, hard assertions, output extraction and bounded error handling.
 
-use std::{collections::BTreeMap, fmt, time::Instant};
+use std::{collections::BTreeMap, fmt, future::Future, pin::Pin, time::Instant};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -14,6 +14,16 @@ use crate::flows::{Flow, Step};
 
 pub trait Executor {
     fn execute(&mut self, command: &str, args: Value) -> Result<Value, ExecutionError>;
+}
+
+/// Async executor used by transports whose commands can be cancelled while
+/// they are waiting on the browser or network.
+pub trait AsyncExecutor {
+    fn execute<'a>(
+        &'a mut self,
+        command: &'a str,
+        args: Value,
+    ) -> Pin<Box<dyn Future<Output = Result<Value, ExecutionError>> + Send + 'a>>;
 }
 
 impl<F> Executor for F
@@ -231,6 +241,213 @@ pub fn run<E: Executor>(executor: &mut E, options: RunOptions) -> Result<RunRepo
     report.success = true;
     report.duration_ms = started.elapsed().as_millis();
     Ok(report)
+}
+
+pub async fn run_async<E: AsyncExecutor>(
+    executor: &mut E,
+    options: RunOptions,
+) -> Result<RunReport, RunError> {
+    let started = Instant::now();
+    let inputs = resolve_inputs(&options.flow, &options.inputs).map_err(|message| RunError {
+        step_index: 0,
+        action: "inputs".to_owned(),
+        message,
+    })?;
+    let mut report = RunReport {
+        name: options.flow.name.clone(),
+        version: options.flow.version,
+        dry_run: options.dry_run,
+        success: false,
+        steps: Vec::new(),
+        plan: Vec::new(),
+        outputs: BTreeMap::new(),
+        error: String::new(),
+        duration_ms: 0,
+    };
+    if options.dry_run {
+        report.plan = dry_run(&options.flow);
+        report.success = true;
+        report.duration_ms = started.elapsed().as_millis();
+        return Ok(report);
+    }
+    enforce_domains(&options.flow, &inputs)?;
+    for (index, step) in options.flow.steps.iter().enumerate() {
+        let step_started = Instant::now();
+        let action = step.action.clone();
+        let result = execute_step_async(executor, step, &inputs).await;
+        let mut record = StepRun {
+            index,
+            action: action.clone(),
+            risk_class: risk_class(&action).to_owned(),
+            success: result.is_ok(),
+            error: String::new(),
+            data: result.as_ref().ok().cloned(),
+            duration_ms: step_started.elapsed().as_millis(),
+        };
+        if let Err(error) = result {
+            record.error = sanitize_error(&error.message, &inputs);
+            report.steps.push(record);
+            report.error = report
+                .steps
+                .last()
+                .map(|step| step.error.clone())
+                .unwrap_or_default();
+            report.duration_ms = started.elapsed().as_millis();
+            return Err(RunError {
+                step_index: index,
+                action,
+                message: report.error.clone(),
+            });
+        }
+        report.steps.push(record);
+    }
+    for output in &options.flow.outputs {
+        let value = match output.from.as_str() {
+            "url" => executor.execute("get.url", json!({})).await,
+            "html" => executor.execute("get.html", json!({})).await,
+            "text" => {
+                executor
+                    .execute("get.text", json!({"selector": output.path}))
+                    .await
+            }
+            "attribute" => {
+                let Some((selector, attribute)) = output.path.split_once('@') else {
+                    return fail(
+                        &mut report,
+                        started,
+                        options.flow.steps.len(),
+                        "outputs",
+                        format!(
+                            "output {:?}: attribute path must be selector@attribute",
+                            output.name
+                        ),
+                    );
+                };
+                executor
+                    .execute(
+                        "get.attr",
+                        json!({"selector": selector, "attribute": attribute}),
+                    )
+                    .await
+            }
+            other => {
+                return fail(
+                    &mut report,
+                    started,
+                    options.flow.steps.len(),
+                    "outputs",
+                    format!("output {:?}: unsupported source {:?}", output.name, other),
+                );
+            }
+        };
+        match value {
+            Ok(value) => {
+                report
+                    .outputs
+                    .insert(output.name.clone(), response_string(value));
+            }
+            Err(error) => {
+                return fail(
+                    &mut report,
+                    started,
+                    options.flow.steps.len(),
+                    "outputs",
+                    format!(
+                        "extract output {:?}: {}",
+                        output.name,
+                        sanitize_error(&error.message, &inputs)
+                    ),
+                );
+            }
+        }
+    }
+    report.success = true;
+    report.duration_ms = started.elapsed().as_millis();
+    Ok(report)
+}
+
+async fn execute_step_async<E: AsyncExecutor>(
+    executor: &mut E,
+    step: &Step,
+    inputs: &BTreeMap<String, String>,
+) -> Result<Value, ExecutionError> {
+    match step.action.as_str() {
+        "open" => {
+            executor
+                .execute(
+                    "open",
+                    json!({"url": substitute(step.field("url"), inputs)}),
+                )
+                .await
+        }
+        "find" => executor.execute("find", step_args(step, inputs)).await,
+        "click" | "fill" => {
+            let reference = executor
+                .execute("find", step_args(step, inputs))
+                .await?
+                .get("ref")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+                .ok_or_else(|| ExecutionError::new("find returned no element ref"))?;
+            executor
+                .execute(
+                    "scrollintoview",
+                    json!({"selector": format!("@{reference}")}),
+                )
+                .await?;
+            let command = step.action.as_str();
+            let mut args = json!({"selector": format!("@{reference}")});
+            if command == "fill" {
+                args["value"] = Value::String(substitute(step.field("value"), inputs));
+            }
+            executor.execute(command, args).await
+        }
+        "wait" => {
+            let args = if !step.field("url").is_empty() {
+                json!({"url": step.field("url")})
+            } else if !step.field("visible").is_empty() {
+                json!({"visible": step.field("visible")})
+            } else {
+                json!({"ms": step.field("ms").parse::<u64>().unwrap_or_default()})
+            };
+            executor.execute("wait", args).await
+        }
+        "assert" => {
+            if !step.field("url").is_empty() {
+                let actual = response_string(executor.execute("get.url", json!({})).await?);
+                if !glob_match(step.field("url"), &actual) {
+                    return Err(ExecutionError::new(format!(
+                        "assert url {:?} failed: current url is {actual:?}",
+                        step.field("url")
+                    )));
+                }
+                Ok(json!({"expected": step.field("url"), "actual": actual}))
+            } else if !step.field("not").is_empty() {
+                if executor
+                    .execute("find", json!({"kind":"text", "query":step.field("not")}))
+                    .await
+                    .is_ok()
+                {
+                    return Err(ExecutionError::new(format!(
+                        "assert not {:?} failed: element is present",
+                        step.field("not")
+                    )));
+                }
+                Ok(json!({"absent": step.field("not")}))
+            } else {
+                executor.execute("find", json!({"kind":"text", "query": if !step.field("visible").is_empty() { step.field("visible") } else { step.field("text") }})).await
+            }
+        }
+        "snapshot" => {
+            executor
+                .execute(
+                    "snapshot",
+                    json!({"compact": step.field("compact"), "diff": step.field("diff")}),
+                )
+                .await
+        }
+        other => Err(ExecutionError::new(format!("unsupported step {other:?}"))),
+    }
 }
 
 fn fail<T>(

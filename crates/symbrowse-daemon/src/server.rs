@@ -47,6 +47,13 @@ pub struct OperationContext {
 }
 
 impl OperationContext {
+    pub(crate) fn for_test() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            shutdown: Arc::new(AtomicBool::new(false)),
+            deadline: Instant::now() + Duration::from_secs(60 * 60),
+        }
+    }
     pub fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Acquire) || self.shutdown.load(Ordering::Acquire)
     }
@@ -57,6 +64,11 @@ impl OperationContext {
 
     fn cancel(&self) {
         self.cancelled.store(true, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn cancel_for_test(&self) {
+        self.cancel();
     }
 }
 
