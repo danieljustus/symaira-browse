@@ -40,7 +40,6 @@ symbrowse-daemon = { path = "crates/symbrowse-daemon", version = "=0.0.0" }
 symbrowse-engine = { path = "crates/symbrowse-engine", version = "=0.0.0" }
 symbrowse-mcp = { path = "crates/symbrowse-mcp", version = "=0.0.0" }
 symbrowse-protocol = { path = "crates/symbrowse-protocol", version = "=0.0.0" }
-tempfile = "=3.27.0"
 time = { version = "=0.3.55", features = ["formatting", "local-offset", "macros", "parsing"] }
 tokio = { version = "=1.53.1", features = ["io-util", "macros", "net", "process", "rt-multi-thread", "sync", "time"] }
 toml = "=1.1.5"

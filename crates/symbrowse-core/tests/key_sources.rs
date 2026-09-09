@@ -111,6 +111,24 @@ mod unix {
         fs::remove_dir_all(root).unwrap();
     }
 
+    #[test]
+    fn malicious_output_is_rejected_without_disk_capture() {
+        let root = root("oversized-output");
+        let vault = script(
+            &root,
+            "vault-output",
+            "#!/bin/sh\nhead -c 1048577 /dev/zero\n",
+        );
+        let sources =
+            SystemKeySources::with_programs(&vault, "/missing/security", Duration::from_secs(1));
+        let error = sources.vault("symbrowse/encryption-key").unwrap_err();
+        assert!(
+            matches!(error, ProbeError::Failed(message) if message.contains("output exceeds 1048576 bytes"))
+        );
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 1);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn keychain_set_prompts_and_receives_key_only_on_stdin() {

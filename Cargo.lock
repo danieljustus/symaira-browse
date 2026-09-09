@@ -1902,7 +1902,6 @@ dependencies = [
  "rustix",
  "serde",
  "serde_json",
- "tempfile",
  "time",
  "toml",
  "url",

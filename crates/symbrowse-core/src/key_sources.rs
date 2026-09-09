@@ -7,6 +7,8 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
+    sync::mpsc,
+    thread,
     time::Duration,
 };
 
@@ -209,11 +211,6 @@ fn run_command(
     timeout: Duration,
 ) -> Result<CommandOutput, ProbeError> {
     let mut command = Command::new(program);
-    let output_file = tempfile::NamedTempFile::new()
-        .map_err(|error| ProbeError::Failed(format!("create command output file: {error}")))?;
-    let output_handle = output_file
-        .reopen()
-        .map_err(|error| ProbeError::Failed(format!("open command output file: {error}")))?;
     command
         .args(args)
         .stdin(if input.is_some() {
@@ -221,7 +218,7 @@ fn run_command(
         } else {
             Stdio::null()
         })
-        .stdout(output_handle)
+        .stdout(Stdio::piped())
         .stderr(Stdio::null());
     configure_process_tree(&mut command);
     let mut child = command.spawn().map_err(|error| {
@@ -232,6 +229,16 @@ fn run_command(
         }
     })?;
 
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| ProbeError::Failed("capture child stdout".to_owned()))?;
+    let (output_sender, output_receiver) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let _ = output_sender.send(read_bounded(stdout));
+    });
+
+    let deadline = std::time::Instant::now() + timeout;
     if let Some(input) = input
         && let Some(mut stdin) = child.stdin.take()
         && let Err(error) = stdin.write_all(input)
@@ -240,24 +247,41 @@ fn run_command(
         return Err(ProbeError::Failed(error.to_string()));
     }
 
-    let status = match child
-        .wait_timeout(timeout)
-        .map_err(|error| ProbeError::Failed(error.to_string()))?
-    {
-        Some(status) => status,
-        None => {
+    let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+    let status = match child.wait_timeout(remaining) {
+        Ok(Some(status)) => status,
+        Ok(None) => {
             terminate_process_tree(&mut child);
             return Err(ProbeError::Failed(format!(
                 "command timed out after {}ms",
                 timeout.as_millis()
             )));
         }
+        Err(error) => {
+            terminate_process_tree(&mut child);
+            return Err(ProbeError::Failed(error.to_string()));
+        }
     };
-    let stdout = read_bounded(
-        output_file
-            .reopen()
-            .map_err(|error| ProbeError::Failed(format!("open command output file: {error}")))?,
-    )?;
+
+    let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+    let stdout = if remaining.is_zero() {
+        terminate_process_tree(&mut child);
+        return Err(ProbeError::Failed("command timed out".to_owned()));
+    } else {
+        match output_receiver.recv_timeout(remaining) {
+            Ok(Ok(output)) => output,
+            Ok(Err(error)) => {
+                terminate_process_tree(&mut child);
+                return Err(error);
+            }
+            Err(_) => {
+                terminate_process_tree(&mut child);
+                return Err(ProbeError::Failed(
+                    "stdout pipe remained open after command exit".to_owned(),
+                ));
+            }
+        }
+    };
     Ok(CommandOutput { status, stdout })
 }
 
