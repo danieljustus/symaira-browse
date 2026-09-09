@@ -106,7 +106,27 @@ impl DispatchRuntime {
                 ..Default::default()
             });
         }
-        self.runtime.block_on(self.dispatch(frame))
+        self.runtime.block_on(async {
+            tokio::select! {
+                result = self.dispatch(frame) => result,
+                _ = Self::wait_for_cancellation(operation.clone()) => Err(DaemonError {
+                    code: codes::OPERATION_TIMEOUT.into(),
+                    message: "daemon operation was cancelled".into(),
+                    ..Default::default()
+                }),
+            }
+        })
+    }
+
+    async fn wait_for_cancellation(operation: OperationContext) {
+        while !operation.is_cancelled() && !operation.remaining().is_zero() {
+            tokio::time::sleep(
+                operation
+                    .remaining()
+                    .min(std::time::Duration::from_millis(2)),
+            )
+            .await;
+        }
     }
 
     async fn dispatch(&self, frame: Frame) -> HandlerResult {

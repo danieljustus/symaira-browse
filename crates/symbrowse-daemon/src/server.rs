@@ -364,6 +364,7 @@ impl Server {
                 !idle.is_zero() && elapsed_since(self.last_activity.load(Ordering::Acquire)) >= idle
             });
             if idle_expired {
+                self.stop();
                 break;
             }
             match listener.accept() {
@@ -509,6 +510,7 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
             !idle.is_zero() && elapsed_since(server.last_activity.load(Ordering::Acquire)) >= idle
         });
         if idle_expired {
+            server.stop();
             break;
         }
         match listener.accept() {
@@ -526,7 +528,7 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
                 thread::sleep(Duration::from_millis(25));
             }
             Err(error) => {
-                server.stopping.store(true, Ordering::Release);
+                server.stop();
                 drop(sender);
                 for worker in workers {
                     let _ = worker.join();
@@ -881,12 +883,24 @@ fn read_limited_line_windows<R: io::Read>(
     let deadline = Instant::now() + timeout;
     let mut byte = [0_u8; 1];
     loop {
+        if Instant::now() >= deadline {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "daemon frame read timed out",
+            ));
+        }
         if stopping.load(Ordering::Acquire) {
             return Ok(0);
         }
         match reader.read(&mut byte) {
             Ok(0) => return Ok(output.len()),
             Ok(read) => {
+                if Instant::now() >= deadline {
+                    return Err(io::Error::new(
+                        io::ErrorKind::TimedOut,
+                        "daemon frame read timed out",
+                    ));
+                }
                 if output.len().saturating_add(read) > limit {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,

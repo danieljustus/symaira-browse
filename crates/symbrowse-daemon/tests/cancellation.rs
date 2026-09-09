@@ -6,6 +6,7 @@ mod unix {
     use std::{
         fs,
         io::{BufRead, BufReader, Write},
+        net::TcpListener,
         os::unix::fs::PermissionsExt,
         path::{Path, PathBuf},
         sync::{
@@ -18,7 +19,8 @@ mod unix {
     };
 
     use symbrowse_daemon::{
-        Client, ClientError, ClientOptions, Frame, Server, ServerOptions, StartOptions, codes,
+        Client, ClientError, ClientOptions, Frame, Server, ServerOptions, SessionSpec,
+        StartOptions, codes,
     };
 
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -209,6 +211,103 @@ mod unix {
 
         server.stop();
         assert!(thread.join().unwrap().is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn production_runtime_cancellation_allows_same_process_restart() {
+        let root = std::path::PathBuf::from(format!(
+            "/tmp/symbrowse-pc-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        let socket = root.join("default.sock");
+        let mut spec = SessionSpec::for_session("default");
+        spec.socket_path = socket.clone();
+        spec.state_dir = root.join("state");
+        spec.cache_dir = root.join("cache");
+        spec.engine = "static".into();
+        spec.mode = "static".into();
+        spec.allow_private = true;
+        spec.operation_timeout = Duration::from_secs(5);
+        spec.read_timeout = Duration::from_millis(200);
+        spec.idle_timeout = None;
+        let upstream = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let upstream_url = format!("http://{}", upstream.local_addr().unwrap());
+        thread::spawn(move || {
+            let Ok((mut stream, _)) = upstream.accept() else {
+                return;
+            };
+            let mut request = [0_u8; 1024];
+            let _ = std::io::Read::read(&mut stream, &mut request);
+            thread::sleep(Duration::from_secs(5));
+        });
+        let server = Arc::new(
+            Server::new(ServerOptions {
+                session_spec: Some(spec.clone()),
+                ..Default::default()
+            })
+            .unwrap(),
+        );
+        let running = server.clone();
+        let thread = thread::spawn(move || running.listen_and_serve());
+        thread::sleep(Duration::from_millis(100));
+        if thread.is_finished() {
+            panic!(
+                "production server exited during startup: {:?}",
+                thread.join().unwrap()
+            );
+        }
+        wait_for_socket(&socket);
+        let request_socket = socket.clone();
+        let request = thread::spawn(move || {
+            Client::new(ClientOptions {
+                socket_path: request_socket,
+                session: "default".into(),
+                read_timeout: Duration::from_secs(2),
+                autostart: false,
+                ..Default::default()
+            })
+            .request_without_autostart(Frame {
+                cmd: "open".into(),
+                args: Some(serde_json::json!({"url": upstream_url})),
+                ..Default::default()
+            })
+        });
+        thread::sleep(Duration::from_millis(50));
+        server.stop();
+        assert!(thread.join().unwrap().is_ok());
+        let request_result = request.join().unwrap();
+        match request_result {
+            Ok(response) => assert_eq!(response.error.unwrap().code, codes::OPERATION_TIMEOUT),
+            Err(ClientError::Transport(error)) => assert_eq!(error.code, "daemon_unavailable"),
+            Err(error) => panic!("production cancellation request = {error:?}"),
+        }
+
+        let restarted = Arc::new(
+            Server::new(ServerOptions {
+                session_spec: Some(spec),
+                ..Default::default()
+            })
+            .unwrap(),
+        );
+        let running = restarted.clone();
+        let restart_thread = thread::spawn(move || running.listen_and_serve());
+        wait_for_socket(&socket);
+        let response = Client::new(ClientOptions {
+            socket_path: socket.clone(),
+            session: "default".into(),
+            autostart: false,
+            ..Default::default()
+        })
+        .request_without_autostart(Frame {
+            cmd: "daemon.ping".into(),
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(response.success);
+        restarted.stop();
+        assert!(restart_thread.join().unwrap().is_ok());
         fs::remove_dir_all(root).unwrap();
     }
 
