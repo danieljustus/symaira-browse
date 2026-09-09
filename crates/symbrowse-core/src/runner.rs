@@ -35,9 +35,16 @@ where
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ExecutionErrorKind {
+    Failed,
+    Cancelled,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutionError {
     pub message: String,
+    pub kind: ExecutionErrorKind,
 }
 
 impl ExecutionError {
@@ -45,7 +52,21 @@ impl ExecutionError {
     pub fn new(message: impl Into<String>) -> Self {
         Self {
             message: message.into(),
+            kind: ExecutionErrorKind::Failed,
         }
+    }
+
+    #[must_use]
+    pub fn cancelled(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            kind: ExecutionErrorKind::Cancelled,
+        }
+    }
+
+    #[must_use]
+    pub fn is_cancelled(&self) -> bool {
+        self.kind == ExecutionErrorKind::Cancelled
     }
 }
 
@@ -423,17 +444,19 @@ async fn execute_step_async<E: AsyncExecutor>(
                 }
                 Ok(json!({"expected": step.field("url"), "actual": actual}))
             } else if !step.field("not").is_empty() {
-                if executor
+                match executor
                     .execute("find", json!({"kind":"text", "query":step.field("not")}))
                     .await
-                    .is_ok()
                 {
-                    return Err(ExecutionError::new(format!(
-                        "assert not {:?} failed: element is present",
-                        step.field("not")
-                    )));
+                    Ok(_) => {
+                        return Err(ExecutionError::new(format!(
+                            "assert not {:?} failed: element is present",
+                            step.field("not")
+                        )));
+                    }
+                    Err(error) if error.is_cancelled() => return Err(error),
+                    Err(_) => Ok(json!({"absent": step.field("not")})),
                 }
-                Ok(json!({"absent": step.field("not")}))
             } else {
                 executor.execute("find", json!({"kind":"text", "query": if !step.field("visible").is_empty() { step.field("visible") } else { step.field("text") }})).await
             }
@@ -807,6 +830,44 @@ outputs:
         .unwrap_err();
         assert!(error.message.contains("missing required inputs"));
         assert_eq!(calls, 0);
+    }
+
+    #[tokio::test]
+    async fn final_negative_assertion_propagates_cancellation() {
+        let flow = flows::parse(
+            br#"name: cancel
+version: 1
+domains: [example.test]
+steps:
+  - assert: {not: missing}
+"#,
+            "test",
+        )
+        .unwrap();
+        struct CancelExecutor;
+        impl AsyncExecutor for CancelExecutor {
+            fn execute<'a>(
+                &'a mut self,
+                _: &'a str,
+                _: Value,
+            ) -> Pin<Box<dyn Future<Output = Result<Value, ExecutionError>> + Send + 'a>>
+            {
+                Box::pin(async { Err(ExecutionError::cancelled("cancelled")) })
+            }
+        }
+        let mut executor = CancelExecutor;
+        let error = run_async(
+            &mut executor,
+            RunOptions {
+                flow,
+                inputs: BTreeMap::new(),
+                dry_run: false,
+            },
+        )
+        .await
+        .expect_err("cancellation must not satisfy a negative assertion");
+        assert_eq!(error.action, "assert");
+        assert_eq!(error.message, "cancelled");
     }
 
     #[test]

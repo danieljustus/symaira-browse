@@ -221,13 +221,39 @@ fn run_command(
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
     configure_process_tree(&mut command);
-    let mut child = command.spawn().map_err(|error| {
-        if error.kind() == std::io::ErrorKind::NotFound {
-            ProbeError::Missing(MissingReason::Unavailable)
-        } else {
-            ProbeError::Failed(error.to_string())
+    let mut child = {
+        let mut last_error = None;
+        let mut spawned = None;
+        for _ in 0..3 {
+            match command.spawn() {
+                Ok(child) => {
+                    spawned = Some(child);
+                    break;
+                }
+                Err(error) if error.raw_os_error() == Some(26) => {
+                    // ETXTBSY is a transient Unix race when a freshly-created
+                    // fixture executable is still being released by the filesystem.
+                    last_error = Some(error);
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(error) => {
+                    last_error = Some(error);
+                    break;
+                }
+            }
         }
-    })?;
+        match spawned {
+            Some(child) => child,
+            None => {
+                let error = last_error.expect("spawn error");
+                return Err(if error.kind() == std::io::ErrorKind::NotFound {
+                    ProbeError::Missing(MissingReason::Unavailable)
+                } else {
+                    ProbeError::Failed(error.to_string())
+                });
+            }
+        }
+    };
 
     let stdout = child
         .stdout

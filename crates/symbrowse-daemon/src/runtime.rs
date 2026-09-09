@@ -72,7 +72,7 @@ impl AsyncExecutor for FlowExecutor<'_> {
     > {
         Box::pin(async move {
             if self.operation.is_cancelled() || self.operation.remaining().is_zero() {
-                return Err(ExecutionError::new("daemon operation was cancelled"));
+                return Err(ExecutionError::cancelled("daemon operation was cancelled"));
             }
             let request = Frame {
                 cmd: command.to_owned(),
@@ -86,12 +86,15 @@ impl AsyncExecutor for FlowExecutor<'_> {
             let result = tokio::select! {
                 result = self.runtime.dispatch(request, self.operation.clone()) => result,
                 _ = DispatchRuntime::wait_for_cancellation(self.operation.clone()) => {
-                    return Err(ExecutionError::new("daemon operation was cancelled"));
+                    return Err(ExecutionError::cancelled("daemon operation was cancelled"));
                 }
             };
             match result {
                 Ok((Some(data), _)) => Ok(data),
                 Ok((None, _)) => Ok(Value::Null),
+                Err(error) if self.operation.is_cancelled() => {
+                    Err(ExecutionError::cancelled(error.message))
+                }
                 Err(error) => Err(ExecutionError::new(error.message)),
             }
         })
@@ -1141,12 +1144,14 @@ impl DispatchRuntime {
         )
         .await
         .map_err(|error| DaemonError {
-            code: if executor.operation.is_cancelled() {
+            code: if executor.operation.is_cancelled() || executor.operation.remaining().is_zero() {
                 codes::OPERATION_TIMEOUT.into()
             } else {
                 "flow_failed".into()
             },
-            message: if executor.operation.is_cancelled() {
+            message: if executor.operation.is_cancelled()
+                || executor.operation.remaining().is_zero()
+            {
                 "daemon operation was cancelled".into()
             } else {
                 error.to_string()
@@ -1983,8 +1988,17 @@ mod tests {
 
     #[test]
     fn production_flow_cancellation_closes_blocked_open_without_followup_action() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
         use std::time::Duration;
+
+        let root =
+            std::env::temp_dir().join(format!("symbrowse-runtime-flow-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).expect("test root");
+        let mut spec = temp_spec("flow-cancel");
+        spec.state_dir = root.join("state");
+        spec.cache_dir = root.join("cache");
+        spec.operation_timeout = Duration::from_secs(2);
 
         let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind blocked endpoint");
         listener
@@ -1992,30 +2006,38 @@ mod tests {
             .expect("nonblocking listener");
         let address = listener.local_addr().expect("endpoint address");
         let connections = Arc::new(AtomicUsize::new(0));
+        let endpoint_closed = Arc::new(AtomicBool::new(false));
         let observed = connections.clone();
-        thread::spawn(move || {
+        let closed = endpoint_closed.clone();
+        let endpoint_thread = thread::spawn(move || {
             let deadline = std::time::Instant::now() + Duration::from_secs(2);
             while std::time::Instant::now() < deadline {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
-                        let number = observed.fetch_add(1, Ordering::SeqCst) + 1;
-                        if number == 1 {
-                            let mut byte = [0_u8; 1];
-                            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
-                            let _ = stream.read(&mut byte);
-                        }
+                        observed.fetch_add(1, Ordering::SeqCst);
+                        let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                        let mut request = [0_u8; 4096];
+                        let _ = stream.read(&mut request);
+                        let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nConnection: keep-alive\r\n\r\n");
+                        let _ = stream.flush();
+                        let mut byte = [0_u8; 1];
+                        closed.store(
+                            matches!(stream.read(&mut byte), Ok(0) | Err(_)),
+                            Ordering::Release,
+                        );
+                        return;
                     }
                     Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        thread::sleep(Duration::from_millis(5));
+                        thread::sleep(Duration::from_millis(5))
                     }
-                    Err(_) => break,
+                    Err(_) => return,
                 }
             }
         });
 
-        let runtime = DispatchRuntime::new(temp_spec("flow-cancel")).expect("runtime");
+        let runtime = DispatchRuntime::new(spec.clone()).expect("runtime");
         let operation = OperationContext::for_test();
-        let cancel = operation.clone();
+        let cancellation = operation.clone();
         let yaml = format!(
             "name: blocked\nversion: 1\ndomains: [127.0.0.1]\nsteps:\n  - open: {{url: http://{address}/blocked}}\n  - click: {{label: followup}}\n"
         );
@@ -2024,20 +2046,32 @@ mod tests {
             args: Some(json!({"yaml": yaml})),
             ..Frame::default()
         };
-        let result = runtime.runtime.block_on(async {
-            let running = runtime.clone();
-            let task = tokio::spawn(async move { running.flow_run(&frame, operation).await });
-            tokio::time::sleep(Duration::from_millis(50)).await;
-            cancel.cancel_for_test();
-            task.await.expect("flow task")
-        });
-        assert!(result.is_err(), "cancelled flow must fail");
-        thread::sleep(Duration::from_millis(100));
+        let running = runtime.clone();
+        let task = thread::spawn(move || running.handle(frame, operation));
+        thread::sleep(Duration::from_millis(50));
+        cancellation.cancel_for_test();
+        let error = task
+            .join()
+            .expect("flow task")
+            .expect_err("cancelled flow must fail");
+        assert!(
+            error.code == codes::OPERATION_TIMEOUT || error.code == "flow_failed",
+            "flow must terminate with a typed failure: {error:?}"
+        );
+        endpoint_thread.join().expect("join endpoint");
+        assert!(
+            endpoint_closed.load(Ordering::Acquire),
+            "cancelled fetch did not reach endpoint EOF/error"
+        );
         assert_eq!(
-            connections.load(Ordering::SeqCst),
+            connections.load(Ordering::Acquire),
             1,
             "followup action dispatched"
         );
+
+        let restarted = DispatchRuntime::new(spec).expect("same-process runtime restart");
+        let _ = restarted;
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

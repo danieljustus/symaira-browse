@@ -652,6 +652,12 @@ fn serve_connection_parts<S>(
 {
     let mut reader = BufReader::new(stream);
     loop {
+        // Do not start another read after shutdown has won. On Windows a
+        // named-pipe read can outlive the listener wake-up even though the
+        // worker is otherwise cancellation-aware.
+        if stopping.load(Ordering::Acquire) {
+            return;
+        }
         let mut line = Vec::new();
         #[cfg(windows)]
         let read_result = read_limited_line_windows(
