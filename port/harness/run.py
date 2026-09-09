@@ -419,7 +419,9 @@ def chrome_daemon_suite(root: Path, env: dict[str, str]) -> None:
                 stopped = request(socket_path, {"cmd": "daemon.stop", "session": session, "args": {}})
                 if not stopped.get("success"):
                     raise AssertionError(f"daemon.stop failed: {stopped}")
-                process.wait(timeout=10)
+                exit_code = process.wait(timeout=10)
+                if exit_code != 0:
+                    raise AssertionError(f"daemon exited with status {exit_code} after daemon.stop")
                 if os.name != "nt" and socket_path.exists():
                     raise AssertionError("daemon socket survived cleanup")
             finally:

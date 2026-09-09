@@ -51,6 +51,43 @@ class ChromeFullHarnessTests(unittest.TestCase):
         server.server_close.assert_called_once_with()
         thread.join.assert_called_once_with(timeout=5)
 
+    def test_chrome_daemon_rejects_nonzero_exit_after_successful_stop(self) -> None:
+        # Simulated responses exercise harness failure handling, not native evidence.
+        process = Mock()
+        process.wait.return_value = 17
+        process.communicate.return_value = (b"", b"")
+        responses = {
+            "daemon.ping": {"success": True},
+            "open": {"success": True, "data": {"final_url": "http://localhost/final"}},
+            "evaluate": {"success": True, "data": {"marker": "rust012-native"}},
+            "get.text": {"success": True, "data": "daemon chrome"},
+            "snapshot": {"success": True, "data": {"nodes": [{"id": "heading"}]}},
+            "wait": {"success": False, "error": {"code": "operation_timeout"}},
+            "daemon.stop": {"success": True},
+        }
+        with (
+            patch.object(module, "chrome_executable", return_value=SCRIPT),
+            patch.object(module.http.server, "ThreadingHTTPServer") as server,
+            patch.object(module.threading, "Thread") as thread,
+            patch.object(module, "start_daemon", return_value=process),
+            patch.object(module, "wait_for_path"),
+            patch.object(module, "request", side_effect=lambda _path, frame, **_kwargs: responses[frame["cmd"]]) as request,
+            patch.object(module, "kill_tree") as cleanup,
+            patch("builtins.print") as output,
+        ):
+            with self.assertRaisesRegex(AssertionError, "daemon exited with status 17 after daemon.stop"):
+                module.chrome_daemon_suite(
+                    SCRIPT.parents[2],
+                    {"SYMBROWSE_E2E": "1", "SYMBROWSE_RUST_BINARY": str(SCRIPT)},
+                )
+        self.assertEqual(request.call_args.args[1]["cmd"], "daemon.stop")
+        process.wait.assert_called_once_with(timeout=10)
+        cleanup.assert_called_once_with(process)
+        server.return_value.shutdown.assert_called_once_with()
+        server.return_value.server_close.assert_called_once_with()
+        thread.return_value.join.assert_called_once_with(timeout=5)
+        output.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
