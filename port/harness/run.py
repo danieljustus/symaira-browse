@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import argparse
+import http.server
 import json
 import os
+import platform
 import signal
 import socket
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
+from typing import Any
 
 MAX_FRAME_BYTES = 1 << 20
 
@@ -32,20 +36,30 @@ def wait_for_path(path: Path, timeout: float = 5.0) -> None:
 
 
 def kill_tree(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
-        return
     try:
         if os.name == "posix":
             os.killpg(process.pid, signal.SIGTERM)
         else:
-            process.terminate()
+            subprocess.run(
+                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+            )
         process.wait(timeout=2)
     except (OSError, subprocess.TimeoutExpired):
         try:
             if os.name == "posix":
                 os.killpg(process.pid, signal.SIGKILL)
             else:
-                process.kill()
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=5,
+                )
         except OSError:
             pass
         try:
@@ -55,14 +69,20 @@ def kill_tree(process: subprocess.Popen[bytes]) -> None:
 
 
 def start_daemon(binary: Path, env: dict[str, str], session: str) -> subprocess.Popen[bytes]:
+    options: dict[str, object] = {
+        "cwd": binary.parent.parent.parent,
+        "env": env,
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.PIPE,
+        "stderr": subprocess.PIPE,
+    }
+    if os.name == "posix":
+        options["start_new_session"] = True
+    elif os.name == "nt":
+        options["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
     return subprocess.Popen(
         [str(binary), "daemon", "--session", session],
-        cwd=binary.parent.parent.parent,
-        env=env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=(os.name == "posix"),
+        **options,
     )
 
 
@@ -263,6 +283,161 @@ def daemon_suite(root: Path, env: dict[str, str], *, rounds: int, starters: int)
     print(f"daemon suite passed ({rounds} rounds x {starters} starters)", flush=True)
 
 
+def windows_chrome_candidates(env: dict[str, str]) -> list[str]:
+    candidates: list[str] = []
+    for variable in ("LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)"):
+        root = env.get(variable)
+        if root:
+            candidates.extend((
+                f"{root}\\Google\\Chrome\\Application\\chrome.exe",
+                f"{root}\\Chromium\\Application\\chrome.exe",
+            ))
+    return candidates
+
+
+def chrome_executable(env: dict[str, str]) -> Path:
+    candidates = [
+        env.get("SYMBROWSE_EXECUTABLE_PATH", ""),
+        env.get("SYMBROWSE_CHROME_EXECUTABLE", ""),
+    ]
+    if os.name == "nt":
+        candidates.extend(windows_chrome_candidates(env))
+    elif sys.platform == "darwin":
+        candidates.extend((
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+            "/Applications/Chromium.app/Contents/MacOS/Chromium",
+            "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+            "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta",
+        ))
+    else:
+        candidates.extend((
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/snap/bin/chromium",
+        ))
+    for value in candidates:
+        if value and os.path.isfile(value) and os.access(value, os.X_OK):
+            return Path(value)
+    raise SystemExit("chrome-full native gate blocked: no owned Chrome/Chromium executable found")
+
+
+def stop_fixture_server(server: http.server.ThreadingHTTPServer, thread: threading.Thread) -> None:
+    server.shutdown()
+    server.server_close()
+    thread.join(timeout=5)
+
+
+class ChromeFixtureHandler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self) -> None:  # noqa: N802
+        if self.path == "/redirect":
+            self.send_response(302)
+            self.send_header("Location", "/final")
+            self.end_headers()
+            return
+        body = b"<title>rust012-native</title><h1 id='heading'>daemon chrome</h1><div id='state'>ready</div>"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *_args: object) -> None:
+        return
+
+
+def response_data(response: dict[str, object]) -> dict[str, Any]:
+    data = response.get("data")
+    return data if isinstance(data, dict) else {}
+
+
+def chrome_daemon_suite(root: Path, env: dict[str, str]) -> None:
+    if env.get("SYMBROWSE_E2E") != "1":
+        raise SystemExit("chrome-full requires SYMBROWSE_E2E=1 (native daemon gate is opt-in)")
+    executable = chrome_executable(env)
+    binary_value = env.get("SYMBROWSE_RUST_BINARY")
+    if binary_value:
+        binary = Path(binary_value)
+        if not binary.is_file():
+            raise AssertionError(f"Rust daemon binary does not exist: {binary}")
+    else:
+        run(["cargo", "build", "-p", "symbrowse-cli", "--locked"], root, env)
+        binary = root / "target" / "debug" / ("symbrowse.exe" if os.name == "nt" else "symbrowse")
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), ChromeFixtureHandler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    try:
+        session = "cf"
+        with tempfile.TemporaryDirectory(prefix="sb-") as directory:
+            base = Path(directory)
+            runtime, state, cache, home = (base / name for name in ("runtime", "state", "cache", "home"))
+            for path in (runtime, state, cache, home):
+                path.mkdir(mode=0o700)
+            scoped = dict(
+                env,
+                HOME=str(home),
+                XDG_RUNTIME_DIR=str(runtime),
+                SYMBROWSE_STATE_DIR=str(state),
+                SYMBROWSE_CACHE_DIR=str(cache),
+                SYMBROWSE_EXECUTABLE_PATH=str(executable),
+                SYMBROWSE_ENGINE="chrome",
+                SYMBROWSE_MODE="browser",
+                SYMBROWSE_HEADLESS="1",
+                SYMBROWSE_OPERATION_TIMEOUT="10",
+                SYMBROWSE_IDLE_TIMEOUT="30",
+                SYMBROWSE_NO_AUTOSTART="1",
+            )
+            socket_path = (Path(r"\\.\pipe") / f"symbrowse-{session}") if os.name == "nt" else runtime / "symbrowse" / f"{session}.sock"
+            process = start_daemon(binary, scoped, session)
+            try:
+                if os.name == "nt":
+                    wait_for_request(socket_path, {"cmd": "daemon.ping", "session": session}, timeout=10)
+                else:
+                    wait_for_path(socket_path, timeout=10)
+                url = f"http://127.0.0.1:{server.server_port}/redirect"
+                try:
+                    opened = wait_for_request(socket_path, {"cmd": "open", "session": session, "args": {"url": url}}, timeout=10)
+                except Exception as error:
+                    diagnostic = process.stderr.read(65536).decode(errors="replace") if process.poll() is not None and process.stderr else ""
+                    raise AssertionError(f"redirect navigation request failed: {error}; daemon stderr: {diagnostic}") from error
+                if not opened.get("success") or not str(response_data(opened).get("final_url", "")).endswith("/final"):
+                    raise AssertionError(f"redirect navigation did not settle: {opened}")
+                evaluated = request(socket_path, {"cmd": "evaluate", "session": session, "args": {"expression": "({marker: document.title, ready: document.readyState})"}})
+                if response_data(evaluated).get("marker") != "rust012-native":
+                    raise AssertionError(f"JavaScript evaluation failed: {evaluated}")
+                inspected = request(socket_path, {"cmd": "get.text", "session": session, "args": {"selector": "#heading"}})
+                if inspected.get("data") != "daemon chrome":
+                    raise AssertionError(f"DOM inspection failed: {inspected}")
+                snapshot = request(socket_path, {"cmd": "snapshot", "session": session, "args": {}})
+                if not snapshot.get("success") or not response_data(snapshot).get("nodes"):
+                    raise AssertionError(f"observable snapshot missing: {snapshot}")
+                timed = request(socket_path, {"cmd": "wait", "session": session, "args": {"kind": "ms", "duration": 11_000}}, timeout=15)
+                timed_error = timed.get("error")
+                if timed.get("success") is not False or not isinstance(timed_error, dict) or timed_error.get("code") != "operation_timeout":
+                    raise AssertionError(f"bounded timeout behavior missing: {timed}")
+                stopped = request(socket_path, {"cmd": "daemon.stop", "session": session, "args": {}})
+                if not stopped.get("success"):
+                    raise AssertionError(f"daemon.stop failed: {stopped}")
+                exit_code = process.wait(timeout=10)
+                if exit_code != 0:
+                    raise AssertionError(f"daemon exited with status {exit_code} after daemon.stop")
+                if os.name != "nt" and socket_path.exists():
+                    raise AssertionError("daemon socket survived cleanup")
+            finally:
+                kill_tree(process)
+            assert_clean_process(process)
+            if os.name != "nt" and socket_path.exists():
+                raise AssertionError("daemon socket survived harness cleanup")
+    finally:
+        stop_fixture_server(server, server_thread)
+    print(
+        f"chrome-full native daemon passed (platform={platform.system()} {platform.machine()}, "
+        "navigation=redirect,evaluate=js,inspection=snapshot,timeout=bounded,cleanup=owned)",
+        flush=True,
+    )
+
+
 FETCH_CONTROL_CASE_IDS = (
     "FETCH-001-profile-selection",
     "FETCH-003-http-semantics",
@@ -373,6 +548,8 @@ def main() -> int:
             ["cargo", "test", "-p", "symbrowse-core", "--test", "workflows_contract", "--locked"],
         ]
     elif args.suite in {"chrome-full", "safari"}:
+        if args.suite == "chrome-full" and env.get("SYMBROWSE_E2E") != "1":
+            raise SystemExit("chrome-full requires SYMBROWSE_E2E=1 (native daemon gate is opt-in)")
         suites = (args.suite,)
         for suite in suites:
             fixture = [
@@ -387,6 +564,8 @@ def main() -> int:
             run(fixture, root, env)
             package = "symbrowse-engine-chrome" if suite == "chrome-full" else "symbrowse-engine-safari"
             run(["cargo", "test", "-p", package, "--test", "contract_fixture", "--locked"], root, env)
+            if suite == "chrome-full":
+                chrome_daemon_suite(root, env)
         print(f"{args.suite} suite passed")
         return 0
     elif args.suite == "daemon":
