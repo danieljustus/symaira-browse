@@ -252,6 +252,8 @@ impl Server {
     }
     pub fn stop(&self) {
         self.stopping.store(true, Ordering::Release);
+        #[cfg(windows)]
+        wake_windows_listener(&self.options.socket_path);
     }
 
     pub fn listen_and_serve(&self) -> Result<(), ServerError> {
@@ -410,6 +412,16 @@ fn wait_for_unix_listener(
     )];
     nix::poll::poll(&mut descriptors, timeout_ms).map_err(io::Error::other)?;
     Ok(())
+}
+
+#[cfg(windows)]
+fn wake_windows_listener(path: &Path) {
+    use interprocess::os::windows::named_pipe::{DuplexPipeStream, pipe_mode};
+
+    let _ = DuplexPipeStream::<pipe_mode::Bytes>::connect_by_path_with_wait_mode(
+        path.to_string_lossy().as_ref(),
+        interprocess::ConnectWaitMode::Timeout(Duration::from_millis(50)),
+    );
 }
 
 #[cfg(windows)]
@@ -719,6 +731,8 @@ fn serve_connection_parts<R, W>(
                 return;
             }
             stopping.store(true, Ordering::Release);
+            #[cfg(windows)]
+            wake_windows_listener(&options.socket_path);
             return;
         }
         if cmd == "daemon.ping" {
