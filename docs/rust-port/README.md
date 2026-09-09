@@ -1,6 +1,6 @@
 # Go→Rust migration handoff
 
-Status: **migration started; RUST-001/002/003/004/005/006 complete, RUST-010 in progress, RUST-011 spike verified early, no cutover approval**.
+Status: **migration started; RUST-001/002/003/004/005 complete, RUST-006 is in progress pending native lifecycle evidence, RUST-010/011 slices are complete, and no cutover is approved**.
 
 This directory freezes the starting point for a contract-first Rust port of
 `symaira-browse`. The Go implementation remains the executable oracle until
@@ -112,5 +112,8 @@ Stop and reassess when any of these holds:
   the current partial port through native evidence, dual release and cutover.
 - [`work-items.json`](work-items.json) — machine-readable dependency DAG.
 - [`validate.py`](validate.py) — validates IDs, references, DAG and local links.
+- [`handoff-2026-09-09.md`](handoff-2026-09-09.md) — verified reconciliation
+  checkpoint, applicable evidence, rollback path, ownership boundaries and open
+  blockers for a later consolidation decision.
 
 Run `python3 docs/rust-port/validate.py` before changing migration status.
