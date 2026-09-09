@@ -348,8 +348,55 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       - name: Set up Rust
         run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component rustfmt,clippy
-      - name: Run installed-binary daemon contract
-        run: make rust-daemon-contract
+      - name: Prepare native daemon diagnostics
+        run: python -c "from pathlib import Path; Path('target/ci/native-daemon').mkdir(parents=True, exist_ok=True)"
+      - name: Compile daemon tests
+        run: >-
+          python -u scripts/rust-port/run_bounded.py
+          --timeout 900
+          --stdout target/ci/native-daemon/compile.stdout
+          --stderr target/ci/native-daemon/compile.stderr
+          -- cargo test -p symbrowse-daemon --all-features --locked --no-run
+      - name: Run Windows platform tests individually
+        if: runner.os == 'Windows'
+        run: >-
+          python -u scripts/rust-port/run_serial_cargo_tests.py
+          --timeout 90
+          --log-dir target/ci/native-daemon/platform-tests
+          -- -p symbrowse-daemon --test platform --all-features --locked
+      - name: Run non-Windows daemon unit tests
+        if: runner.os != 'Windows'
+        run: >-
+          python -u scripts/rust-port/run_bounded.py
+          --timeout 90
+          --stdout target/ci/native-daemon/unit.stdout
+          --stderr target/ci/native-daemon/unit.stderr
+          -- cargo test -p symbrowse-daemon --lib --all-features --locked -- --nocapture --test-threads=1
+      - name: Install daemon binary
+        run: >-
+          python -u scripts/rust-port/run_bounded.py
+          --timeout 900
+          --stdout target/ci/native-daemon/install.stdout
+          --stderr target/ci/native-daemon/install.stderr
+          -- cargo install --path crates/symbrowse-cli
+          --root target/port/rust-install --locked --force
+      - name: Run installed-binary daemon harness
+        env:
+          SYMBROWSE_RUST_BINARY: ${{ github.workspace }}/target/port/rust-install/bin/symbrowse${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: >-
+          python -u scripts/rust-port/run_bounded.py
+          --timeout 600
+          --stdout target/ci/native-daemon/harness.stdout
+          --stderr target/ci/native-daemon/harness.stderr
+          -- python -u port/harness/run.py --suite daemon
+      - name: Upload native daemon diagnostics
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-daemon-diagnostics-${{ matrix.os }}
+          path: target/ci/native-daemon
+          if-no-files-found: warn
+          retention-days: 14
 
   codeql:
     name: CodeQL / analysis
