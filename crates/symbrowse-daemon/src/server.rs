@@ -435,6 +435,9 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
         .security_descriptor(Some(security))
         .create_duplex::<pipe_mode::Bytes>()
         .map_err(named_pipe_create_error)?;
+    // Keep the listener's native nonblocking mode explicit. The accept loop
+    // must observe stop() without waiting indefinitely in accept().
+    listener.set_nonblocking(true).map_err(ServerError::Io)?;
     server
         .registry
         .ensure(&server.options.session)
