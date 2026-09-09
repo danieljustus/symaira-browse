@@ -44,7 +44,7 @@ def main() -> int:
         print(discovery.stderr, file=sys.stderr, end="")
         return discovery.returncode
     names = [
-        line.split(":", 1)[0].strip()
+        line[: -len(": test")].strip()
         for line in discovery.stdout.splitlines()
         if line.rstrip().endswith(": test")
     ]
