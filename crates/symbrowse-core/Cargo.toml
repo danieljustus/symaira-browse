@@ -13,6 +13,7 @@ fs2.workspace = true
 getrandom.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
 time.workspace = true
 toml.workspace = true
 url.workspace = true

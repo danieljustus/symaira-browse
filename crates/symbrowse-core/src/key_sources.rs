@@ -7,8 +7,6 @@ use std::{
     io::{Read, Write},
     path::{Path, PathBuf},
     process::{Command, ExitStatus, Stdio},
-    sync::mpsc,
-    thread,
     time::Duration,
 };
 
@@ -211,6 +209,11 @@ fn run_command(
     timeout: Duration,
 ) -> Result<CommandOutput, ProbeError> {
     let mut command = Command::new(program);
+    let output_file = tempfile::NamedTempFile::new()
+        .map_err(|error| ProbeError::Failed(format!("create command output file: {error}")))?;
+    let output_handle = output_file
+        .reopen()
+        .map_err(|error| ProbeError::Failed(format!("open command output file: {error}")))?;
     command
         .args(args)
         .stdin(if input.is_some() {
@@ -218,7 +221,7 @@ fn run_command(
         } else {
             Stdio::null()
         })
-        .stdout(Stdio::piped())
+        .stdout(output_handle)
         .stderr(Stdio::null());
     configure_process_tree(&mut command);
     let mut child = command.spawn().map_err(|error| {
@@ -229,21 +232,11 @@ fn run_command(
         }
     })?;
 
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| ProbeError::Failed("capture child stdout".to_owned()))?;
-    let (sender, receiver) = mpsc::sync_channel(1);
-    thread::spawn(move || {
-        let _ = sender.send(read_bounded(stdout));
-    });
-
     if let Some(input) = input
         && let Some(mut stdin) = child.stdin.take()
         && let Err(error) = stdin.write_all(input)
     {
         terminate_process_tree(&mut child);
-        let _ = receiver.recv_timeout(Duration::from_millis(100));
         return Err(ProbeError::Failed(error.to_string()));
     }
 
@@ -254,22 +247,17 @@ fn run_command(
         Some(status) => status,
         None => {
             terminate_process_tree(&mut child);
-            let _ = receiver.recv_timeout(Duration::from_millis(100));
             return Err(ProbeError::Failed(format!(
                 "command timed out after {}ms",
                 timeout.as_millis()
             )));
         }
     };
-    let stdout = match receiver.recv_timeout(Duration::from_millis(100)) {
-        Ok(stdout) => stdout?,
-        Err(_) => {
-            terminate_process_tree(&mut child);
-            return Err(ProbeError::Failed(
-                "stdout pipe remained open after command exit".to_owned(),
-            ));
-        }
-    };
+    let stdout = read_bounded(
+        output_file
+            .reopen()
+            .map_err(|error| ProbeError::Failed(format!("open command output file: {error}")))?,
+    )?;
     Ok(CommandOutput { status, stdout })
 }
 
