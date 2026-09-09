@@ -164,6 +164,89 @@ mod windows {
     }
 
     #[test]
+    fn stop_drains_blocked_read_and_cancellable_handler_before_restart() {
+        use std::{
+            io::Write,
+            sync::{
+                Arc,
+                atomic::{AtomicBool, AtomicUsize, Ordering},
+            },
+            thread,
+            time::{Duration, Instant},
+        };
+
+        let session = format!("windows-shutdown-{}", std::process::id());
+        let endpoint = default_socket_path(&session);
+        let handler_started = Arc::new(AtomicBool::new(false));
+        let handler_finished = Arc::new(AtomicBool::new(false));
+        let effects = Arc::new(AtomicUsize::new(0));
+        let started = handler_started.clone();
+        let finished = handler_finished.clone();
+        let effects_seen = effects.clone();
+        let server = Arc::new(
+            symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+                socket_path: endpoint.clone(),
+                session: session.clone(),
+                idle_timeout: None,
+                operation_timeout: Duration::from_secs(5),
+                handler: Some(Arc::new(move |_, operation| {
+                    started.store(true, Ordering::Release);
+                    while !operation.is_cancelled() {
+                        thread::sleep(Duration::from_millis(1));
+                    }
+                    if !operation.is_cancelled() {
+                        effects_seen.fetch_add(1, Ordering::AcqRel);
+                    }
+                    finished.store(true, Ordering::Release);
+                    Ok((None, Vec::new()))
+                })),
+                ..Default::default()
+            })
+            .expect("construct shutdown daemon"),
+        );
+        let running = server.clone();
+        let server_thread = thread::spawn(move || running.listen_and_serve());
+
+        let blocked = connect_when_server_ready(&endpoint);
+        let mut active = connect_when_server_ready(&endpoint);
+        active
+            .write_all(
+                br#"{"cmd":"cancellable"}
+"#,
+            )
+            .expect("send cancellable frame");
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while !handler_started.load(Ordering::Acquire) && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(2));
+        }
+        assert!(handler_started.load(Ordering::Acquire));
+
+        let stopped_at = Instant::now();
+        server.stop();
+        let result = server_thread.join().expect("join shutdown daemon");
+        assert!(result.is_ok(), "shutdown result = {result:?}");
+        assert!(
+            stopped_at.elapsed() < Duration::from_secs(1),
+            "shutdown exceeded bounded drain: {:?}",
+            stopped_at.elapsed()
+        );
+        assert!(handler_finished.load(Ordering::Acquire));
+        assert_eq!(effects.load(Ordering::Acquire), 0);
+
+        // The blocked connection was owned and closed by a joined worker; the
+        // endpoint can be reclaimed by a fresh same-process server.
+        drop(blocked);
+        let replacement = symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+            socket_path: endpoint,
+            session,
+            idle_timeout: Some(Duration::from_millis(1)),
+            ..Default::default()
+        })
+        .expect("construct replacement after shutdown");
+        assert!(replacement.listen_and_serve().is_ok());
+    }
+
+    #[test]
     fn concurrent_starts_have_one_owner_and_recover_after_stop() {
         use std::{sync::Arc, thread, time::Duration};
 

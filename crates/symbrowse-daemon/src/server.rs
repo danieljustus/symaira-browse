@@ -42,12 +42,13 @@ const CONNECTION_WORKERS: usize = 32;
 #[derive(Clone, Debug)]
 pub struct OperationContext {
     cancelled: Arc<AtomicBool>,
+    shutdown: Arc<AtomicBool>,
     deadline: Instant,
 }
 
 impl OperationContext {
     pub fn is_cancelled(&self) -> bool {
-        self.cancelled.load(Ordering::Acquire)
+        self.cancelled.load(Ordering::Acquire) || self.shutdown.load(Ordering::Acquire)
     }
 
     pub fn remaining(&self) -> Duration {
@@ -181,6 +182,7 @@ pub struct Server {
     started_at: i64,
     last_activity: Arc<AtomicI64>,
     registry: Arc<crate::SessionRegistry>,
+    dispatch_gate: Arc<std::sync::Mutex<()>>,
 }
 impl Server {
     pub fn new(mut options: ServerOptions) -> Result<Self, ServerError> {
@@ -242,6 +244,7 @@ impl Server {
             started_at: now,
             last_activity: Arc::new(AtomicI64::new(now)),
             registry,
+            dispatch_gate: Arc::new(std::sync::Mutex::new(())),
         })
     }
     pub fn options(&self) -> &ServerOptions {
@@ -251,6 +254,7 @@ impl Server {
         self.status_data()
     }
     pub fn stop(&self) {
+        let _gate = self.dispatch_gate.lock().ok();
         self.stopping.store(true, Ordering::Release);
         #[cfg(windows)]
         wake_windows_listener(&self.options.socket_path);
@@ -331,6 +335,7 @@ impl Server {
             let state = self.last_activity.clone();
             let stopping = self.stopping.clone();
             let registry = self.registry.clone();
+            let dispatch_gate = self.dispatch_gate.clone();
             let started_at = self.started_at;
             thread::spawn(move || {
                 loop {
@@ -349,6 +354,7 @@ impl Server {
                         stopping.clone(),
                         started_at,
                         registry.clone(),
+                        dispatch_gate.clone(),
                     );
                 }
             });
@@ -471,6 +477,7 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
         let stopping = server.stopping.clone();
         let options = server.options.clone();
         let registry = server.registry.clone();
+        let dispatch_gate = server.dispatch_gate.clone();
         let started_at = server.started_at;
         workers.push(thread::spawn(move || {
             loop {
@@ -484,16 +491,15 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
                 // Accepted streams stay nonblocking. Windows named pipes do
                 // not expose socket read deadlines, so the bounded line reader
                 // below turns WouldBlock into a finite read deadline.
-                let (reader, writer) = stream.split();
                 serve_connection_parts(
-                    reader,
-                    writer,
+                    stream,
                     handler.clone(),
                     options.clone(),
                     state.clone(),
                     stopping.clone(),
                     started_at,
                     registry.clone(),
+                    dispatch_gate.clone(),
                 );
             }
         }));
@@ -520,20 +526,23 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
                 thread::sleep(Duration::from_millis(25));
             }
             Err(error) => {
+                server.stopping.store(true, Ordering::Release);
                 drop(sender);
-                // Do not join workers here: a native named-pipe read may not
-                // unblock when its peer disappears. The daemon process owns
-                // these workers and will reclaim them on exit.
+                for worker in workers {
+                    let _ = worker.join();
+                }
                 server.registry.clear();
                 return Err(ServerError::Io(error));
             }
         }
     }
     drop(sender);
-    // Workers are intentionally detached on Windows. Joining a worker that is
-    // inside a native pipe read can make daemon shutdown unbounded; the stop
-    // flag and channel closure prevent new work, and process exit reclaims the
-    // pipe handles and worker threads.
+    // Accepted streams remain owned by workers. Their bounded nonblocking read
+    // observes the shared stop token, so joining here drains every worker and
+    // closes every native handle before the registry is cleared.
+    for worker in workers {
+        let _ = worker.join();
+    }
     server.registry.clear();
     Ok(())
 }
@@ -591,6 +600,7 @@ fn peer_is_current_user(_stream: &std::os::unix::net::UnixStream) -> io::Result<
 }
 
 #[cfg(unix)]
+#[allow(clippy::too_many_arguments)]
 fn serve_connection(
     stream: std::os::unix::net::UnixStream,
     handler: DaemonHandler,
@@ -599,13 +609,9 @@ fn serve_connection(
     stopping: Arc<AtomicBool>,
     started_at: i64,
     registry: Arc<crate::SessionRegistry>,
+    dispatch_gate: Arc<std::sync::Mutex<()>>,
 ) {
-    let reader = match stream.try_clone() {
-        Ok(stream) => stream,
-        Err(_) => return,
-    };
     serve_connection_parts(
-        reader,
         stream,
         handler,
         options,
@@ -613,24 +619,24 @@ fn serve_connection(
         stopping,
         started_at,
         registry,
+        dispatch_gate,
     );
 }
 
 #[allow(clippy::too_many_arguments)]
-fn serve_connection_parts<R, W>(
-    reader_source: R,
-    mut stream: W,
+fn serve_connection_parts<S>(
+    stream: S,
     handler: DaemonHandler,
     options: ServerOptions,
     last_activity: Arc<AtomicI64>,
     stopping: Arc<AtomicBool>,
     started_at: i64,
     registry: Arc<crate::SessionRegistry>,
+    dispatch_gate: Arc<std::sync::Mutex<()>>,
 ) where
-    R: io::Read + Send + 'static,
-    W: Write + Send + 'static,
+    S: io::Read + Write + Send + 'static,
 {
-    let mut reader = BufReader::new(reader_source);
+    let mut reader = BufReader::new(stream);
     loop {
         let mut line = Vec::new();
         #[cfg(windows)]
@@ -656,15 +662,27 @@ fn serve_connection_parts<R, W>(
                 frame
             }
             Err(error) => {
-                if write_response(&mut stream, error_response(error.code, error.message)).is_err() {
+                if write_response(reader.get_mut(), error_response(error.code, error.message))
+                    .is_err()
+                {
                     return;
                 }
                 continue;
             }
         };
+        // The gate covers every registry mutation and the dispatch decision.
+        // stop() takes the same gate, so no request can start after shutdown
+        // has won the transition.
+        let _dispatch = match dispatch_gate.lock() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        if stopping.load(Ordering::Acquire) {
+            return;
+        }
         if !validate_session(&frame.session) {
             if write_response(
-                &mut stream,
+                reader.get_mut(),
                 error_response(
                     codes::INVALID_SESSION,
                     format!("invalid session {}", crate::redact_str(&frame.session)),
@@ -678,7 +696,7 @@ fn serve_connection_parts<R, W>(
         }
         if frame.cmd == "session.list" {
             if write_response(
-                &mut stream,
+                reader.get_mut(),
                 success_response(
                     Some(serde_json::to_value(registry.list_data()).unwrap_or(Value::Null)),
                     Vec::new(),
@@ -701,13 +719,13 @@ fn serve_connection_parts<R, W>(
                 },
                 Err(error) => session_error_response(error),
             };
-            if write_response(&mut stream, response).is_err() {
+            if write_response(reader.get_mut(), response).is_err() {
                 return;
             }
             continue;
         }
         if let Err(error) = registry.ensure(&frame.session) {
-            if write_response(&mut stream, session_error_response(error)).is_err() {
+            if write_response(reader.get_mut(), session_error_response(error)).is_err() {
                 return;
             }
             continue;
@@ -716,14 +734,14 @@ fn serve_connection_parts<R, W>(
         let cmd = frame.cmd.clone();
         if cmd == "daemon.status" {
             let data = json!({"running":true,"pid":std::process::id(),"session":options.session,"socket":crate::redact_str(&options.socket_path.to_string_lossy()),"started_at":format_time(started_at),"last_activity":format_time(last_activity.load(Ordering::Acquire)),"policy":options.policy,"engine":options.engine,"mode":options.mode});
-            if write_response(&mut stream, success_response(Some(data), Vec::new())).is_err() {
+            if write_response(reader.get_mut(), success_response(Some(data), Vec::new())).is_err() {
                 return;
             }
             continue;
         }
         if cmd == "daemon.stop" {
             if write_response(
-                &mut stream,
+                reader.get_mut(),
                 success_response(Some(json!({"stopping":true})), Vec::new()),
             )
             .is_err()
@@ -737,7 +755,7 @@ fn serve_connection_parts<R, W>(
         }
         if cmd == "daemon.ping" {
             if write_response(
-                &mut stream,
+                reader.get_mut(),
                 success_response(Some(json!({"pong":true})), Vec::new()),
             )
             .is_err()
@@ -746,38 +764,63 @@ fn serve_connection_parts<R, W>(
             }
             continue;
         }
+        drop(_dispatch);
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
         let handler_clone = handler.clone();
         let frame_clone = frame.clone();
         let timeout = options.operation_timeout;
         let operation = OperationContext {
             cancelled: Arc::new(AtomicBool::new(false)),
+            shutdown: stopping.clone(),
             deadline: Instant::now() + timeout,
         };
         let handler_operation = operation.clone();
         thread::spawn(move || {
             let _ = tx.send(handler_clone(frame_clone, handler_operation));
         });
-        let result = match rx.recv_timeout(timeout) {
-            Ok(Ok((data, warnings))) => success_response(data, warnings),
-            Ok(Err(error)) => Response {
-                success: false,
-                data: None,
-                error: Some(crate::redaction::redact_error(error)),
-                warnings: Vec::new(),
-            },
-            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                operation.cancel();
-                error_response(
-                    codes::OPERATION_TIMEOUT,
-                    "daemon operation exceeded its timeout",
-                )
-            }
-            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                error_response(codes::OPERATION_FAILED, "daemon handler disconnected")
+        let result = loop {
+            match rx.recv_timeout(operation.remaining().min(Duration::from_millis(10))) {
+                Ok(Ok((data, warnings))) => break success_response(data, warnings),
+                Ok(Err(error)) => {
+                    break Response {
+                        success: false,
+                        data: None,
+                        error: Some(crate::redaction::redact_error(error)),
+                        warnings: Vec::new(),
+                    };
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                    break error_response(codes::OPERATION_FAILED, "daemon handler disconnected");
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+                    if stopping.load(Ordering::Acquire) =>
+                {
+                    // Shutdown is cooperative: notify the handler through its
+                    // context and give it a bounded cancellation window. Do
+                    // not wait for the full request deadline during shutdown.
+                    operation.cancel();
+                    let shutdown_deadline = Instant::now() + Duration::from_millis(100);
+                    match rx
+                        .recv_timeout(shutdown_deadline.saturating_duration_since(Instant::now()))
+                    {
+                        Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {}
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => return,
+                    }
+                    return;
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout)
+                    if operation.remaining().is_zero() =>
+                {
+                    operation.cancel();
+                    break error_response(
+                        codes::OPERATION_TIMEOUT,
+                        "daemon operation exceeded its timeout",
+                    );
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
             }
         };
-        if write_response(&mut stream, result).is_err() {
+        if write_response(reader.get_mut(), result).is_err() {
             return;
         }
     }
