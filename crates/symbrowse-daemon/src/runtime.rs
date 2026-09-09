@@ -1842,6 +1842,7 @@ fn fetch_error(error: symbrowse_fetch::FetchError) -> DaemonError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Client, ClientError, ClientOptions};
     use std::{
         io::{Read, Write},
         net::TcpListener,
@@ -1987,90 +1988,156 @@ mod tests {
     }
 
     #[test]
-    fn production_flow_cancellation_closes_blocked_open_without_followup_action() {
+    fn production_server_flow_cancellation_stops_before_followup_action() {
         use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
         use std::time::Duration;
 
         let root =
-            std::env::temp_dir().join(format!("symbrowse-runtime-flow-{}", std::process::id()));
+            std::env::temp_dir().join(format!("symbrowse-server-flow-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("test root");
-        let mut spec = temp_spec("flow-cancel");
+        let mut spec = temp_spec("server-flow-cancel");
+        spec.socket_path = root.join("default.sock");
         spec.state_dir = root.join("state");
         spec.cache_dir = root.join("cache");
         spec.operation_timeout = Duration::from_secs(2);
+        spec.read_timeout = Duration::from_millis(200);
+        spec.idle_timeout = None;
 
         let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind blocked endpoint");
         listener
             .set_nonblocking(true)
             .expect("nonblocking listener");
         let address = listener.local_addr().expect("endpoint address");
-        let connections = Arc::new(AtomicUsize::new(0));
         let endpoint_closed = Arc::new(AtomicBool::new(false));
-        let observed = connections.clone();
         let closed = endpoint_closed.clone();
         let endpoint_thread = thread::spawn(move || {
             let deadline = std::time::Instant::now() + Duration::from_secs(2);
             while std::time::Instant::now() < deadline {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
-                        observed.fetch_add(1, Ordering::SeqCst);
+                        let _ = stream.set_nonblocking(false);
                         let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
                         let mut request = [0_u8; 4096];
                         let _ = stream.read(&mut request);
-                        let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nConnection: keep-alive\r\n\r\n");
+                        let _ = stream.write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 100\r\nConnection: keep-alive\r\n\r\n",
+                        );
                         let _ = stream.flush();
                         let mut byte = [0_u8; 1];
-                        closed.store(
-                            matches!(stream.read(&mut byte), Ok(0) | Err(_)),
-                            Ordering::Release,
-                        );
+                        let closed_by_peer = match stream.read(&mut byte) {
+                            Ok(0) => true,
+                            Err(error) => matches!(
+                                error.kind(),
+                                std::io::ErrorKind::ConnectionReset
+                                    | std::io::ErrorKind::BrokenPipe
+                                    | std::io::ErrorKind::UnexpectedEof
+                            ),
+                            Ok(_) => false,
+                        };
+                        closed.store(closed_by_peer, Ordering::Release);
                         return;
                     }
                     Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
-                        thread::sleep(Duration::from_millis(5))
+                        thread::sleep(Duration::from_millis(5));
                     }
                     Err(_) => return,
                 }
             }
         });
 
-        let runtime = DispatchRuntime::new(spec.clone()).expect("runtime");
-        let operation = OperationContext::for_test();
-        let cancellation = operation.clone();
+        let production = handler(spec.clone()).expect("production handler");
+        let followups = Arc::new(AtomicUsize::new(0));
+        let observed = followups.clone();
+        let wrapped = Arc::new(move |frame: Frame, operation: OperationContext| {
+            if frame.cmd == "click" {
+                observed.fetch_add(1, Ordering::SeqCst);
+            }
+            production(frame, operation)
+        });
+        let server = Arc::new(
+            crate::Server::new(crate::ServerOptions {
+                session_spec: Some(spec.clone()),
+                handler: Some(wrapped),
+                ..Default::default()
+            })
+            .expect("server"),
+        );
+        let running = server.clone();
+        let server_thread = thread::spawn(move || running.listen_and_serve());
+        let socket = spec.socket_path.clone();
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while !socket.exists() && std::time::Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(5));
+        }
+        assert!(socket.exists(), "server endpoint was not published");
+
         let yaml = format!(
             "name: blocked\nversion: 1\ndomains: [127.0.0.1]\nsteps:\n  - open: {{url: http://{address}/blocked}}\n  - click: {{label: followup}}\n"
         );
-        let frame = Frame {
-            cmd: "flow.run".into(),
-            args: Some(json!({"yaml": yaml})),
-            ..Frame::default()
-        };
-        let running = runtime.clone();
-        let task = thread::spawn(move || running.handle(frame, operation));
+        let request_socket = socket.clone();
+        let request = thread::spawn(move || {
+            Client::new(ClientOptions {
+                socket_path: request_socket,
+                session: "default".into(),
+                read_timeout: Duration::from_secs(2),
+                autostart: false,
+                ..Default::default()
+            })
+            .request_without_autostart(Frame {
+                cmd: "flow.run".into(),
+                args: Some(json!({"yaml": yaml})),
+                ..Default::default()
+            })
+        });
         thread::sleep(Duration::from_millis(50));
-        cancellation.cancel_for_test();
-        let error = task
-            .join()
-            .expect("flow task")
-            .expect_err("cancelled flow must fail");
-        assert!(
-            error.code == codes::OPERATION_TIMEOUT || error.code == "flow_failed",
-            "flow must terminate with a typed failure: {error:?}"
-        );
-        endpoint_thread.join().expect("join endpoint");
+        server.stop();
+        assert!(server_thread.join().unwrap().is_ok());
+        let request_result = request.join().expect("flow request");
+        match request_result {
+            Ok(response) => assert_eq!(response.error.unwrap().code, codes::OPERATION_TIMEOUT),
+            Err(ClientError::Transport(error)) => assert_eq!(error.code, "daemon_unavailable"),
+            Err(error) => panic!("production cancellation request = {error:?}"),
+        }
+        endpoint_thread.join().expect("endpoint join");
         assert!(
             endpoint_closed.load(Ordering::Acquire),
-            "cancelled fetch did not reach endpoint EOF/error"
+            "endpoint did not observe peer close"
         );
         assert_eq!(
-            connections.load(Ordering::Acquire),
-            1,
-            "followup action dispatched"
+            followups.load(Ordering::Acquire),
+            0,
+            "followup click was dispatched"
         );
 
-        let restarted = DispatchRuntime::new(spec).expect("same-process runtime restart");
-        let _ = restarted;
+        let restarted = Arc::new(
+            crate::Server::new(crate::ServerOptions {
+                session_spec: Some(spec),
+                ..Default::default()
+            })
+            .expect("restarted server"),
+        );
+        let running = restarted.clone();
+        let restart_thread = thread::spawn(move || running.listen_and_serve());
+        let socket = restarted.options().socket_path.clone();
+        let deadline = std::time::Instant::now() + Duration::from_secs(2);
+        while !socket.exists() && std::time::Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(5));
+        }
+        let response = Client::new(ClientOptions {
+            socket_path: socket,
+            session: "default".into(),
+            autostart: false,
+            ..Default::default()
+        })
+        .request_without_autostart(Frame {
+            cmd: "daemon.status".into(),
+            ..Default::default()
+        })
+        .expect("reconnected client");
+        assert!(response.success);
+        restarted.stop();
+        assert!(restart_thread.join().unwrap().is_ok());
         let _ = std::fs::remove_dir_all(root);
     }
 

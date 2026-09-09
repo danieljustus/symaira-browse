@@ -6,7 +6,7 @@ use std::{
     fs,
     io::{Read, Write},
     path::{Path, PathBuf},
-    process::{Command, ExitStatus, Stdio},
+    process::{Child, Command, ExitStatus, Stdio},
     sync::mpsc,
     thread,
     time::Duration,
@@ -199,6 +199,7 @@ impl KeyProvisioner for SystemKeySources {
     }
 }
 
+#[derive(Debug)]
 struct CommandOutput {
     status: ExitStatus,
     stdout: Vec<u8>,
@@ -221,11 +222,17 @@ fn run_command(
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
     configure_process_tree(&mut command);
+    let deadline = std::time::Instant::now() + timeout;
     let mut child = {
         let mut last_error = None;
         let mut spawned = None;
         for _ in 0..3 {
-            match command.spawn() {
+            if deadline <= std::time::Instant::now() {
+                return Err(ProbeError::Failed(
+                    "command timed out before spawn".to_owned(),
+                ));
+            }
+            match spawn_command(&mut command) {
                 Ok(child) => {
                     spawned = Some(child);
                     break;
@@ -234,7 +241,13 @@ fn run_command(
                     // ETXTBSY is a transient Unix race when a freshly-created
                     // fixture executable is still being released by the filesystem.
                     last_error = Some(error);
-                    thread::sleep(Duration::from_millis(2));
+                    let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+                    if remaining.is_zero() {
+                        return Err(ProbeError::Failed(
+                            "command timed out before spawn retry".to_owned(),
+                        ));
+                    }
+                    thread::sleep(Duration::from_millis(2).min(remaining));
                 }
                 Err(error) => {
                     last_error = Some(error);
@@ -309,6 +322,23 @@ fn run_command(
         }
     };
     Ok(CommandOutput { status, stdout })
+}
+
+#[cfg(test)]
+thread_local! {
+    static INJECT_ETXTBSY: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+fn spawn_command(command: &mut Command) -> std::io::Result<Child> {
+    #[cfg(test)]
+    if INJECT_ETXTBSY.with(|remaining| {
+        let count = remaining.get();
+        remaining.set(count.saturating_sub(1));
+        count != 0
+    }) {
+        return Err(std::io::Error::from_raw_os_error(26));
+    }
+    command.spawn()
 }
 
 #[cfg(unix)]
@@ -464,4 +494,33 @@ fn hex_key(key: &[u8; 32]) -> String {
         encoded.push(HEX[(byte & 0x0f) as usize] as char);
     }
     encoded
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn etxtbsy_spawn_is_retried_within_command_deadline() {
+        INJECT_ETXTBSY.with(|remaining| remaining.set(1));
+        let output = run_command(
+            Path::new("/usr/bin/true"),
+            &[],
+            None,
+            Duration::from_secs(1),
+        )
+        .expect("transient ETXTBSY should be retried");
+        assert_eq!(output.status.code(), Some(0));
+    }
+
+    #[test]
+    fn etxtbsy_retry_does_not_extend_expired_deadline() {
+        INJECT_ETXTBSY.with(|remaining| remaining.set(1));
+        let error = run_command(Path::new("/usr/bin/true"), &[], None, Duration::ZERO)
+            .expect_err("expired deadline must fail before retry");
+        assert!(matches!(
+            error,
+            ProbeError::Failed(message) if message.contains("timed out before spawn")
+        ));
+    }
 }

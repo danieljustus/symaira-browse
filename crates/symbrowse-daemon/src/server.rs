@@ -65,11 +65,6 @@ impl OperationContext {
     fn cancel(&self) {
         self.cancelled.store(true, Ordering::Release);
     }
-
-    #[cfg(test)]
-    pub(crate) fn cancel_for_test(&self) {
-        self.cancel();
-    }
 }
 
 #[derive(Clone, Debug, Default, serde::Serialize)]
