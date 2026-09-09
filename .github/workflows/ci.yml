@@ -363,6 +363,7 @@ jobs:
           python -u scripts/rust-port/run_serial_cargo_tests.py
           --timeout 90
           --log-dir target/ci/native-daemon/platform-tests
+          --repeat 5
           -- -p symbrowse-daemon --test platform --all-features --locked
       - name: Run non-Windows daemon unit tests
         if: runner.os != 'Windows'

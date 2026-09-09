@@ -496,10 +496,20 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
                 let Ok(stream) = stream else {
                     return;
                 };
-                // Accepted streams stay nonblocking. Windows named pipes do
-                // not expose socket read deadlines, so the bounded line reader
-                // below turns WouldBlock into a finite read deadline.
-                serve_connection_parts(
+                // Re-wrap the owned server handle with Tokio's named-pipe
+                // registration. This reopens the handle for overlapped I/O;
+                // every bounded read/write is therefore cancellable by dropping
+                // its future, and the joined worker owns final handle close.
+                let Ok(handle) = std::os::windows::io::OwnedHandle::try_from(stream) else {
+                    return;
+                };
+                let Ok(stream) = interprocess::os::windows::named_pipe::tokio::PipeStream::<
+                    interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+                    interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+                >::try_from(handle) else {
+                    return;
+                };
+                serve_connection_windows(
                     stream,
                     handler.clone(),
                     options.clone(),
@@ -620,6 +630,103 @@ fn serve_connection(
     registry: Arc<crate::SessionRegistry>,
     dispatch_gate: Arc<std::sync::Mutex<()>>,
 ) {
+    serve_connection_parts(
+        stream,
+        handler,
+        options,
+        last_activity,
+        stopping,
+        started_at,
+        registry,
+        dispatch_gate,
+    );
+}
+
+#[cfg(windows)]
+struct OverlappedPipeStream {
+    runtime: tokio::runtime::Runtime,
+    stream: interprocess::os::windows::named_pipe::tokio::PipeStream<
+        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+    >,
+}
+
+#[cfg(windows)]
+impl OverlappedPipeStream {
+    fn new(
+        stream: interprocess::os::windows::named_pipe::tokio::PipeStream<
+            interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+            interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+        >,
+    ) -> io::Result<Self> {
+        Ok(Self {
+            runtime: tokio::runtime::Builder::new_current_thread()
+                .enable_io()
+                .enable_time()
+                .build()?,
+            stream,
+        })
+    }
+}
+
+#[cfg(windows)]
+impl io::Read for OverlappedPipeStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        use tokio::io::AsyncReadExt;
+        match self.runtime.block_on(tokio::time::timeout(
+            Duration::from_millis(10),
+            self.stream.read(buf),
+        )) {
+            Ok(result) => result,
+            // Dropping the timeout future cancels the overlapped operation;
+            // report readiness polling to the existing bounded frame reader.
+            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+        }
+    }
+}
+
+#[cfg(windows)]
+impl io::Write for OverlappedPipeStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        use tokio::io::AsyncWriteExt;
+        match self.runtime.block_on(tokio::time::timeout(
+            Duration::from_millis(10),
+            self.stream.write(buf),
+        )) {
+            Ok(result) => result,
+            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self.runtime.block_on(tokio::time::timeout(
+            Duration::from_millis(10),
+            self.stream.flush(),
+        )) {
+            Ok(result) => result,
+            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+        }
+    }
+}
+
+#[cfg(windows)]
+#[allow(clippy::too_many_arguments)]
+fn serve_connection_windows(
+    stream: interprocess::os::windows::named_pipe::tokio::PipeStream<
+        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+    >,
+    handler: DaemonHandler,
+    options: ServerOptions,
+    last_activity: Arc<AtomicI64>,
+    stopping: Arc<AtomicBool>,
+    started_at: i64,
+    registry: Arc<crate::SessionRegistry>,
+    dispatch_gate: Arc<std::sync::Mutex<()>>,
+) {
+    let Ok(stream) = OverlappedPipeStream::new(stream) else {
+        return;
+    };
     serve_connection_parts(
         stream,
         handler,

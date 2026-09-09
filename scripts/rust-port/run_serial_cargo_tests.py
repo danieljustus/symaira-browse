@@ -22,12 +22,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--timeout", type=float, required=True)
     parser.add_argument("--log-dir", type=Path, required=True)
+    parser.add_argument("--repeat", type=int, default=1)
     parser.add_argument("cargo_args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.cargo_args and args.cargo_args[0] == "--":
         args.cargo_args = args.cargo_args[1:]
     if not args.cargo_args:
         parser.error("cargo test arguments are required")
+    if args.repeat < 1:
+        parser.error("--repeat must be at least 1")
     args.log_dir.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "PYTHONUNBUFFERED": "1"}
 
@@ -47,11 +50,11 @@ def main() -> int:
         line[: -len(": test")].strip()
         for line in discovery.stdout.splitlines()
         if line.rstrip().endswith(": test")
-    ]
+    ] * args.repeat
     if not names:
         print("no tests discovered", file=sys.stderr)
         return 2
-    print(f"discovered {len(names)} tests", flush=True)
+    print(f"discovered {len(names)} test runs (repeat={args.repeat})", flush=True)
     for index, name in enumerate(names, start=1):
         safe = "".join(char if char.isalnum() or char in "._-" else "_" for char in name)
         stdout_path = args.log_dir / f"{index:03d}-{safe}.stdout"
@@ -82,7 +85,7 @@ def main() -> int:
         if result:
             print(f"FAILURE test={name} exit={result}", file=sys.stderr, flush=True)
             return result
-    print("all serial platform tests passed", flush=True)
+    print(f"all serial platform tests passed runs={len(names)}", flush=True)
     return 0
 
 

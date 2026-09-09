@@ -83,14 +83,17 @@ mod windows {
         let server_thread = thread::spawn(move || running.listen_and_serve());
 
         let mut stream = connect_when_server_ready(&endpoint);
+        eprintln!("phase=client-write-fragment");
         stream
             .write_all(br#"{"cmd":"daemon.ping"}"#)
             .expect("write first frame fragment");
         thread::sleep(Duration::from_millis(50));
+        eprintln!("phase=client-write-delimiter");
         stream.write_all(b"\n").expect("write frame delimiter");
         stream.flush().expect("flush frame");
 
         let mut response_line = String::new();
+        eprintln!("phase=client-read-response");
         BufReader::new(stream)
             .read_line(&mut response_line)
             .expect("read daemon response");
@@ -99,7 +102,9 @@ mod windows {
         assert_eq!(response["success"], true);
         assert_eq!(response["data"]["pong"], true);
 
+        eprintln!("phase=server-stop");
         server.stop();
+        eprintln!("phase=server-join");
         assert!(server_thread.join().expect("join Windows daemon").is_ok());
     }
 
@@ -128,6 +133,7 @@ mod windows {
         let server_thread = thread::spawn(move || running.listen_and_serve());
 
         let mut stream = connect_when_server_ready(&endpoint);
+        eprintln!("phase=client-write-fragment");
         stream
             .write_all(br#"{"cmd":"daemon.ping"}"#)
             .expect("write stalled frame fragment");
@@ -222,7 +228,9 @@ mod windows {
         assert!(handler_started.load(Ordering::Acquire));
 
         let stopped_at = Instant::now();
+        eprintln!("phase=server-stop-blocked-read");
         server.stop();
+        eprintln!("phase=server-join-blocked-read");
         let result = server_thread.join().expect("join shutdown daemon");
         assert!(result.is_ok(), "shutdown result = {result:?}");
         assert!(
@@ -235,6 +243,7 @@ mod windows {
 
         // The blocked connection was owned and closed by a joined worker; the
         // endpoint can be reclaimed by a fresh same-process server.
+        eprintln!("phase=client-drop-blocked");
         drop(blocked);
         let replacement = symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
             socket_path: endpoint,
