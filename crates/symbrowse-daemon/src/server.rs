@@ -435,11 +435,6 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
         .security_descriptor(Some(security))
         .create_duplex::<pipe_mode::Bytes>()
         .map_err(named_pipe_create_error)?;
-    // Keep the listener's native nonblocking mode explicit. The accepted
-    // instance inherits this mode on Windows; relying only on the builder
-    // flag allowed a platform/runtime combination to hand workers a blocking
-    // pipe, defeating the bounded fragmented-frame reader below.
-    listener.set_nonblocking(true).map_err(ServerError::Io)?;
     server
         .registry
         .ensure(&server.options.session)
@@ -628,6 +623,7 @@ fn serve_connection_parts<R, W>(
             &mut line,
             MAX_FRAME_BYTES,
             options.read_timeout,
+            &stopping,
         );
         #[cfg(not(windows))]
         let read_result = read_limited_line(&mut reader, &mut line, MAX_FRAME_BYTES);
@@ -818,11 +814,15 @@ fn read_limited_line_windows<R: io::Read>(
     output: &mut Vec<u8>,
     limit: usize,
     timeout: Duration,
+    stopping: &AtomicBool,
 ) -> io::Result<usize> {
     output.clear();
     let deadline = Instant::now() + timeout;
     let mut byte = [0_u8; 1];
     loop {
+        if stopping.load(Ordering::Acquire) {
+            return Ok(0);
+        }
         match reader.read(&mut byte) {
             Ok(0) => return Ok(output.len()),
             Ok(read) => {
