@@ -503,14 +503,8 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
                 let Ok(handle) = std::os::windows::io::OwnedHandle::try_from(stream) else {
                     return;
                 };
-                let Ok(stream) = interprocess::os::windows::named_pipe::tokio::PipeStream::<
-                    interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-                    interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-                >::try_from(handle) else {
-                    return;
-                };
                 serve_connection_windows(
-                    stream,
+                    handle,
                     handler.clone(),
                     options.clone(),
                     state.clone(),
@@ -653,19 +647,23 @@ struct OverlappedPipeStream {
 
 #[cfg(windows)]
 impl OverlappedPipeStream {
-    fn new(
-        stream: interprocess::os::windows::named_pipe::tokio::PipeStream<
-            interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-            interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-        >,
-    ) -> io::Result<Self> {
-        Ok(Self {
-            runtime: tokio::runtime::Builder::new_current_thread()
-                .enable_io()
-                .enable_time()
-                .build()?,
-            stream,
-        })
+    fn new(handle: std::os::windows::io::OwnedHandle) -> io::Result<Self> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_io()
+            .enable_time()
+            .build()?;
+        // Tokio's NamedPipe registration requires the reactor to be entered
+        // while the overlapped handle is wrapped. The handle remains owned by
+        // the resulting PipeStream on success (and by the error on failure).
+        let stream = {
+            let _entered = runtime.enter();
+            interprocess::os::windows::named_pipe::tokio::PipeStream::<
+                interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+                interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+            >::try_from(handle)
+            .map_err(|error| io::Error::other(error.to_string()))?
+        };
+        Ok(Self { runtime, stream })
     }
 }
 
@@ -712,10 +710,7 @@ impl io::Write for OverlappedPipeStream {
 #[cfg(windows)]
 #[allow(clippy::too_many_arguments)]
 fn serve_connection_windows(
-    stream: interprocess::os::windows::named_pipe::tokio::PipeStream<
-        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-    >,
+    handle: std::os::windows::io::OwnedHandle,
     handler: DaemonHandler,
     options: ServerOptions,
     last_activity: Arc<AtomicI64>,
@@ -724,7 +719,7 @@ fn serve_connection_windows(
     registry: Arc<crate::SessionRegistry>,
     dispatch_gate: Arc<std::sync::Mutex<()>>,
 ) {
-    let Ok(stream) = OverlappedPipeStream::new(stream) else {
+    let Ok(stream) = OverlappedPipeStream::new(handle) else {
         return;
     };
     serve_connection_parts(
