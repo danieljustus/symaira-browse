@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "status": "blocked_until_signed_dual_assets",
+  "default": "go",
+  "rows": [
+    {"request": "unset", "go": "valid", "rust": "any", "result": "go", "fallback": "none"},
+    {"request": "go", "go": "valid", "rust": "any", "result": "go", "fallback": "never"},
+    {"request": "rust", "go": "valid", "rust": "valid", "result": "rust", "fallback": "none"},
+    {"request": "rust", "go": "valid", "rust": "unavailable", "result": "go", "fallback": "availability_only"},
+    {"request": "rust", "go": "valid", "rust": "integrity_failure", "result": "block", "fallback": "never"},
+    {"request": "go", "go": "unavailable", "rust": "valid", "result": "block", "fallback": "never"},
+    {"request": "rust", "go": "unavailable", "rust": "unavailable", "result": "block", "fallback": "none"},
+    {"request": "auto", "go": "valid", "rust": "valid", "result": "block", "fallback": "none"}
+  ]
+}

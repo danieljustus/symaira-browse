@@ -1,0 +1,282 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+    "release": "v0.8.0"
+  },
+  "error_codes": [
+    {
+      "code": "auth",
+      "kind": "auth",
+      "exit": 3
+    },
+    {
+      "code": "config",
+      "kind": "config",
+      "exit": 9
+    },
+    {
+      "code": "conflict",
+      "kind": "conflict",
+      "exit": 6
+    },
+    {
+      "code": "daemon_unavailable",
+      "kind": "unavailable",
+      "exit": 1
+    },
+    {
+      "code": "flow_failed",
+      "kind": "internal",
+      "exit": 7
+    },
+    {
+      "code": "handoff_timeout",
+      "kind": "unavailable",
+      "exit": 1
+    },
+    {
+      "code": "internal",
+      "kind": "internal",
+      "exit": 7
+    },
+    {
+      "code": "invalid_args",
+      "kind": "validation",
+      "exit": 2
+    },
+    {
+      "code": "invalid_inspection",
+      "kind": "validation",
+      "exit": 2
+    },
+    {
+      "code": "invalid_session",
+      "kind": "validation",
+      "exit": 2
+    },
+    {
+      "code": "malformed_request",
+      "kind": "validation",
+      "exit": 2
+    },
+    {
+      "code": "no_input",
+      "kind": "validation",
+      "exit": 2
+    },
+    {
+      "code": "not_found",
+      "kind": "not_found",
+      "exit": 5
+    },
+    {
+      "code": "operation_failed",
+      "kind": "unavailable",
+      "exit": 1
+    },
+    {
+      "code": "operation_timeout",
+      "kind": "unavailable",
+      "exit": 1
+    },
+    {
+      "code": "peer_denied",
+      "kind": "permission",
+      "exit": 4
+    },
+    {
+      "code": "permission",
+      "kind": "permission",
+      "exit": 4
+    },
+    {
+      "code": "session_inactive",
+      "kind": "not_found",
+      "exit": 5
+    },
+    {
+      "code": "session_not_found",
+      "kind": "not_found",
+      "exit": 5
+    },
+    {
+      "code": "session_user_control",
+      "kind": "conflict",
+      "exit": 6
+    },
+    {
+      "code": "stale_ref",
+      "kind": "conflict",
+      "exit": 6
+    },
+    {
+      "code": "unavailable",
+      "kind": "unavailable",
+      "exit": 1
+    },
+    {
+      "code": "unknown_command",
+      "kind": "validation",
+      "exit": 2
+    },
+    {
+      "code": "unknown_ref",
+      "kind": "not_found",
+      "exit": 5
+    },
+    {
+      "code": "validation",
+      "kind": "validation",
+      "exit": 2
+    }
+  ],
+  "outputs": [
+    {
+      "name": "json-success",
+      "format": "json",
+      "output": "{\"success\":true,\"data\":{\"count\":2,\"result\":\"ok\"},\"warnings\":[{\"kind\":\"prompt_injection\",\"severity\":\"high\",\"message\":\"untrusted instruction\",\"ref\":\"@e7\",\"excerpt\":\"ignore previous\"}]}\n"
+    },
+    {
+      "name": "json-error",
+      "format": "json",
+      "output": "{\"success\":false,\"error\":{\"code\":\"stale_ref\",\"message\":\"element @e7 no longer exists\",\"hint\":\"run snapshot --diff\"}}\n"
+    },
+    {
+      "name": "json-hard-stop",
+      "format": "json",
+      "output": "{\"success\":false,\"error\":{\"code\":\"session_user_control\",\"message\":\"session is controlled by a human\",\"retryable\":false,\"requires_user_confirmation\":true,\"resume_hint\":\"request explicit confirmation\"}}\n"
+    },
+    {
+      "name": "text-nil-success",
+      "format": "text",
+      "output": "ok\n"
+    },
+    {
+      "name": "text-string",
+      "format": "text",
+      "output": "hello\n"
+    },
+    {
+      "name": "text-map",
+      "format": "text",
+      "output": "{\n  \"a\": 1,\n  \"b\": 2\n}\n"
+    },
+    {
+      "name": "text-error",
+      "format": "text",
+      "output": "something failed\n"
+    },
+    {
+      "name": "text-truncation",
+      "format": "text",
+      "output": "HEAD\n\n… [truncated: 90 of 18400 tokens] …\n\nFOOT\n\nfull output: symbrowse cache get out_000000000000 --range 40-120\n"
+    },
+    {
+      "name": "yaml-success",
+      "format": "yaml",
+      "output": "success: true\ndata:\n    \"n\": 42\n    url: https://example.com\nwarnings: []\nerror: null\n"
+    },
+    {
+      "name": "yaml-warning",
+      "format": "yaml",
+      "output": "success: true\ndata: ok\nwarnings:\n    - kind: prompt_injection\n      severity: high\n      message: untrusted instruction\n      ref: '@e7'\n      excerpt: ignore previous\nerror: null\n"
+    },
+    {
+      "name": "yaml-error",
+      "format": "yaml",
+      "output": "success: false\ndata: null\nwarnings: []\nerror:\n    code: stale_ref\n    message: element missing\n    hint: take a snapshot\n    details: {}\n    retryable: null\n    requiresuserconfirmation: null\n    resumehint: \"\"\n"
+    }
+  ],
+  "estimates": [
+    {
+      "name": "empty",
+      "input": "",
+      "expected": 0
+    },
+    {
+      "name": "short",
+      "input": "hi",
+      "expected": 1
+    },
+    {
+      "name": "ascii",
+      "input": "abcdefghijklmnop",
+      "expected": 4
+    },
+    {
+      "name": "unicode-runes",
+      "input": "äöüß🙂漢字",
+      "expected": 1
+    }
+  ],
+  "truncations": [
+    {
+      "name": "under-budget",
+      "input": "small output",
+      "max_tokens": 100,
+      "head": "small output",
+      "foot": "",
+      "tokens_returned": 3,
+      "tokens_total": 3,
+      "truncated": false
+    },
+    {
+      "name": "ascii-split",
+      "input": "0123456789abcdefghijklmnopqrstuv",
+      "max_tokens": 4,
+      "head": "01234567",
+      "foot": "opqrstuv",
+      "tokens_returned": 4,
+      "tokens_total": 8,
+      "truncated": true
+    },
+    {
+      "name": "unicode-split",
+      "input": "äöüß🙂漢字abcdefghi",
+      "max_tokens": 2,
+      "head": "äöüß",
+      "foot": "fghi",
+      "tokens_returned": 2,
+      "tokens_total": 4,
+      "truncated": true
+    }
+  ],
+  "line_ranges": [
+    {
+      "name": "middle",
+      "input": "one\ntwo\nthree\nfour",
+      "start": 2,
+      "end": 3,
+      "output": "two\nthree"
+    },
+    {
+      "name": "all-defaults",
+      "input": "one\ntwo\nthree\nfour",
+      "start": 0,
+      "end": 0,
+      "output": "one\ntwo\nthree\nfour"
+    },
+    {
+      "name": "clamped",
+      "input": "one\ntwo\nthree\nfour",
+      "start": 3,
+      "end": 99,
+      "output": "three\nfour"
+    },
+    {
+      "name": "past-end",
+      "input": "one\ntwo",
+      "start": 9,
+      "end": 10,
+      "output": ""
+    }
+  ],
+  "cache": {
+    "id": "out_060504030201",
+    "content": "full content",
+    "metadata": "{\"id\":\"out_060504030201\",\"created_at\":\"2099-01-02T03:04:05.006Z\",\"expires_at\":\"2099-01-02T04:04:05.006Z\"}",
+    "content_mode": 384,
+    "meta_mode": 384
+  }
+}

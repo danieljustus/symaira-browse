@@ -1,0 +1,5 @@
+name: "unterminated
+version: 1
+domains: [example.test]
+steps:
+  - fill: {label: Password, value: token=seed}

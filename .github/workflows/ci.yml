@@ -26,6 +26,7 @@ permissions:
 
 env:
   GO_VERSION: '1.26.6'
+  RUST_VERSION: '1.98.0'
   CGO_ENABLED: '0'
 
 jobs:
@@ -42,10 +43,14 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       - name: Verify approved A3 brand assets
         run: python3 scripts/test_brand_assets.py
+      - name: Set up Rust
+        run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component rustfmt,clippy
       - name: Check formatting
         run: make fmt-check
       - name: Lint
         run: make lint
+      - name: Check Rust formatting and lint
+        run: make rust-lint
 
   pr-test:
     name: PR / test (ubuntu)
@@ -54,14 +59,52 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: Set up Rust
+        run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal
       - name: Build
         run: make build
       - name: Test
         run: make test
+      - name: Build and test Rust workspace
+        run: cargo build --workspace --locked && cargo test --workspace --all-features --locked
+      - name: Verify Go/Rust contracts
+        run: make rust-version-contract rust-core-contract rust-policy-contract rust-state-contract rust-mcp-contract rust-engine-contract rust-injection-contract rust-fetch-contract rust-session-contract rust-workflow-slice rust-safari-slice rust-browser-contract rust-daemon-contract rust-cdp-spike
+      - name: Audit Rust dependencies and licenses
+        run: make rust-security
+
+  rust016-benchmark-evidence:
+    name: RUST-016 / benchmark evidence (allowed to fail)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Set up Rust
+        run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal
+      - name: Build paired binaries
+        run: |
+          set -euo pipefail
+          git worktree add --detach /tmp/symbrowse-go 652453d1595fc302bd69c328e7da8a21dbee28b9
+          trap 'git worktree remove /tmp/symbrowse-go >/dev/null 2>&1 || true' EXIT
+          (cd /tmp/symbrowse-go && GOTOOLCHAIN=go${GO_VERSION} CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=v0.8.0" -o "$GITHUB_WORKSPACE/symbrowse-go" ./cmd/symbrowse)
+          cargo build --release -p symbrowse-cli --bin symbrowse --locked
+      - name: Run and compare raw evidence
+        run: |
+          python3 port/bench/run.py --go ./symbrowse-go --rust target/release/symbrowse --runs 30 --output port/results/rust016-benchmark.json
+          python3 port/bench/compare.py docs/rust-port/baseline.json port/results/rust016-benchmark.json
 
   vulnerability-scan:
     name: PR / Go vulnerability scan
@@ -222,16 +265,87 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: Set up Rust
+        run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component rustfmt,clippy
       - name: Vet
         run: go vet ./...
       - name: Build
         run: go build ./...
       - name: Test
         run: go test ./...
+      - name: Rust build, lint and test
+        run: cargo build --workspace --locked && cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && cargo test --workspace --all-features --locked
+      - name: Rust MCP stdio contract
+        run: make rust-mcp-contract
+      - name: Go/Rust version contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/port
+          ext=""
+          if [ "${RUNNER_OS}" = "Windows" ]; then ext=".exe"; fi
+          root="${PWD}"
+          worktree=".worktrees/rust-oracle-ci"
+          git worktree add --detach "${worktree}" 652453d1595fc302bd69c328e7da8a21dbee28b9
+          trap 'git worktree remove "${worktree}" >/dev/null 2>&1 || true' EXIT
+          test -z "$(git -C "${worktree}" status --porcelain --untracked-files=all)"
+          (cd "${worktree}" && go build -trimpath -ldflags "-s -w -X main.version=v0.8.0" -o "${root}/target/port/symbrowse-go${ext}" ./cmd/symbrowse)
+          test -z "$(git -C "${worktree}" status --porcelain --untracked-files=all)"
+          SYMBROWSE_VERSION=v0.8.0 cargo build -p symbrowse-cli --bin symbrowse --locked
+          go run ./scripts/rust-port/cmd/sourcecheck \
+            --oracle 652453d1595fc302bd69c328e7da8a21dbee28b9 \
+            --paths internal/output/output.go,internal/output/human_renderers.go,internal/output/codes.go,internal/budget/budget.go,internal/config/config.go,internal/config/show.go
+          go run ./scripts/rust-port/cmd/coregen --check --output testdata/port/core/output-budget-contract.json
+          go run ./scripts/rust-port/cmd/configgen --check --output testdata/port/core/config-contract.json
+          go run ./scripts/rust-port/cmd/diffharness \
+            --left "./target/port/symbrowse-go${ext}" --right "./target/port/symbrowse-go${ext}" \
+            --cases testdata/port/bootstrap/cases.json \
+            --expect-oracle-commit 652453d1595fc302bd69c328e7da8a21dbee28b9 \
+            --expect-oracle-release v0.8.0 --verify-left-go-revision
+          go run ./scripts/rust-port/cmd/diffharness \
+            --left "./target/port/symbrowse-go${ext}" --right "./target/debug/symbrowse${ext}" \
+            --cases testdata/port/bootstrap/cases.json --stage version \
+            --expect-oracle-commit 652453d1595fc302bd69c328e7da8a21dbee28b9 \
+            --expect-oracle-release v0.8.0 --verify-left-go-revision
+          go run ./scripts/rust-port/cmd/diffharness \
+            --left "./target/port/symbrowse-go${ext}" --right "./target/debug/symbrowse${ext}" \
+            --cases testdata/port/bootstrap/cases.json --stage config-output \
+            --expect-oracle-commit 652453d1595fc302bd69c328e7da8a21dbee28b9 \
+            --expect-oracle-release v0.8.0 --verify-left-go-revision
+          go run ./scripts/rust-port/cmd/portbench \
+            --binary "./target/port/symbrowse-go${ext}" \
+            --workload version-json --runs 10 --output "${RUNNER_TEMP}/symbrowse-go-baseline.json"
+
+  daemon-native:
+    name: Rust daemon native (${{ matrix.os }})
+    if: github.event_name == 'pull_request' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Set up Rust
+        run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component rustfmt,clippy
+      - name: Run installed-binary daemon contract
+        run: make rust-daemon-contract
 
   codeql:
     name: CodeQL / analysis

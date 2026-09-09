@@ -1,0 +1,232 @@
+#![deny(unsafe_code)]
+
+#[cfg(windows)]
+mod windows {
+    // The production handler ABI returns DaemonError by value. These test
+    // handlers exercise that public ABI and do not own its error layout.
+    #![allow(clippy::result_large_err)]
+
+    use std::path::Path;
+
+    use symbrowse_daemon::{ClientOptions, default_socket_path, validate_session};
+
+    fn connect_when_server_ready(
+        endpoint: &Path,
+    ) -> interprocess::os::windows::named_pipe::DuplexPipeStream<
+        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+    > {
+        use interprocess::os::windows::named_pipe::{DuplexPipeStream, pipe_mode};
+        use std::{
+            io::ErrorKind,
+            thread,
+            time::{Duration, Instant},
+        };
+
+        let deadline = Instant::now() + Duration::from_secs(2);
+        let mut last_error = None;
+        while Instant::now() < deadline {
+            match DuplexPipeStream::<pipe_mode::Bytes>::connect_by_path_with_wait_mode(
+                endpoint.to_string_lossy().as_ref(),
+                interprocess::ConnectWaitMode::Timeout(Duration::from_millis(50)),
+            ) {
+                Ok(stream) => return stream,
+                Err(error)
+                    if matches!(error.kind(), ErrorKind::NotFound | ErrorKind::WouldBlock) =>
+                {
+                    last_error = Some(error);
+                    thread::sleep(Duration::from_millis(10));
+                }
+                Err(error) => panic!("connect to Windows daemon failed: {error}"),
+            }
+        }
+        panic!("Windows daemon did not publish its pipe: {last_error:?}");
+    }
+
+    #[test]
+    fn default_endpoint_is_a_private_named_pipe_path() {
+        let path = default_socket_path("portable");
+        assert_eq!(path, Path::new(r"\\.\pipe\symbrowse-portable"));
+        assert!(validate_session("portable"));
+    }
+
+    #[test]
+    fn client_defaults_keep_named_pipe_transport_bounded() {
+        let options = ClientOptions::default();
+        assert!(!options.read_timeout.is_zero());
+        assert!(!options.startup_timeout.is_zero());
+    }
+
+    #[test]
+    fn delayed_fragmented_frame_is_served_after_accept() {
+        use std::{
+            io::{BufRead, BufReader, Write},
+            sync::Arc,
+            thread,
+            time::Duration,
+        };
+
+        let session = format!("windows-frame-{}", std::process::id());
+        let endpoint = default_socket_path(&session);
+        let server = Arc::new(
+            symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+                socket_path: endpoint.clone(),
+                session: session.clone(),
+                idle_timeout: None,
+                handler: Some(Arc::new(|_, _| {
+                    Ok((Some(serde_json::json!({"pong": true})), Vec::new()))
+                })),
+                ..Default::default()
+            })
+            .expect("construct Windows daemon"),
+        );
+        let running = server.clone();
+        let server_thread = thread::spawn(move || running.listen_and_serve());
+
+        let mut stream = connect_when_server_ready(&endpoint);
+        stream
+            .write_all(br#"{"cmd":"daemon.ping"}"#)
+            .expect("write first frame fragment");
+        thread::sleep(Duration::from_millis(50));
+        stream.write_all(b"\n").expect("write frame delimiter");
+        stream.flush().expect("flush frame");
+
+        let mut response_line = String::new();
+        BufReader::new(stream)
+            .read_line(&mut response_line)
+            .expect("read daemon response");
+        let response: serde_json::Value =
+            serde_json::from_str(&response_line).expect("decode daemon response");
+        assert_eq!(response["success"], true);
+        assert_eq!(response["data"]["pong"], true);
+
+        server.stop();
+        assert!(server_thread.join().expect("join Windows daemon").is_ok());
+    }
+
+    #[test]
+    fn stalled_fragmented_frame_times_out_and_closes_connection() {
+        use std::{
+            io::{ErrorKind, Read, Write},
+            sync::Arc,
+            thread,
+            time::{Duration, Instant},
+        };
+
+        let session = format!("windows-stalled-{}", std::process::id());
+        let endpoint = default_socket_path(&session);
+        let server = Arc::new(
+            symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+                socket_path: endpoint.clone(),
+                session,
+                idle_timeout: None,
+                read_timeout: Duration::from_millis(50),
+                ..Default::default()
+            })
+            .expect("construct Windows daemon"),
+        );
+        let running = server.clone();
+        let server_thread = thread::spawn(move || running.listen_and_serve());
+
+        let mut stream = connect_when_server_ready(&endpoint);
+        stream
+            .write_all(br#"{"cmd":"daemon.ping"}"#)
+            .expect("write stalled frame fragment");
+        stream
+            .set_nonblocking(true)
+            .expect("make client nonblocking");
+
+        let deadline = Instant::now() + Duration::from_secs(1);
+        let mut closed = false;
+        let mut byte = [0_u8; 1];
+        while Instant::now() < deadline {
+            match stream.read(&mut byte) {
+                Ok(0) => {
+                    closed = true;
+                    break;
+                }
+                Ok(_) => {}
+                Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(_) => {
+                    closed = true;
+                    break;
+                }
+            }
+        }
+        assert!(
+            closed,
+            "stalled named-pipe frame was not cleaned up by its deadline"
+        );
+
+        server.stop();
+        assert!(server_thread.join().expect("join Windows daemon").is_ok());
+    }
+
+    #[test]
+    fn concurrent_starts_have_one_owner_and_recover_after_stop() {
+        use std::{sync::Arc, thread, time::Duration};
+
+        let session = format!("windows-race-{}", std::process::id());
+        let endpoint = default_socket_path(&session);
+        let servers = (0..8)
+            .map(|_| {
+                Arc::new(
+                    symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+                        socket_path: endpoint.clone(),
+                        session: session.clone(),
+                        idle_timeout: None,
+                        handler: Some(Arc::new(|_, _| {
+                            Ok((Some(serde_json::json!({"pong": true})), Vec::new()))
+                        })),
+                        ..Default::default()
+                    })
+                    .expect("construct concurrent Windows daemon"),
+                )
+            })
+            .collect::<Vec<_>>();
+        let threads = servers
+            .iter()
+            .cloned()
+            .map(|server| thread::spawn(move || server.listen_and_serve()))
+            .collect::<Vec<_>>();
+        drop(connect_when_server_ready(&endpoint));
+        for server in &servers {
+            server.stop();
+        }
+        let results = threads
+            .into_iter()
+            .map(|thread| thread.join().expect("join concurrent daemon"))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            results.iter().filter(|result| result.is_ok()).count(),
+            1,
+            "exactly one concurrent starter owns the endpoint: {results:?}"
+        );
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(
+                    result,
+                    Err(symbrowse_daemon::ServerError::AlreadyRunning)
+                ))
+                .count(),
+            7
+        );
+
+        // The first pipe instance is released with the owner process, so a
+        // fresh start can reclaim the same endpoint after the previous owner stops.
+        let replacement = symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+            socket_path: endpoint,
+            session,
+            idle_timeout: Some(Duration::from_millis(1)),
+            ..Default::default()
+        })
+        .expect("construct replacement Windows daemon");
+        let result = replacement.listen_and_serve();
+        assert!(
+            result.is_ok(),
+            "released endpoint was not recoverable: {result:?}"
+        );
+    }
+}

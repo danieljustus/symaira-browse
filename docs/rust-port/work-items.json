@@ -1,0 +1,431 @@
+{
+  "schema_version": 1,
+  "items": [
+    {
+      "id": "RUST-001",
+      "title": "Neutral Go-oracle harness and paired baseline",
+      "depends_on": [],
+      "contracts": [
+        "CLI-001",
+        "CLI-002",
+        "CLI-003",
+        "CLI-004",
+        "CLI-005",
+        "CLI-006",
+        "OUT-001",
+        "OUT-002",
+        "OUT-003",
+        "OUT-004",
+        "OUT-005",
+        "OUT-006",
+        "PERF-001",
+        "PERF-002",
+        "PERF-003",
+        "PERF-004"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "python3 docs/rust-port/validate.py",
+        "make differential-go-selftest",
+        "make port-benchmark"
+      ],
+      "stop_rule": "No Rust production crate until self-equality and reproducible process/file metrics pass."
+    },
+    {
+      "id": "RUST-002",
+      "title": "Pinned Rust workspace and protocol/version slice",
+      "depends_on": [
+        "RUST-001"
+      ],
+      "contracts": [
+        "OUT-001"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "make rust-lint",
+        "make rust-test",
+        "make rust-version-contract"
+      ],
+      "stop_rule": "Stop if exact version JSON requires changing the public handshake."
+    },
+    {
+      "id": "RUST-003",
+      "title": "Configuration, output and error core",
+      "depends_on": [
+        "RUST-002"
+      ],
+      "contracts": [
+        "CFG-001",
+        "CFG-002",
+        "CFG-003",
+        "CFG-004",
+        "CFG-005",
+        "OUT-002",
+        "OUT-003",
+        "OUT-004",
+        "OUT-005",
+        "OUT-006"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "make port-fixture-source-check",
+        "make rust-core-contract",
+        "make rust-lint",
+        "make rust-test"
+      ],
+      "stop_rule": "No schema bump or accepted difference merely because framework defaults differ."
+    },
+    {
+      "id": "RUST-004",
+      "title": "State store and deterministic policy/security core",
+      "depends_on": [
+        "RUST-002",
+        "RUST-003"
+      ],
+      "contracts": [
+        "STATE-001",
+        "STATE-002",
+        "STATE-003",
+        "STATE-004",
+        "STATE-005",
+        "SEC-001",
+        "SEC-002",
+        "SEC-005",
+        "SEC-006"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "make rust-policy-contract",
+        "make rust-state-contract",
+        "make rust-lint",
+        "make rust-security",
+        "cargo clippy -p symbrowse-core --all-targets --all-features --target x86_64-pc-windows-msvc --locked -- -D warnings"
+      ],
+      "stop_rule": "Stop on state incompatibility, secret disclosure, policy weakening or non-atomic destructive writes.",
+      "acceptance": [
+        "make rust-state-contract",
+        "make rust-policy-contract",
+        "make rust-injection-contract",
+        "make rust-lint",
+        "make rust-security"
+      ]
+    },
+    {
+      "id": "RUST-005",
+      "title": "MCP stdio vertical slice",
+      "depends_on": [
+        "RUST-002",
+        "RUST-003"
+      ],
+      "contracts": [
+        "MCP-001",
+        "MCP-002",
+        "MCP-003",
+        "MCP-004",
+        "MCP-005",
+        "MCP-007",
+        "MCP-008"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "make rust-mcp-contract",
+        "make rust-lint",
+        "cargo clippy -p symbrowse-mcp --all-targets --all-features --target x86_64-pc-windows-msvc --locked -- -D warnings"
+      ],
+      "stop_rule": "Use an owned raw adapter if rmcp cannot preserve negotiation, tool errors or stdout purity; do not alter wire behavior.",
+      "acceptance": [
+        "make rust-mcp-contract",
+        "make rust-lint",
+        "make rust-test"
+      ]
+    },
+    {
+      "id": "RUST-006",
+      "title": "Daemon IPC, lifecycle, state CLI and redaction",
+      "depends_on": [
+        "RUST-002",
+        "RUST-003",
+        "RUST-004"
+      ],
+      "contracts": [
+        "DMN-001",
+        "DMN-002",
+        "DMN-003",
+        "DMN-004",
+        "DMN-005",
+        "DMN-007",
+        "DMN-008",
+        "MCP-006"
+      ],
+      "status": "in_progress",
+      "acceptance_commands": [
+        "cargo nextest run -p symbrowse-daemon",
+        "python3 port/harness/run.py --suite daemon",
+        "python3 port/harness/run.py --suite daemon-races --repeat 50"
+      ],
+      "stop_rule": "Do not proceed while a concurrent starter can unlink a live socket or peer validation is weaker than Go.",
+      "acceptance": [
+        "make rust-daemon-contract",
+        "make rust-lint",
+        "make rust-test",
+        "cargo clippy --workspace --all-targets --all-features --target x86_64-pc-windows-msvc --locked -- -D warnings"
+      ]
+    },
+    {
+      "id": "RUST-007",
+      "title": "Honest HTTP and fetch-control slice",
+      "depends_on": [
+        "RUST-003",
+        "RUST-004",
+        "RUST-006"
+      ],
+      "contracts": [
+        "FETCH-001",
+        "FETCH-003",
+        "FETCH-004",
+        "FETCH-005",
+        "FETCH-009",
+        "FETCH-010"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "cargo nextest run -p symbrowse-fetch",
+        "python3 port/harness/run.py --suite fetch-control"
+      ],
+      "stop_rule": "No public-Internet oracle; every redirect hop remains policy checked."
+    },
+    {
+      "id": "RUST-008",
+      "title": "Static DOM, rendering, relevance, cache and recovery",
+      "depends_on": [
+        "RUST-007"
+      ],
+      "contracts": [
+        "FETCH-006",
+        "FETCH-007",
+        "FETCH-008"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "cargo nextest run -p symbrowse-fetch",
+        "python3 port/harness/run.py --suite fetch-render --comparison bytes"
+      ],
+      "stop_rule": "Do not select a renderer until the complete corpus passes; unexplained byte differences are not normalizable."
+    },
+    {
+      "id": "RUST-009",
+      "title": "Legacy browser-profile transport decision",
+      "depends_on": [
+        "RUST-007"
+      ],
+      "contracts": [
+        "FETCH-002"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "cargo nextest run -p symbrowse-fetch fingerprint",
+        "python3 port/harness/run.py --suite fetch-fingerprints --native-targets"
+      ],
+      "stop_rule": "Do not replace compat until an implementation reproduces the pinned wire fixture without an unacceptable runtime dependency; retain the Go sidecar in the meantime.",
+      "decision": "complete: wreq 0.16.1/wreq-util 0.2.0 failed six-profile wire parity and dependency policy; preserve Go/AzureTLS exclusively as the explicitly named compat transport"
+    },
+    {
+      "id": "RUST-010",
+      "title": "Protocol-neutral engine, stable refs and file guards",
+      "depends_on": [
+        "RUST-002",
+        "RUST-003"
+      ],
+      "contracts": [
+        "ENG-001",
+        "ENG-003",
+        "ENG-004",
+        "SEC-003",
+        "SEC-004"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "cargo nextest run -p symbrowse-engine",
+        "python3 port/harness/run.py --suite engine-neutral",
+        "cargo +nightly miri test -p symbrowse-engine"
+      ],
+      "stop_rule": "Stable refs, tombstones and snapshot diffs must match before trusting browser adapters.",
+      "acceptance": [
+        "make rust-engine-contract",
+        "cargo clippy -p symbrowse-engine --all-targets --all-features --locked -- -D warnings"
+      ]
+    },
+    {
+      "id": "RUST-011",
+      "title": "Chrome CDP feasibility spike and launch/attach",
+      "depends_on": [
+        "RUST-010"
+      ],
+      "contracts": [
+        "ENG-002"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "cargo nextest run -p symbrowse-engine-chrome",
+        "SYMBROWSE_E2E=1 SYMBROWSE_HEADLESS=1 python3 port/harness/run.py --suite chrome-spike"
+      ],
+      "stop_rule": "Stop if launch/attach and raw commands/events require a broad permanent fork; compare direct generated CDP first.",
+      "acceptance": [
+        "make rust-cdp-spike",
+        "cargo check -p symbrowse-engine-chrome --all-targets --target x86_64-pc-windows-msvc --locked"
+      ]
+    },
+    {
+      "id": "RUST-012",
+      "title": "Chrome interactions, frames, network and artifacts",
+      "depends_on": [
+        "RUST-011"
+      ],
+      "contracts": [
+        "ENG-005",
+        "ENG-006",
+        "ENG-007"
+      ],
+      "status": "in_progress",
+      "acceptance_commands": [
+        "cargo nextest run -p symbrowse-engine-chrome --all-features",
+        "SYMBROWSE_E2E=1 SYMBROWSE_HEADLESS=1 python3 port/harness/run.py --suite chrome-full"
+      ],
+      "stop_rule": "No reported capability without an executable parity case; unsupported operations fail explicitly."
+    },
+    {
+      "id": "RUST-013",
+      "title": "Safari attach and BiDi adapters",
+      "depends_on": [
+        "RUST-010"
+      ],
+      "contracts": [
+        "ENG-008"
+      ],
+      "status": "in_progress",
+      "acceptance_commands": [
+        "cargo nextest run -p symbrowse-engine-safari --target aarch64-apple-darwin",
+        "python3 port/harness/run.py --suite safari --native macos"
+      ],
+      "stop_rule": "Keep Safari cfg-gated; stop if the port adds a privilege or installation contract."
+    },
+    {
+      "id": "RUST-014",
+      "title": "Flows, sessions, OOB, auth and settings",
+      "depends_on": [
+        "RUST-004",
+        "RUST-006",
+        "RUST-008",
+        "RUST-012",
+        "RUST-013"
+      ],
+      "contracts": [
+        "FLOW-001",
+        "FLOW-002",
+        "FLOW-003",
+        "FLOW-004",
+        "SES-001",
+        "SES-002",
+        "SES-003",
+        "SES-004",
+        "SES-005",
+        "SES-006",
+        "STATE-006"
+      ],
+      "status": "complete",
+      "acceptance_commands": [
+        "cargo nextest run --workspace",
+        "python3 port/harness/run.py --suite workflows"
+      ],
+      "stop_rule": "Human-control stops, confirmations, risks and secret handling may not be weakened; do not remove public Go formflow while any released consumer depends on it."
+    },
+    {
+      "id": "RUST-017",
+      "title": "Explicit multi-browser and compatibility transport boundary",
+      "depends_on": [
+        "RUST-007",
+        "RUST-009",
+        "RUST-011",
+        "RUST-012",
+        "RUST-013"
+      ],
+      "contracts": [
+        "CFG-006",
+        "FETCH-011",
+        "ENG-009",
+        "ENG-010"
+      ],
+      "status": "blocked",
+      "acceptance_commands": [
+        "cargo nextest run -p symbrowse-engine-chrome -p symbrowse-engine-safari -p symbrowse-engine-firefox",
+        "python3 port/harness/run.py --suite browser-transport --native-targets",
+        "python3 port/harness/run.py --suite compat-sidecar"
+      ],
+      "stop_rule": "Do not advertise Chrome, Safari or Firefox until its own native gate passes; do not silently substitute another engine, static mode or compat."
+    },
+    {
+      "id": "RUST-015",
+      "title": "Fuzzing, mutation, dependency and unsafe hardening",
+      "depends_on": [
+        "RUST-005",
+        "RUST-008",
+        "RUST-009",
+        "RUST-012",
+        "RUST-013",
+        "RUST-014",
+        "RUST-017"
+      ],
+      "contracts": [
+        "SEC-001",
+        "SEC-003",
+        "SEC-005",
+        "MCP-006",
+        "MCP-008",
+        "DMN-002",
+        "STATE-002",
+        "DMN-006",
+        "SEC-007"
+      ],
+      "status": "blocked",
+      "acceptance_commands": [
+        "cargo fmt --all --check",
+        "cargo check --workspace --all-targets --all-features",
+        "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+        "cargo nextest run --workspace --all-features",
+        "cargo test --workspace --doc --all-features",
+        "cargo hack check --workspace --each-feature --no-dev-deps",
+        "cargo +nightly miri test --workspace",
+        "cargo audit",
+        "cargo deny check",
+        "cargo geiger --all-features"
+      ],
+      "stop_rule": "No owned unsafe code, untriaged advisory/license violation or unfuzzed untrusted parser reaches cutover."
+    },
+    {
+      "id": "RUST-016",
+      "title": "Native release, rollback and measured cutover",
+      "depends_on": [
+        "RUST-015"
+      ],
+      "contracts": [
+        "REL-001",
+        "REL-002",
+        "REL-003",
+        "REL-004",
+        "REL-005",
+        "REL-006",
+        "PERF-001",
+        "PERF-002",
+        "PERF-003",
+        "PERF-004"
+      ],
+      "status": "blocked",
+      "acceptance_commands": [
+        "python3 port/harness/run.py --suite all --native-targets",
+        "python3 port/release/verify.py --oracle-tag v0.8.0 --candidate dist/",
+        "python3 port/bench/compare.py docs/rust-port/baseline.json port/results/rust-release.json"
+      ],
+      "stop_rule": "Cut over only with every contract green, verified rollback, native passes and 20% size-or-RSS gain with <=10% p95 regression."
+    }
+  ]
+}
