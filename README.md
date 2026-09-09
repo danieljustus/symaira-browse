@@ -1,5 +1,7 @@
 # Symaira Browse
 
+> **Accepted product direction — implementation pending:** Browse remains actively developed. Its accepted target is an optional Brain web module with isolated sessions/workers and direct access for non-agent clients such as Desktop. This repository and symbrowse CLI/MCP remain operational until a tested source/release transition; no replacement command is implied by this note. See [PB-2026-09-09](docs/product-boundaries.md).
+
 [![CI](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml/badge.svg)](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/danieljustus/symaira-browse)](https://github.com/danieljustus/symaira-browse/releases/latest)
 [![Coverage](https://img.shields.io/badge/coverage-gated-blue)](https://github.com/danieljustus/symaira-browse/actions/workflows/ci.yml)
