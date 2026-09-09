@@ -2,13 +2,13 @@ use crate::{
     DaemonError, Frame, MAX_FRAME_BYTES, Response, Warning, codes, decode_frame, error_response,
     success_response,
 };
-#[cfg(any(unix, windows))]
+#[cfg(unix)]
 use fs2::FileExt;
 use serde_json::Value;
 use serde_json::json;
 #[cfg(unix)]
 use std::fs;
-#[cfg(any(unix, windows))]
+#[cfg(unix)]
 use std::fs::{File, OpenOptions};
 #[cfg(not(windows))]
 use std::io::BufRead;
@@ -420,11 +420,10 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
     };
     use widestring::u16cstr;
 
-    // A named pipe permits multiple server instances with the same name. Keep
-    // the daemon's single-owner contract with a crash-safe OS file lock.
-    let lock_path =
-        std::env::temp_dir().join(format!("symbrowse-{}.sock.lock", server.options.session));
-    let _lock = acquire_lock(&lock_path)?;
+    // `FILE_FLAG_FIRST_PIPE_INSTANCE`, used by interprocess for the initial
+    // listener instance, is the endpoint ownership primitive on Windows. A
+    // separate filesystem lock is not equivalent to the configured pipe path
+    // and can obscure its native duplicate-owner error.
     let security =
         SecurityDescriptor::deserialize(u16cstr!("D:P(A;;GA;;;OW)")).map_err(ServerError::Io)?;
     let path = server.options.socket_path.to_string_lossy();
@@ -435,8 +434,7 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
         .nonblocking(true)
         .security_descriptor(Some(security))
         .create_duplex::<pipe_mode::Bytes>()
-        .map_err(ServerError::Io)?;
-    listener.set_nonblocking(true).map_err(ServerError::Io)?;
+        .map_err(named_pipe_create_error)?;
     server
         .registry
         .ensure(&server.options.session)
@@ -472,7 +470,7 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
                 // not expose socket read deadlines, so the bounded line reader
                 // below turns WouldBlock into a finite read deadline.
                 let (reader, writer) = stream.split();
-                let _ = serve_connection_parts(
+                serve_connection_parts(
                     reader,
                     writer,
                     handler.clone(),
@@ -522,6 +520,19 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
     }
     server.registry.clear();
     Ok(())
+}
+#[cfg(windows)]
+fn named_pipe_create_error(error: io::Error) -> ServerError {
+    use windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
+
+    // interprocess uses FILE_FLAG_FIRST_PIPE_INSTANCE for the first server
+    // instance. Windows reports contention as ERROR_ACCESS_DENIED rather than
+    // the advisory-lock WouldBlock result used by Unix socket startup.
+    if error.raw_os_error() == Some(ERROR_ACCESS_DENIED as i32) {
+        ServerError::AlreadyRunning
+    } else {
+        ServerError::Io(error)
+    }
 }
 #[cfg(all(
     unix,
@@ -836,7 +847,7 @@ fn read_limited_line_windows<R: io::Read>(
     }
 }
 
-#[cfg(any(unix, windows))]
+#[cfg(unix)]
 fn acquire_lock(path: &Path) -> Result<File, ServerError> {
     let file = {
         #[cfg(unix)]
@@ -1111,6 +1122,16 @@ mod tests {
             socket_path("/tmp/run", "x").unwrap(),
             PathBuf::from("/tmp/run/x.sock")
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn first_pipe_instance_contention_is_already_running() {
+        let error = io::Error::from_raw_os_error(5); // ERROR_ACCESS_DENIED
+        assert!(matches!(
+            named_pipe_create_error(error),
+            ServerError::AlreadyRunning
+        ));
     }
 
     #[cfg(unix)]

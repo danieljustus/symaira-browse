@@ -2,6 +2,10 @@
 
 #[cfg(windows)]
 mod windows {
+    // The production handler ABI returns DaemonError by value. These test
+    // handlers exercise that public ABI and do not own its error layout.
+    #![allow(clippy::result_large_err)]
+
     use std::path::Path;
 
     use symbrowse_daemon::{ClientOptions, default_socket_path, validate_session};
