@@ -1,5 +1,9 @@
 # Symaira Browse Agent Rules
 
+## Current product contract
+
+[PB-2026-09-09](docs/product-boundaries.md) assigns Browse to Brain as an optional, actively developed web module. This repository and its existing CLI/MCP remain operational until the source/release transfer is verified. Preserve engine/session boundaries, isolated workers, direct non-agent access (including Desktop clipping), and compatibility. Brain's context features must work without a browser. A harness having browser tools is not grounds for retiring Browse. Missing required security controls fail closed; optional capability absence is reported visibly.
+
 These repository rules are binding and apply to every change. Where a rule needs
 more detail, the per-topic documents under [docs/](docs) are the reference.
 
