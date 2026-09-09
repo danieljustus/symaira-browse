@@ -509,18 +509,19 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
             }
             Err(error) => {
                 drop(sender);
-                for worker in workers {
-                    let _ = worker.join();
-                }
+                // Do not join workers here: a native named-pipe read may not
+                // unblock when its peer disappears. The daemon process owns
+                // these workers and will reclaim them on exit.
                 server.registry.clear();
                 return Err(ServerError::Io(error));
             }
         }
     }
     drop(sender);
-    for worker in workers {
-        let _ = worker.join();
-    }
+    // Workers are intentionally detached on Windows. Joining a worker that is
+    // inside a native pipe read can make daemon shutdown unbounded; the stop
+    // flag and channel closure prevent new work, and process exit reclaims the
+    // pipe handles and worker threads.
     server.registry.clear();
     Ok(())
 }
