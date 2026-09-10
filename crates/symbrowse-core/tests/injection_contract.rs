@@ -81,14 +81,14 @@ fn fixture_has_pinned_go_and_embedded_pattern_provenance() {
             "{path}"
         );
     }
+    // Git may check the tracked asset out with CRLF on Windows; compare its
+    // logical pattern content independently of checkout line endings.
+    let embedded_patterns = injection::EMBEDDED_PATTERNS.replace("\r\n", "\n");
     assert_eq!(
         fixture.oracle.embedded_patterns.len(),
-        injection::EMBEDDED_PATTERNS.len()
+        embedded_patterns.len()
     );
-    assert_eq!(
-        fixture.oracle.embedded_patterns,
-        injection::EMBEDDED_PATTERNS
-    );
+    assert_eq!(fixture.oracle.embedded_patterns, embedded_patterns);
     assert_eq!(
         fixture.oracle.embedded_patterns_sha256,
         "a06b5da389640f558c44cf590e27db2848d0a5f125d4f48153553437147e047c"
