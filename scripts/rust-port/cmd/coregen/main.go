@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/danieljustus/symaira-browse/internal/budget"
@@ -102,6 +103,16 @@ func main() {
 			fatal("read fixture: %v", err)
 		}
 		if !bytes.Equal(existing, content) {
+			// Windows exposes no Unix permission bits: os.Stat().Mode().Perm()
+			// there reflects the read-only attribute, not the 0600/0644 the
+			// cache actually requests, so the committed Unix-generated fixture
+			// can never match byte-for-byte. Relax only the two mode fields on
+			// Windows; every other byte still has to match.
+			if runtime.GOOS == "windows" && equalExceptCacheModes(existing, content) {
+				fmt.Printf("PASS core fixture (%d error codes, %d output cases; cache mode bits relaxed on windows)\n",
+					len(built.ErrorCodes), len(built.Outputs))
+				return
+			}
 			fatal("fixture drift: run make port-core-fixtures-generate")
 		}
 		fmt.Printf("PASS core fixture (%d error codes, %d output cases)\n", len(built.ErrorCodes), len(built.Outputs))
@@ -114,6 +125,32 @@ func main() {
 		fatal("write fixture: %v", err)
 	}
 	fmt.Printf("WROTE %s\n", *path)
+}
+
+// equalExceptCacheModes reports whether two encoded fixtures differ only in
+// the platform-specific cache file mode fields. Used on Windows, where
+// Mode().Perm() cannot represent the Unix 0600/0644 the cache requests.
+func equalExceptCacheModes(a, b []byte) bool {
+	var fa, fb fixture
+	if err := json.Unmarshal(a, &fa); err != nil {
+		return false
+	}
+	if err := json.Unmarshal(b, &fb); err != nil {
+		return false
+	}
+	fa.Cache.ContentMode = 0
+	fa.Cache.MetaMode = 0
+	fb.Cache.ContentMode = 0
+	fb.Cache.MetaMode = 0
+	na, err := json.MarshalIndent(fa, "", "  ")
+	if err != nil {
+		return false
+	}
+	nb, err := json.MarshalIndent(fb, "", "  ")
+	if err != nil {
+		return false
+	}
+	return bytes.Equal(na, nb)
 }
 
 func buildFixture() fixture {
