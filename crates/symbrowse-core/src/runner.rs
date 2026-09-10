@@ -448,13 +448,11 @@ async fn execute_step_async<E: AsyncExecutor>(
                     .execute("find", json!({"kind":"text", "query":step.field("not")}))
                     .await
                 {
-                    Ok(_) => {
-                        return Err(ExecutionError::new(format!(
-                            "assert not {:?} failed: element is present",
-                            step.field("not")
-                        )));
-                    }
-                    Err(error) if error.is_cancelled() => return Err(error),
+                    Ok(_) => Err(ExecutionError::new(format!(
+                        "assert not {:?} failed: element is present",
+                        step.field("not")
+                    ))),
+                    Err(error) if error.is_cancelled() => Err(error),
                     Err(_) => Ok(json!({"absent": step.field("not")})),
                 }
             } else {
