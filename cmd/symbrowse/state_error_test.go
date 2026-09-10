@@ -519,6 +519,7 @@ func TestRunDaemonErrorBranches(t *testing.T) {
 	t.Run("state store fails when the state directory cannot be created", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
+		t.Setenv("USERPROFILE", home)
 		// Block the XDG state parent with a regular file so MkdirAll fails
 		// deterministically on every platform (a plain missing HOME only
 		// fails on some platforms, where the daemon then serves forever).
