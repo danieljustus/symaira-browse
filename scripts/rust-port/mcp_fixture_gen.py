@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
 import subprocess
+import sys
 import tempfile
+import time
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -39,7 +42,7 @@ def framed(value: object) -> bytes:
 
 
 def oracle_environment() -> tuple[tempfile.TemporaryDirectory[str], dict[str, str]]:
-    temporary = tempfile.TemporaryDirectory(prefix="symbrowse-mcp-oracle-")
+    temporary = tempfile.TemporaryDirectory(prefix="o-", dir="/tmp" if sys.platform == "darwin" else None)
     base = Path(temporary.name)
     runtime = base / "runtime"
     data = base / "data"
@@ -81,18 +84,66 @@ def oracle_environment() -> tuple[tempfile.TemporaryDirectory[str], dict[str, st
     return temporary, environment
 
 
+def oracle_endpoint(environment: dict[str, str], session: str = "default") -> Path:
+    if os.name == "nt":
+        return Path(environment["LOCALAPPDATA"]) / "symbrowse" / "run" / f"{session}.sock"
+    if sys.platform == "darwin":
+        return Path(environment["HOME"]) / "Library" / "Caches" / "symbrowse" / "run" / f"{session}.sock"
+    return Path(environment["XDG_RUNTIME_DIR"]) / "symbrowse" / f"{session}.sock"
+
+
+@contextlib.contextmanager
+def run_daemon(oracle: Path, environment: dict[str, str], session: str = "default"):
+    endpoint = oracle_endpoint(environment, session)
+    stdout = tempfile.TemporaryFile()
+    stderr = tempfile.TemporaryFile()
+    process = subprocess.Popen(
+        [str(oracle), "daemon", "--session", session, "--engine", "static", "--ssrf", "--mcp-mode"],
+        cwd=oracle.parent.parent.parent,
+        env={**environment, "SYMBROWSE_NO_AUTOSTART": "1"},
+        stdin=subprocess.DEVNULL,
+        stdout=stdout,
+        stderr=stderr,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not endpoint.exists():
+            if process.poll() is not None:
+                stderr.seek(0)
+                detail = stderr.read().decode(errors="replace")
+                raise SystemExit(f"pinned Go daemon exited during startup ({process.returncode}): {detail}")
+            time.sleep(0.02)
+        if not endpoint.exists():
+            stderr.seek(0)
+            detail = stderr.read().decode(errors="replace")
+            raise SystemExit(f"pinned Go daemon did not create endpoint {endpoint}: {detail}")
+        yield process
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+        stdout.close()
+        stderr.close()
+
+
 def run(oracle: Path, frames: Sequence[object], *args: str) -> tuple[bytes, bytes]:
     data = b"".join(compact(frame) for frame in frames)
     temporary, environment = oracle_environment()
     try:
-        proc = subprocess.run(
-            [str(oracle), "mcp", "--engine", "static", *args],
-            input=data,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-            env=environment,
-        )
+        environment["SYMBROWSE_NO_AUTOSTART"] = "1"
+        with run_daemon(oracle, environment):
+            proc = subprocess.run(
+                [str(oracle), "mcp", "--engine", "static", *args],
+                input=data,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                env=environment,
+            )
         return proc.stdout, proc.stderr
     finally:
         temporary.cleanup()
@@ -265,7 +316,9 @@ def main() -> int:
 def write_pair_raw(root: Path, name: str, oracle: Path, data: bytes, *args: str, check: bool = False) -> dict[str, str]:
     temporary, environment = oracle_environment()
     try:
-        proc = subprocess.run([str(oracle), "mcp", "--engine", "static", *args], input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, env=environment)
+        environment["SYMBROWSE_NO_AUTOSTART"] = "1"
+        with run_daemon(oracle, environment):
+            proc = subprocess.run([str(oracle), "mcp", "--engine", "static", *args], input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, env=environment)
     finally:
         temporary.cleanup()
     if proc.stderr:

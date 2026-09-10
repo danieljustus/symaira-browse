@@ -182,12 +182,12 @@ impl DaemonProxy {
             .filter(|value| !value.is_empty())
             .unwrap_or(&self.options.session);
         let command = daemon_command(tool, arguments);
-        if !self.options.allow_private && tool.name == "fetch_url" {
-            if let Some(url) = arguments.get("url").and_then(Value::as_str)
-                && let Some(error) = private_url_error(url)
-            {
-                return Err(Box::new(error));
-            }
+        if !self.options.allow_private
+            && tool.name == "fetch_url"
+            && let Some(url) = arguments.get("url").and_then(Value::as_str)
+            && let Some(error) = private_url_error(url)
+        {
+            return Err(Box::new(error));
         }
         let endpoint = self.endpoint(session)?;
         let max_tokens = requested_max_tokens(&command, arguments);
@@ -695,7 +695,9 @@ fn private_url_error(url: &str) -> Option<ToolError> {
         .unwrap_or(host);
     let host = host
         .rsplit_once(':')
-        .filter(|(candidate, port)| !candidate.contains(':') && port.chars().all(|c| c.is_ascii_digit()))
+        .filter(|(candidate, port)| {
+            !candidate.contains(':') && port.chars().all(|c| c.is_ascii_digit())
+        })
         .map_or(host, |(candidate, _)| candidate);
     let blocked = host == "localhost"
         || host == "::1"
@@ -722,13 +724,13 @@ fn private_url_error(url: &str) -> Option<ToolError> {
 }
 
 fn daemon_command(tool: &ToolSpec, input: &Value) -> String {
-    if tool.name == "get" {
-        if let Some(kind) = input.get("kind").and_then(Value::as_str) {
-            return match kind {
-                "visible" | "enabled" | "checked" => format!("is.{kind}"),
-                _ => format!("get.{kind}"),
-            };
-        }
+    if tool.name == "get"
+        && let Some(kind) = input.get("kind").and_then(Value::as_str)
+    {
+        return match kind {
+            "visible" | "enabled" | "checked" => format!("is.{kind}"),
+            _ => format!("get.{kind}"),
+        };
     }
     tool.command.to_owned()
 }
