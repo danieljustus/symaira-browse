@@ -409,8 +409,10 @@ mod tests {
 
     #[test]
     fn id_matches_go_little_endian_layout() {
-        let now = UNIX_EPOCH + Duration::from_nanos(0x0102_0304_0506);
-        assert_eq!(new_id(now).unwrap(), "out_060504030201");
+        // Windows SystemTime has 100 ns precision; use an aligned value so
+        // this checks byte order rather than platform timestamp rounding.
+        let now = UNIX_EPOCH + Duration::from_nanos(0x0102_0304_0500);
+        assert_eq!(new_id(now).unwrap(), "out_000504030201");
     }
 
     #[test]

@@ -503,13 +503,17 @@ mod tests {
     #[test]
     fn etxtbsy_spawn_is_retried_within_command_deadline() {
         INJECT_ETXTBSY.with(|remaining| remaining.set(1));
-        let output = run_command(
-            Path::new("/usr/bin/true"),
-            &[],
-            None,
-            Duration::from_secs(1),
-        )
-        .expect("transient ETXTBSY should be retried");
+        #[cfg(windows)]
+        let (program, args) = (
+            std::env::var_os("ComSpec")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from(r"C:\Windows\System32\cmd.exe")),
+            vec!["/C", "exit", "0"],
+        );
+        #[cfg(not(windows))]
+        let (program, args) = (PathBuf::from("/usr/bin/true"), Vec::new());
+        let output = run_command(&program, &args, None, Duration::from_secs(1))
+            .expect("transient ETXTBSY should be retried");
         assert_eq!(output.status.code(), Some(0));
     }
 
