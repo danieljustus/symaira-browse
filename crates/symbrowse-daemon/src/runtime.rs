@@ -2065,12 +2065,29 @@ mod tests {
         );
         let running = server.clone();
         let server_thread = thread::spawn(move || running.listen_and_serve());
+        let wait_for_endpoint = |socket: &std::path::Path| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while std::time::Instant::now() < deadline {
+                let ready = Client::new(ClientOptions {
+                    socket_path: socket.to_owned(),
+                    session: "default".into(),
+                    autostart: false,
+                    ..Default::default()
+                })
+                .request_without_autostart(Frame {
+                    cmd: "daemon.status".into(),
+                    ..Default::default()
+                })
+                .is_ok();
+                if ready {
+                    return;
+                }
+                thread::sleep(Duration::from_millis(5));
+            }
+            panic!("server endpoint was not published");
+        };
         let socket = spec.socket_path.clone();
-        let deadline = std::time::Instant::now() + Duration::from_secs(2);
-        while !socket.exists() && std::time::Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(5));
-        }
-        assert!(socket.exists(), "server endpoint was not published");
+        wait_for_endpoint(&socket);
 
         let yaml = format!(
             "name: blocked\nversion: 1\ndomains: [127.0.0.1]\nsteps:\n  - open: {{url: http://{address}/blocked}}\n  - click: {{label: followup}}\n"
@@ -2126,10 +2143,7 @@ mod tests {
         let running = restarted.clone();
         let restart_thread = thread::spawn(move || running.listen_and_serve());
         let socket = restarted.options().socket_path.clone();
-        let deadline = std::time::Instant::now() + Duration::from_secs(2);
-        while !socket.exists() && std::time::Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(5));
-        }
+        wait_for_endpoint(&socket);
         let response = Client::new(ClientOptions {
             socket_path: socket,
             session: "default".into(),
