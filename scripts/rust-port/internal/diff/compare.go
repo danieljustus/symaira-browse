@@ -84,7 +84,32 @@ func firstDifference(name string, left, right []byte) string {
 			}
 			return string(v)
 		}
-		fmt.Fprintf(&b, "%s first diff at line %d:\n  left : %s\n  right: %s\n", name, i+1, trim(l), trim(r))
+		// Single-line streams (for example one-line JSON) need a window
+		// around the first differing byte, not the line prefix.
+		prefix := 0
+		for prefix < len(l) && prefix < len(r) && l[prefix] == r[prefix] {
+			prefix++
+		}
+		window := func(v []byte) string {
+			start := prefix - 60
+			if start < 0 {
+				start = 0
+			}
+			end := prefix + 240
+			if end > len(v) {
+				end = len(v)
+			}
+			out := string(v[start:end])
+			if start > 0 {
+				out = "…" + out
+			}
+			if end < len(v) {
+				out += "…"
+			}
+			return out
+		}
+		fmt.Fprintf(&b, "%s first diff at line %d:\n  left : %s\n  right: %s\n  first differing byte %d of left=%d right=%d:\n  left @diff: %s\n  right@diff: %s\n",
+			name, i+1, trim(l), trim(r), prefix, len(l), len(r), window(l), window(r))
 		shown++
 		if shown >= maxLines {
 			break
