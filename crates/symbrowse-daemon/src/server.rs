@@ -641,37 +641,36 @@ fn serve_connection(
 
 #[cfg(windows)]
 struct OverlappedPipeStream {
-    // Drop the registered stream before dropping its runtime. Tokio's
-    // PollEvented/mio owner cancels only its own read/connect OVERLAPPEDs and
-    // keeps the Arc-backed write state alive until its IOCP completion.
-    stream: interprocess::os::windows::named_pipe::tokio::PipeStream<
-        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-    >,
+    // Tokio's native NamedPipeServer is the sole owner after from_raw_handle
+    // consumes the accepted interprocess handle. Unlike interprocess's
+    // PipeStream, it has no limbo or blocking FlushFileBuffers task.
+    stream: tokio::net::windows::named_pipe::NamedPipeServer,
     runtime: tokio::runtime::Runtime,
     stopping: Arc<AtomicBool>,
 }
 
 #[cfg(windows)]
 impl OverlappedPipeStream {
+    #[allow(unsafe_code)]
     fn new(
         handle: std::os::windows::io::OwnedHandle,
         stopping: Arc<AtomicBool>,
     ) -> io::Result<Self> {
+        use std::os::windows::io::IntoRawHandle;
+
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_io()
             .enable_time()
             .build()?;
-        // Tokio's NamedPipe registration requires the reactor to be entered
-        // while the overlapped handle is wrapped. The handle remains owned by
-        // the resulting PipeStream on success (and by the error on failure).
+        // SAFETY: `into_raw_handle` transfers the accepted handle's sole
+        // ownership to Tokio. The interprocess stream is consumed before this
+        // call, so it cannot close or otherwise access the handle afterwards.
+        // Tokio registers the already-overlapped server handle with its IOCP
+        // reactor and owns it until this wrapper is dropped.
         let stream = {
             let _entered = runtime.enter();
-            interprocess::os::windows::named_pipe::tokio::PipeStream::<
-                interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-                interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-            >::try_from(handle)
-            .map_err(|error| io::Error::other(error.to_string()))?
+            let raw = handle.into_raw_handle();
+            unsafe { tokio::net::windows::named_pipe::NamedPipeServer::from_raw_handle(raw) }?
         };
         Ok(Self {
             stream,
@@ -682,9 +681,13 @@ impl OverlappedPipeStream {
 }
 
 #[cfg(windows)]
-async fn wait_for_pipe_stop(stopping: Arc<AtomicBool>) {
-    while !stopping.load(Ordering::Acquire) {
-        tokio::time::sleep(Duration::from_millis(1)).await;
+impl Drop for OverlappedPipeStream {
+    fn drop(&mut self) {
+        // An aborted response is explicitly allowed to be truncated. Native
+        // disconnect makes that outcome observable to a peer that starts
+        // draining only after worker join instead of leaving a live pipe
+        // instance behind.
+        let _ = self.stream.disconnect();
     }
 }
 
@@ -726,18 +729,21 @@ impl io::Write for OverlappedPipeStream {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        let stopping = self.stopping.clone();
-        let result = self.runtime.block_on(async {
-            tokio::select! {
-                result = tokio::time::timeout(Duration::from_millis(10), self.stream.flush()) => Ok(result),
-                _ = wait_for_pipe_stop(stopping) => Err(()),
-            }
-        });
-        match result {
-            Err(()) => Err(io::Error::from(io::ErrorKind::Interrupted)),
-            Ok(Ok(result)) => result,
-            Ok(Err(_)) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
-        }
+        use tokio::io::AsyncWriteExt;
+
+        // Native Tokio's named-pipe flush is readiness bookkeeping only; it
+        // does not call synchronous FlushFileBuffers or spawn a blocking task.
+        // Therefore Runtime::Drop cannot wait for a client drain here. A
+        // successful flush means the bytes were accepted by the native async
+        // write path, not that the peer has read them.
+        self.runtime.block_on(self.stream.flush())
+    }
+}
+
+#[cfg(windows)]
+async fn wait_for_pipe_stop(stopping: Arc<AtomicBool>) {
+    while !stopping.load(Ordering::Acquire) {
+        tokio::time::sleep(Duration::from_millis(1)).await;
     }
 }
 
