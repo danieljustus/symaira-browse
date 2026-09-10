@@ -182,6 +182,9 @@ func normalizeConsole(value []byte, sandboxRoot string) []byte {
 	value = bytes.ReplaceAll(value, []byte("\r\n"), []byte("\n"))
 	if sandboxRoot != "" {
 		value = bytes.ReplaceAll(value, []byte(sandboxRoot), []byte("<SANDBOX>"))
+		// JSON-encoded output escapes backslashes, so a Windows sandbox root
+		// appears in doubled form; normalize that representation as well.
+		value = bytes.ReplaceAll(value, []byte(strings.ReplaceAll(sandboxRoot, `\`, `\\`)), []byte("<SANDBOX>"))
 	}
 	return value
 }

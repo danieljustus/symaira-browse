@@ -60,6 +60,24 @@ func TestCompareDiagnoseContentOptInShowsBoundedExcerpt(t *testing.T) {
 	}
 }
 
+func TestConsoleComparisonNormalizesJSONEscapedWindowsSandboxRoot(t *testing.T) {
+	// Windows sandbox roots contain backslashes; JSON output doubles them.
+	// Both representations must normalize, or every Windows console case
+	// fails on the random sandbox suffix alone.
+	testCase := Case{ID: "windows-json-paths", StdoutMode: "console_text"}
+	left := Result{
+		Stdout:      []byte(`{"config_dir":"C:\\Users\\RUNNER~1\\Temp\\symbrowse-port-111\\home\\.config\\symbrowse"}` + "\n"),
+		SandboxRoot: `C:\Users\RUNNER~1\Temp\symbrowse-port-111`,
+	}
+	right := Result{
+		Stdout:      []byte(`{"config_dir":"C:\\Users\\RUNNER~1\\Temp\\symbrowse-port-222\\home\\.config\\symbrowse"}` + "\n"),
+		SandboxRoot: `C:\Users\RUNNER~1\Temp\symbrowse-port-222`,
+	}
+	if err := Compare(testCase, left, right); err != nil {
+		t.Fatalf("sandbox roots must normalize in JSON-escaped output: %v", err)
+	}
+}
+
 func TestNegativeControlDetectsDifferentExecutables(t *testing.T) {
 	extension := filepath.Ext(os.Args[0])
 	leftPath := filepath.Join(t.TempDir(), "left-helper"+extension)
