@@ -526,7 +526,10 @@ fn listen_windows(server: &Server) -> Result<(), ServerError> {
         }
         match listener.accept() {
             Ok(stream) => {
-                if stream.set_nonblocking(true).is_err() {
+                // The listener uses NOWAIT only to make accept interruptible.
+                // Clear that pipe-mode flag before ReOpenFile hands the owned
+                // handle to Tokio, which supplies the actual overlapped I/O.
+                if stream.set_nonblocking(false).is_err() {
                     continue;
                 }
                 if sender.try_send(stream).is_err() {
