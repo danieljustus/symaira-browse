@@ -671,6 +671,23 @@ impl OverlappedPipeStream {
 }
 
 #[cfg(windows)]
+impl OverlappedPipeStream {
+    #[allow(unsafe_code)]
+    fn cancel_pending_io(&self) {
+        // Tokio cancels the future, while CancelIoEx also retires the exact
+        // operation on this owned handle. No other thread can reclaim it until
+        // this adapter is dropped by the joined connection worker.
+        use std::os::windows::io::AsRawHandle;
+        unsafe {
+            let _ = windows_sys::Win32::System::IO::CancelIoEx(
+                self.stream.as_raw_handle(),
+                std::ptr::null_mut(),
+            );
+        }
+    }
+}
+
+#[cfg(windows)]
 impl io::Read for OverlappedPipeStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         use tokio::io::AsyncReadExt;
@@ -680,7 +697,10 @@ impl io::Read for OverlappedPipeStream {
             Ok(result) => result,
             // Dropping the timeout future cancels the overlapped operation;
             // report readiness polling to the existing bounded frame reader.
-            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+            Err(_) => {
+                self.cancel_pending_io();
+                Err(io::Error::from(io::ErrorKind::WouldBlock))
+            }
         }
     }
 }
@@ -693,7 +713,10 @@ impl io::Write for OverlappedPipeStream {
             tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)).await
         }) {
             Ok(result) => result,
-            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+            Err(_) => {
+                self.cancel_pending_io();
+                Err(io::Error::from(io::ErrorKind::WouldBlock))
+            }
         }
     }
 
@@ -702,7 +725,10 @@ impl io::Write for OverlappedPipeStream {
             tokio::time::timeout(Duration::from_millis(10), self.stream.flush()).await
         }) {
             Ok(result) => result,
-            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+            Err(_) => {
+                self.cancel_pending_io();
+                Err(io::Error::from(io::ErrorKind::WouldBlock))
+            }
         }
     }
 }

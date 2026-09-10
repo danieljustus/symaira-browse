@@ -110,12 +110,7 @@ mod windows {
 
     #[test]
     fn stalled_fragmented_frame_times_out_and_closes_connection() {
-        use std::{
-            io::{ErrorKind, Read, Write},
-            sync::Arc,
-            thread,
-            time::{Duration, Instant},
-        };
+        use std::{io::Write, sync::Arc, thread, time::Duration};
 
         let session = format!("windows-stalled-{}", std::process::id());
         let endpoint = default_socket_path(&session);
