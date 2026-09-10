@@ -465,8 +465,10 @@ impl DaemonProxy {
             return Err(CheckedRequestError::Fatal(status.into_tool_error()));
         }
         let data = status.data.unwrap_or(Value::Null);
-        let session_ok =
-            data.get("session").and_then(Value::as_str) == Some(frame.session.as_str());
+        let session_ok = data
+            .get("session")
+            .and_then(Value::as_str)
+            .is_none_or(|session| session == frame.session.as_str());
         let engine_ok = self.options.engine.as_ref().is_none_or(|expected| {
             data.get("engine").and_then(Value::as_str) == Some(expected.as_str())
         });
@@ -654,7 +656,9 @@ impl DaemonResponse {
             message: redact_str(&error.message),
             hint: error.hint.as_deref().map(redact_str),
             retryable: error.retryable,
-            requires_user_confirmation: error.requires_user_confirmation,
+            // Go's MCP adapter exposes this bool on every daemon error. A missing
+            // daemon field therefore has the same wire meaning as false.
+            requires_user_confirmation: error.requires_user_confirmation.or(Some(false)),
             resume_hint: error.resume_hint.as_deref().map(redact_str),
             details: error.details.as_ref().map(symbrowse_daemon::redact_json),
         }
@@ -1220,6 +1224,7 @@ mod tests {
         assert_eq!(error.hint.as_deref(), Some("status hint"));
         assert_eq!(error.details, Some(json!({"source": "fixture"})));
         assert_eq!(error.retryable, Some(true));
+        assert_eq!(error.requires_user_confirmation, Some(false));
         server.join().expect("daemon fixture thread");
         let seen: Vec<_> = receive.try_iter().collect();
         assert_eq!(

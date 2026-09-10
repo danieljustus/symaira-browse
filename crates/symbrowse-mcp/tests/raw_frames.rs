@@ -24,6 +24,9 @@ fn run_fixture(name: &str, args: &[&str]) {
         allow_private: false,
         engine: None,
         daemon_log_path: None,
+        endpoint: Some(std::env::var("SYMBROWSE_MCP_DAEMON_ENDPOINT").unwrap_or_else(|_| {
+            panic!("SYMBROWSE_MCP_DAEMON_ENDPOINT is required; run through the isolated MCP daemon harness")
+        })),
     };
     let mut actual = Vec::new();
     // Every fixture, including policy failures, must traverse the production

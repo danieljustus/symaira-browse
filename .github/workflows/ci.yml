@@ -76,7 +76,7 @@ jobs:
       - name: Test
         run: make test
       - name: Build and test Rust workspace
-        run: cargo build --workspace --locked && cargo test --workspace --all-features --locked
+        run: cargo build --workspace --locked && make rust-mcp-test
       - name: Verify Go/Rust contracts
         run: make rust-version-contract rust-core-contract rust-policy-contract rust-state-contract rust-mcp-contract rust-engine-contract rust-injection-contract rust-fetch-contract rust-session-contract rust-workflow-slice rust-safari-slice rust-browser-contract rust-daemon-contract rust-cdp-spike
       - name: Audit Rust dependencies and licenses
@@ -284,7 +284,7 @@ jobs:
       - name: Test
         run: go test ./...
       - name: Rust build, lint and test
-        run: cargo build --workspace --locked && cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && cargo test --workspace --all-features --locked
+        run: cargo build --workspace --locked && cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && make rust-mcp-test
       - name: Rust MCP stdio contract
         run: make rust-mcp-contract
       - name: MCP fixture generator isolation regressions
