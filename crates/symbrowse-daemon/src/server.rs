@@ -716,7 +716,13 @@ impl io::Write for OverlappedPipeStream {
         let stopping = self.stopping.clone();
         let (stopped, result) = self.runtime.block_on(async {
             tokio::select! {
-                result = tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)) => (false, result),
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)) => {
+                    if stopping.load(Ordering::Acquire) {
+                        (true, Err(()))
+                    } else {
+                        (false, result)
+                    }
+                },
                 _ = wait_for_pipe_stop(stopping) => (true, Err(())),
             }
         });
@@ -733,7 +739,13 @@ impl io::Write for OverlappedPipeStream {
         let stopping = self.stopping.clone();
         let (stopped, result) = self.runtime.block_on(async {
             tokio::select! {
-                result = tokio::time::timeout(Duration::from_millis(10), self.stream.flush()) => (false, result),
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.flush()) => {
+                    if stopping.load(Ordering::Acquire) {
+                        (true, Err(()))
+                    } else {
+                        (false, result)
+                    }
+                },
                 _ = wait_for_pipe_stop(stopping) => (true, Err(())),
             }
         });
