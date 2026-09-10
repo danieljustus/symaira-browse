@@ -529,6 +529,7 @@ func TestRunDaemonErrorBranches(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(home, ".local", "state"), []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
 		}
+		t.Setenv("SYMBROWSE_STATE_DIR", filepath.Join(home, ".local", "state"))
 		command := newRootCommand()
 		command.SetOut(&bytes.Buffer{})
 		command.SetErr(&bytes.Buffer{})
