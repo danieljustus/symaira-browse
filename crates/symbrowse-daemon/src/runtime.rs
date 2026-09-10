@@ -1997,7 +1997,17 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("test root");
         let mut spec = temp_spec("server-flow-cancel");
-        spec.socket_path = root.join("default.sock");
+        #[cfg(unix)]
+        {
+            spec.socket_path = root.join("default.sock");
+        }
+        #[cfg(windows)]
+        {
+            spec.socket_path = crate::spec::default_socket_path(&format!(
+                "server-flow-cancel-{}",
+                std::process::id()
+            ));
+        }
         spec.state_dir = root.join("state");
         spec.cache_dir = root.join("cache");
         spec.operation_timeout = Duration::from_secs(2);
@@ -2065,12 +2075,29 @@ mod tests {
         );
         let running = server.clone();
         let server_thread = thread::spawn(move || running.listen_and_serve());
+        let wait_for_endpoint = |socket: &std::path::Path| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(2);
+            while std::time::Instant::now() < deadline {
+                let ready = Client::new(ClientOptions {
+                    socket_path: socket.to_owned(),
+                    session: "default".into(),
+                    autostart: false,
+                    ..Default::default()
+                })
+                .request_without_autostart(Frame {
+                    cmd: "daemon.status".into(),
+                    ..Default::default()
+                })
+                .is_ok();
+                if ready {
+                    return;
+                }
+                thread::sleep(Duration::from_millis(5));
+            }
+            panic!("server endpoint was not published");
+        };
         let socket = spec.socket_path.clone();
-        let deadline = std::time::Instant::now() + Duration::from_secs(2);
-        while !socket.exists() && std::time::Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(5));
-        }
-        assert!(socket.exists(), "server endpoint was not published");
+        wait_for_endpoint(&socket);
 
         let yaml = format!(
             "name: blocked\nversion: 1\ndomains: [127.0.0.1]\nsteps:\n  - open: {{url: http://{address}/blocked}}\n  - click: {{label: followup}}\n"
@@ -2126,10 +2153,7 @@ mod tests {
         let running = restarted.clone();
         let restart_thread = thread::spawn(move || running.listen_and_serve());
         let socket = restarted.options().socket_path.clone();
-        let deadline = std::time::Instant::now() + Duration::from_secs(2);
-        while !socket.exists() && std::time::Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(5));
-        }
+        wait_for_endpoint(&socket);
         let response = Client::new(ClientOptions {
             socket_path: socket,
             session: "default".into(),

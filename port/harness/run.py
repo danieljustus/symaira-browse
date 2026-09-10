@@ -54,6 +54,14 @@ def kill_tree(process: subprocess.Popen[bytes]) -> None:
             pass
 
 
+def daemon_socket_path(runtime: Path, session: str) -> Path:
+    if os.name == "nt":
+        return Path(r"\\.\pipe") / f"symbrowse-{session}"
+    if sys.platform == "darwin":
+        return runtime / f"{session}.sock"
+    return runtime / "symbrowse" / f"{session}.sock"
+
+
 def start_daemon(binary: Path, env: dict[str, str], session: str) -> subprocess.Popen[bytes]:
     return subprocess.Popen(
         [str(binary), "daemon", "--session", session],
@@ -131,7 +139,7 @@ def assert_clean_process(process: subprocess.Popen[bytes], *, timeout: float = 5
 
 def lifecycle_once(binary: Path, env: dict[str, str], runtime: Path, *, suffix: str) -> None:
     session = f"contract-{suffix}"
-    socket_path = (Path(r"\\.\pipe") / f"symbrowse-{session}") if os.name == "nt" else runtime / "symbrowse" / f"{session}.sock"
+    socket_path = daemon_socket_path(runtime, session)
     process = start_daemon(binary, env, session)
     try:
         if os.name == "nt":
@@ -187,7 +195,7 @@ def stale_socket_once(binary: Path, env: dict[str, str], runtime: Path, *, suffi
         # crash-safe mutex is the stale-endpoint recovery mechanism.
         return
     session = f"stale-{suffix}"
-    socket_dir = runtime / "symbrowse"
+    socket_dir = runtime if sys.platform == "darwin" else runtime / "symbrowse"
     socket_dir.mkdir(mode=0o700, exist_ok=True)
     socket_path = socket_dir / f"{session}.sock"
     stale = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -211,7 +219,7 @@ def stale_socket_once(binary: Path, env: dict[str, str], runtime: Path, *, suffi
 
 def race_once(binary: Path, env: dict[str, str], runtime: Path, *, suffix: str, starters: int) -> None:
     session = f"race-{suffix}"
-    socket_path = (Path(r"\\.\pipe") / f"symbrowse-{session}") if os.name == "nt" else runtime / "symbrowse" / f"{session}.sock"
+    socket_path = daemon_socket_path(runtime, session)
     processes = [start_daemon(binary, env, session) for _ in range(starters)]
     try:
         if os.name == "nt":
@@ -242,13 +250,22 @@ def daemon_suite(root: Path, env: dict[str, str], *, rounds: int, starters: int)
     else:
         run(["cargo", "build", "-p", "symbrowse-cli", "--locked"], root, env)
         binary = root / "target" / "debug" / ("symbrowse.exe" if os.name == "nt" else "symbrowse")
-    with tempfile.TemporaryDirectory(prefix="sb-") as directory:
+    # macOS limits Unix-domain socket paths to 104 bytes. GitHub's TMPDIR is
+    # nested under /var/folders/... and leaves too little room for the socket.
+    with tempfile.TemporaryDirectory(
+        prefix="sb-", dir="/tmp" if sys.platform == "darwin" else None
+    ) as directory:
         base = Path(directory)
-        runtime = base / "runtime"
         data = base / "data"
         home = base / "home"
-        for path in (runtime, data, home):
+        for path in (data, home):
             path.mkdir(mode=0o700)
+        runtime = (
+            home / "Library" / "Caches" / "symbrowse" / "run"
+            if sys.platform == "darwin"
+            else base / "runtime"
+        )
+        runtime.mkdir(parents=True, mode=0o700)
         scoped = dict(
             env,
             HOME=str(home),

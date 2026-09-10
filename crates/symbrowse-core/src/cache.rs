@@ -409,8 +409,10 @@ mod tests {
 
     #[test]
     fn id_matches_go_little_endian_layout() {
-        let now = UNIX_EPOCH + Duration::from_nanos(0x0102_0304_0506);
-        assert_eq!(new_id(now).unwrap(), "out_060504030201");
+        // Use whole seconds so the fixture is representable at every
+        // platform's SystemTime precision; this checks byte order only.
+        let now = UNIX_EPOCH + Duration::from_secs(0x0001_0203);
+        assert_eq!(new_id(now).unwrap(), "out_005e64b2123c");
     }
 
     #[test]

@@ -11,7 +11,7 @@ CGO_ENABLED ?= 0
 GOFLAGS ?=
 LDFLAGS ?= -s -w -X main.version=$(VERSION)
 
-.PHONY: build test test-race lint fmt-check clean port-oracle-build port-oracle-build-test port-fixture-source-check port-core-fixtures-generate port-core-fixtures-check port-config-fixtures-generate port-config-fixtures-check port-policy-fixtures-generate port-policy-fixtures-check port-state-fixtures-generate port-state-fixtures-check port-mcp-fixtures-generate port-mcp-fixtures-check port-engine-fixtures-generate port-engine-fixtures-check port-injection-fixtures-generate port-injection-fixtures-check port-fetch-static-fixtures-generate port-fetch-static-fixtures-check port-fetch-control-fixtures-generate port-fetch-control-fixtures-check port-session-fixture-generate port-session-fixture-check port-workflow-fixture-generate port-workflow-fixture-check port-daemon-fixture-generate port-daemon-fixture-check differential-go-selftest port-benchmark port-value-signal port-contract rust-build rust-check rust-lint rust-test rust-features rust-security rust-version-contract rust-core-contract rust-policy-contract rust-state-contract rust-mcp-contract rust-engine-contract rust-injection-contract rust-fetch-static-slice rust-fetch-contract rust-session-contract rust-workflow-slice rust-safari-slice rust-browser-contract rust-native-browser-contract rust-daemon-contract rust-cdp-spike rust-miri rust-fuzz-smoke rust-inventory rust-hardening rust-release-gates rust-gates
+.PHONY: build test test-race lint fmt-check clean port-oracle-build port-oracle-build-test port-fixture-source-check port-core-fixtures-generate port-core-fixtures-check port-config-fixtures-generate port-config-fixtures-check port-policy-fixtures-generate port-policy-fixtures-check port-state-fixtures-generate port-state-fixtures-check port-mcp-fixtures-generate port-mcp-fixtures-check port-engine-fixtures-generate port-engine-fixtures-check port-injection-fixtures-generate port-injection-fixtures-check port-fetch-static-fixtures-generate port-fetch-static-fixtures-check port-fetch-control-fixtures-generate port-fetch-control-fixtures-check port-session-fixture-generate port-session-fixture-check port-workflow-fixture-generate port-workflow-fixture-check port-daemon-fixture-generate port-daemon-fixture-check differential-go-selftest port-benchmark port-value-signal port-contract rust-build rust-check rust-lint rust-test rust-mcp-test rust-features rust-security rust-version-contract rust-core-contract rust-policy-contract rust-state-contract rust-mcp-contract rust-engine-contract rust-injection-contract rust-fetch-static-slice rust-fetch-contract rust-session-contract rust-workflow-slice rust-safari-slice rust-browser-contract rust-native-browser-contract rust-daemon-contract rust-cdp-spike rust-miri rust-fuzz-smoke rust-inventory rust-hardening rust-release-gates rust-gates
 
 PORT_ORACLE_COMMIT := 652453d1595fc302bd69c328e7da8a21dbee28b9
 PORT_ORACLE_RELEASE := v0.8.0
@@ -236,9 +236,16 @@ rust-lint:
 	$(CARGO) fmt --all --check
 	$(CARGO) clippy --workspace --all-targets --all-features --locked -- -D warnings
 
-rust-test:
-	$(CARGO) nextest run --workspace --all-features --locked
+rust-test: port-oracle-build
+	python3 scripts/rust-port/run_mcp_contract.py --oracle $(PORT_GO_BINARY) -- \
+		$(CARGO) nextest run --workspace --all-features --locked
 	$(CARGO) test --workspace --doc --all-features --locked
+
+# Raw MCP frames must run through the pinned production Go daemon. The helper
+# owns an isolated environment, readiness deadline, and child cleanup.
+rust-mcp-test: port-oracle-build
+	python3 scripts/rust-port/run_mcp_contract.py --oracle $(PORT_GO_BINARY) -- \
+		$(CARGO) test -p symbrowse-mcp --all-features --locked
 
 rust-features:
 	$(CARGO) hack check --workspace --each-feature --no-dev-deps --locked
@@ -279,7 +286,7 @@ rust-policy-contract: port-policy-fixtures-check
 	$(CARGO) test -p symbrowse-core --test policy_contract --all-features --locked
 
 rust-mcp-contract: port-mcp-fixtures-check
-	$(CARGO) test -p symbrowse-mcp --all-features --locked
+	$(MAKE) rust-mcp-test
 	SYMBROWSE_VERSION=$(PORT_CONTRACT_VERSION) $(CARGO) build -p symbrowse-cli --bin symbrowse --locked
 
 rust-engine-contract: port-engine-fixtures-check

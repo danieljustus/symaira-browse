@@ -22,6 +22,8 @@ pub struct ServeOptions {
     pub allow_private: bool,
     pub engine: Option<String>,
     pub daemon_log_path: Option<String>,
+    /// Explicit daemon endpoint used by isolated contract harnesses.
+    pub endpoint: Option<String>,
 }
 
 impl Default for ServeOptions {
@@ -34,6 +36,7 @@ impl Default for ServeOptions {
             allow_private: false,
             engine: None,
             daemon_log_path: None,
+            endpoint: None,
         }
     }
 }
@@ -49,6 +52,7 @@ pub fn serve_stdio<R: Read, W: Write>(
         allow_private: options.allow_private,
         engine: options.engine.clone(),
         daemon_log_path: options.daemon_log_path.clone(),
+        endpoint: options.endpoint.clone(),
         ..DaemonProxyOptions::default()
     };
     let mut proxy = DaemonProxy::new(proxy_options);

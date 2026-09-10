@@ -76,7 +76,7 @@ jobs:
       - name: Test
         run: make test
       - name: Build and test Rust workspace
-        run: cargo build --workspace --locked && cargo test --workspace --all-features --locked
+        run: cargo build --workspace --locked && make rust-mcp-test
       - name: Verify Go/Rust contracts
         run: make rust-version-contract rust-core-contract rust-policy-contract rust-state-contract rust-mcp-contract rust-engine-contract rust-injection-contract rust-fetch-contract rust-session-contract rust-workflow-slice rust-safari-slice rust-browser-contract rust-daemon-contract rust-cdp-spike
       - name: Audit Rust dependencies and licenses
@@ -284,9 +284,11 @@ jobs:
       - name: Test
         run: go test ./...
       - name: Rust build, lint and test
-        run: cargo build --workspace --locked && cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && cargo test --workspace --all-features --locked
+        run: cargo build --workspace --locked && cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && make rust-mcp-test
       - name: Rust MCP stdio contract
         run: make rust-mcp-contract
+      - name: MCP fixture generator isolation regressions
+        run: python3 -m unittest scripts/rust-port/test_mcp_fixture_gen.py
       - name: Go/Rust version contract
         shell: bash
         run: |
@@ -294,13 +296,10 @@ jobs:
           mkdir -p target/port
           ext=""
           if [ "${RUNNER_OS}" = "Windows" ]; then ext=".exe"; fi
-          root="${PWD}"
-          worktree=".worktrees/rust-oracle-ci"
-          git worktree add --detach "${worktree}" 652453d1595fc302bd69c328e7da8a21dbee28b9
-          trap 'git worktree remove "${worktree}" >/dev/null 2>&1 || true' EXIT
-          test -z "$(git -C "${worktree}" status --porcelain --untracked-files=all)"
-          (cd "${worktree}" && go build -trimpath -ldflags "-s -w -X main.version=v0.8.0" -o "${root}/target/port/symbrowse-go${ext}" ./cmd/symbrowse)
-          test -z "$(git -C "${worktree}" status --porcelain --untracked-files=all)"
+          python3 scripts/rust-port/pinned_oracle_build.py \
+            --repo "${PWD}" --commit "652453d1595fc302bd69c328e7da8a21dbee28b9" \
+            --release "v0.8.0" --output "${PWD}/target/port/symbrowse-go${ext}" \
+            --go "go" --go-version "${GO_VERSION}"
           SYMBROWSE_VERSION=v0.8.0 cargo build -p symbrowse-cli --bin symbrowse --locked
           go run ./scripts/rust-port/cmd/sourcecheck \
             --oracle 652453d1595fc302bd69c328e7da8a21dbee28b9 \
