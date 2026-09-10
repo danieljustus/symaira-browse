@@ -39,6 +39,12 @@ type Case struct {
 	// IgnoreJSONFields removes volatile object fields recursively in JSON mode.
 	IgnoreJSONFields []string    `json:"ignore_json_fields,omitempty"`
 	CompareFiles     bool        `json:"compare_files,omitempty"`
+	// DiagnoseContent allows mismatch errors to include a bounded excerpt of
+	// the differing lines. Default false: mismatch errors never carry stream
+	// content, because compared output may contain secrets. Set only for
+	// cases whose output is known to be secret-free (for example config
+	// path listings).
+	DiagnoseContent bool        `json:"diagnose_content,omitempty"`
 	Setup            []SetupFile `json:"setup,omitempty"`
 }
 

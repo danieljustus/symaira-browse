@@ -21,10 +21,10 @@ func Compare(testCase Case, left, right Result) error {
 	if left.Signal != right.Signal {
 		return fmt.Errorf("signal mismatch: left=%q right=%q", left.Signal, right.Signal)
 	}
-	if err := compareStream("stdout", testCase.stdoutComparisonMode(), left.Stdout, right.Stdout, left.SandboxRoot, right.SandboxRoot, testCase.IgnoreJSONFields); err != nil {
+	if err := compareStream("stdout", testCase.stdoutComparisonMode(), left.Stdout, right.Stdout, left.SandboxRoot, right.SandboxRoot, testCase.IgnoreJSONFields, testCase.DiagnoseContent); err != nil {
 		return err
 	}
-	if err := compareStream("stderr", testCase.stderrComparisonMode(), left.Stderr, right.Stderr, left.SandboxRoot, right.SandboxRoot, testCase.IgnoreJSONFields); err != nil {
+	if err := compareStream("stderr", testCase.stderrComparisonMode(), left.Stderr, right.Stderr, left.SandboxRoot, right.SandboxRoot, testCase.IgnoreJSONFields, testCase.DiagnoseContent); err != nil {
 		return err
 	}
 	if testCase.CompareFiles && !reflect.DeepEqual(left.Files, right.Files) {
@@ -33,7 +33,7 @@ func Compare(testCase Case, left, right Result) error {
 	return nil
 }
 
-func compareStream(name, mode string, left, right []byte, leftRoot, rightRoot string, ignoredJSONFields []string) error {
+func compareStream(name, mode string, left, right []byte, leftRoot, rightRoot string, ignoredJSONFields []string, diagnoseContent bool) error {
 	switch mode {
 	case comparisonModeIgnore:
 		return nil
@@ -47,10 +47,50 @@ func compareStream(name, mode string, left, right []byte, leftRoot, rightRoot st
 		return fmt.Errorf("unsupported %s comparison mode %q", name, mode)
 	}
 	if !bytes.Equal(left, right) {
+		if diagnoseContent {
+			return fmt.Errorf("%s mismatch: left_bytes=%d left_sha256=%s right_bytes=%d right_sha256=%s\n%s",
+				name, len(left), digestBytes(left), len(right), digestBytes(right),
+				firstDifference(name, left, right))
+		}
 		return fmt.Errorf("%s mismatch: left_bytes=%d left_sha256=%s right_bytes=%d right_sha256=%s",
 			name, len(left), digestBytes(left), len(right), digestBytes(right))
 	}
 	return nil
+}
+
+// firstDifference returns a bounded excerpt of the first line pair that
+// differs between two normalized streams, for CI diagnosis. Output is capped
+// and line-oriented; the harness only ever compares sanitized CLI output.
+func firstDifference(name string, left, right []byte) string {
+	const maxLines, maxLineLen = 3, 300
+	leftLines := bytes.Split(left, []byte("\n"))
+	rightLines := bytes.Split(right, []byte("\n"))
+	var b strings.Builder
+	shown := 0
+	for i := 0; i < len(leftLines) || i < len(rightLines); i++ {
+		var l, r []byte
+		if i < len(leftLines) {
+			l = leftLines[i]
+		}
+		if i < len(rightLines) {
+			r = rightLines[i]
+		}
+		if bytes.Equal(l, r) {
+			continue
+		}
+		trim := func(v []byte) string {
+			if len(v) > maxLineLen {
+				return string(v[:maxLineLen]) + "…"
+			}
+			return string(v)
+		}
+		fmt.Fprintf(&b, "%s first diff at line %d:\n  left : %s\n  right: %s\n", name, i+1, trim(l), trim(r))
+		shown++
+		if shown >= maxLines {
+			break
+		}
+	}
+	return b.String()
 }
 
 func compareJSON(name string, left, right []byte, leftRoot, rightRoot string, ignoredFields []string) error {
