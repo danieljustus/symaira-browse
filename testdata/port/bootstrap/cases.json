@@ -171,7 +171,8 @@
       "timeout_ms": 10000,
       "stdout_mode": "console_text",
       "stderr_mode": "console_text",
-      "compare_files": true
+      "compare_files": true,
+      "diagnose_content": true
     },
     {
       "id": "config-default-text",
