@@ -649,11 +649,15 @@ struct OverlappedPipeStream {
         interprocess::os::windows::named_pipe::pipe_mode::Bytes,
     >,
     runtime: tokio::runtime::Runtime,
+    stopping: Arc<AtomicBool>,
 }
 
 #[cfg(windows)]
 impl OverlappedPipeStream {
-    fn new(handle: std::os::windows::io::OwnedHandle) -> io::Result<Self> {
+    fn new(
+        handle: std::os::windows::io::OwnedHandle,
+        stopping: Arc<AtomicBool>,
+    ) -> io::Result<Self> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_io()
             .enable_time()
@@ -669,7 +673,18 @@ impl OverlappedPipeStream {
             >::try_from(handle)
             .map_err(|error| io::Error::other(error.to_string()))?
         };
-        Ok(Self { stream, runtime })
+        Ok(Self {
+            stream,
+            runtime,
+            stopping,
+        })
+    }
+}
+
+#[cfg(windows)]
+async fn wait_for_pipe_stop(stopping: Arc<AtomicBool>) {
+    while !stopping.load(Ordering::Acquire) {
+        tokio::time::sleep(Duration::from_millis(1)).await;
     }
 }
 
@@ -677,12 +692,18 @@ impl OverlappedPipeStream {
 impl io::Read for OverlappedPipeStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         use tokio::io::AsyncReadExt;
-        match self.runtime.block_on(async {
-            tokio::time::timeout(Duration::from_millis(10), self.stream.read(buf)).await
-        }) {
+        let stopping = self.stopping.clone();
+        let (stopped, result) = self.runtime.block_on(async {
+            tokio::select! {
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.read(buf)) => (false, result),
+                _ = wait_for_pipe_stop(stopping) => (true, Err(())),
+            }
+        });
+        if stopped {
+            return Err(io::Error::from(io::ErrorKind::Interrupted));
+        }
+        match result {
             Ok(result) => result,
-            // Dropping the timeout future stops waiting; mio retains the pending
-            // operation and its Arc-backed buffer until IOCP completion.
             Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
     }
@@ -692,18 +713,34 @@ impl io::Read for OverlappedPipeStream {
 impl io::Write for OverlappedPipeStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         use tokio::io::AsyncWriteExt;
-        match self.runtime.block_on(async {
-            tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)).await
-        }) {
+        let stopping = self.stopping.clone();
+        let (stopped, result) = self.runtime.block_on(async {
+            tokio::select! {
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)) => (false, result),
+                _ = wait_for_pipe_stop(stopping) => (true, Err(())),
+            }
+        });
+        if stopped {
+            return Err(io::Error::from(io::ErrorKind::Interrupted));
+        }
+        match result {
             Ok(result) => result,
             Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        match self.runtime.block_on(async {
-            tokio::time::timeout(Duration::from_millis(10), self.stream.flush()).await
-        }) {
+        let stopping = self.stopping.clone();
+        let (stopped, result) = self.runtime.block_on(async {
+            tokio::select! {
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.flush()) => (false, result),
+                _ = wait_for_pipe_stop(stopping) => (true, Err(())),
+            }
+        });
+        if stopped {
+            return Err(io::Error::from(io::ErrorKind::Interrupted));
+        }
+        match result {
             Ok(result) => result,
             Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
@@ -722,7 +759,7 @@ fn serve_connection_windows(
     registry: Arc<crate::SessionRegistry>,
     dispatch_gate: Arc<std::sync::Mutex<()>>,
 ) {
-    let Ok(stream) = OverlappedPipeStream::new(handle) else {
+    let Ok(stream) = OverlappedPipeStream::new(handle, stopping.clone()) else {
         return;
     };
     serve_connection_parts(

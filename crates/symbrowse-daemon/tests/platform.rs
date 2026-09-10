@@ -233,12 +233,7 @@ mod windows {
 
     #[test]
     fn paused_peer_backpressure_closes_with_eof_after_shutdown() {
-        use std::{
-            io::{Read, Write},
-            sync::Arc,
-            thread,
-            time::Duration,
-        };
+        use std::{io::Write, sync::Arc, thread, time::Duration};
 
         let session = format!("windows-backpressure-{}", std::process::id());
         let endpoint = default_socket_path(&session);
