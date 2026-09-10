@@ -284,7 +284,21 @@ jobs:
       - name: Test
         run: go test ./...
       - name: Rust build, lint and test
-        run: cargo build --workspace --locked && cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && make rust-mcp-test
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --workspace --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            # The pinned Go v0.8.0 oracle calls net.Listen("unix", ...) and
+            # Windows runners reject that AF_UNIX bind before Rust is tested.
+            # The native Windows daemon job below verifies the supported named
+            # pipe transport; Unix oracle parity remains covered on Ubuntu and
+            # macOS until the pinned oracle can serve a Windows endpoint.
+            echo "Skipping pinned Go Unix-socket MCP parity on Windows; native named-pipe coverage is required."
+          else
+            make rust-mcp-test
+          fi
       - name: Rust MCP stdio contract
         run: make rust-mcp-contract
       - name: MCP fixture generator isolation regressions
