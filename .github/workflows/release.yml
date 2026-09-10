@@ -24,6 +24,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: '1.26.6'
       - name: Go vulnerability scan
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
@@ -70,6 +71,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: '1.26.6'
 
       - name: Install cosign
@@ -165,6 +167,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: '1.26.6'
       - name: Set up Rust
         run: rustup toolchain install 1.98.0 --profile minimal

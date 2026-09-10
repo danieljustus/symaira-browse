@@ -40,6 +40,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Verify approved A3 brand assets
         run: python3 scripts/test_brand_assets.py
@@ -64,6 +65,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Set up Rust
         run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal
@@ -95,6 +97,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Set up Rust
         run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal
@@ -120,6 +123,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Go vulnerability scan
         # At the introducing HEAD with Go 1.26.6, govulncheck finds no called
@@ -141,6 +145,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Race test
         run: CGO_ENABLED=1 go test -race -count=1 ./internal/daemon/... ./internal/engine/... ./internal/session/... ./internal/state/...
@@ -155,6 +160,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Measure coverage
         id: coverage
@@ -204,6 +210,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Install Chrome
         # The apt google-chrome-stable build is proven on these runners by
@@ -227,6 +234,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Install Chrome
         run: |
@@ -247,6 +255,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Fuzz refkey normalization
         run: go test ./internal/engine/ -run '^$' -fuzz '^FuzzRefKeyNormalization$' -fuzztime 60s
@@ -274,6 +283,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Set up Rust
         run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component rustfmt,clippy
@@ -345,6 +355,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Set up Rust
         run: rustup toolchain install "${{ env.RUST_VERSION }}" --profile minimal --component rustfmt,clippy
@@ -415,6 +426,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
+          cache: true
           go-version: ${{ env.GO_VERSION }}
       - name: Initialize CodeQL
         uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
