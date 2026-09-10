@@ -172,10 +172,20 @@ mod tests {
     fn path_lookup_requires_an_executable_file() {
         let path =
             env::temp_dir().join(format!("symbrowse-chrome-discovery-{}", std::process::id()));
-        let _ = std::fs::remove_file(&path);
-        std::fs::write(&path, b"not a browser").expect("write discovery fixture");
-        assert!(usable_executable(&path).is_none());
-        let _ = std::fs::remove_file(&path);
+        #[cfg(unix)]
+        {
+            std::fs::write(&path, b"not a browser").expect("write discovery fixture");
+            assert!(usable_executable(&path).is_none());
+            let _ = std::fs::remove_file(&path);
+        }
+        #[cfg(not(unix))]
+        {
+            // Windows has no executable permission bit; use a non-file path
+            // to exercise the same discovery rejection without a fake mode.
+            std::fs::create_dir(&path).expect("create discovery fixture");
+            assert!(usable_executable(&path).is_none());
+            let _ = std::fs::remove_dir(&path);
+        }
     }
 
     #[test]
