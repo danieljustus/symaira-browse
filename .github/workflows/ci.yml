@@ -287,6 +287,8 @@ jobs:
         run: cargo build --workspace --locked && cargo clippy --workspace --all-targets --all-features --locked -- -D warnings && cargo test --workspace --all-features --locked
       - name: Rust MCP stdio contract
         run: make rust-mcp-contract
+      - name: MCP fixture generator isolation regressions
+        run: python3 -m unittest scripts/rust-port/test_mcp_fixture_gen.py
       - name: Go/Rust version contract
         shell: bash
         run: |

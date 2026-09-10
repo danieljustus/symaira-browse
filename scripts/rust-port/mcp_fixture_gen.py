@@ -7,7 +7,6 @@ import hashlib
 import json
 import os
 import subprocess
-import sys
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -47,16 +46,38 @@ def oracle_environment() -> tuple[tempfile.TemporaryDirectory[str], dict[str, st
     home = base / "home"
     for path in (runtime, data, home):
         path.mkdir(mode=0o700)
-    environment = {
-        key: value
-        for key, value in os.environ.items()
-        if key not in {"SYMBROWSE_NO_AUTOSTART", "SYMBROWSE_RUNTIME_DIR", "SYMBROWSE_USER_DATA_DIR"}
-    }
+    # Start from an explicit allowlist. In particular, do not inherit runner
+    # profiles, credential paths, XDG roots, or SYMBROWSE configuration.
+    inherited = {"PATH": os.environ.get("PATH", "")}
+    environment = {key: value for key, value in inherited.items() if value}
     environment.update({
         "HOME": str(home),
+        "USERPROFILE": str(home),
+        "LOCALAPPDATA": str(data / "localappdata"),
+        "APPDATA": str(data / "appdata"),
+        "XDG_CONFIG_HOME": str(home / ".config"),
+        "XDG_DATA_HOME": str(home / ".local" / "share"),
+        "XDG_CACHE_HOME": str(home / ".cache"),
+        "XDG_STATE_HOME": str(home / ".local" / "state"),
         "XDG_RUNTIME_DIR": str(runtime),
+        "TMPDIR": str(base / "tmp"),
+        "TMP": str(base / "tmp"),
+        "TEMP": str(base / "tmp"),
+        "SYMBROWSE_RUNTIME_DIR": str(runtime),
         "SYMBROWSE_USER_DATA_DIR": str(data),
+        "SYMBROWSE_CONFIG_DIR": str(home / ".config" / "symbrowse"),
+        "SYMBROWSE_CACHE_DIR": str(home / ".cache" / "symbrowse"),
+        "SYMBROWSE_STATE_DIR": str(home / ".local" / "state" / "symbrowse"),
+        "SYMBROWSE_NO_AUTOSTART": "0",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
     })
+    for path in (environment["LOCALAPPDATA"], environment["APPDATA"],
+                 environment["XDG_CONFIG_HOME"], environment["XDG_DATA_HOME"],
+                 environment["XDG_CACHE_HOME"], environment["XDG_STATE_HOME"],
+                 environment["TMPDIR"]):
+        Path(path).mkdir(parents=True, exist_ok=True)
     return temporary, environment
 
 
@@ -85,20 +106,7 @@ def write_pair(root: Path, name: str, oracle: Path, frames: Sequence[object], *a
     fixture_dir.mkdir(parents=True, exist_ok=True)
     input_data = b"".join(compact(frame) for frame in frames)
     sync_file(fixture_dir / f"{name}.in", input_data, check)
-    if name == "tool_error" and sys.platform in {"darwin", "win32"}:
-        # The v0.8.0 Go oracle uses a Unix transport that is unavailable on
-        # these hosts. Its true result is therefore the transport error,
-        # before the static engine can apply the loopback policy. Keep this
-        # platform-specific oracle observation explicit; do not commit a
-        # path-bearing fixture or turn the error into a pass.
-        response = json.loads(out)
-        error = response["result"]["_meta"]["symaira.dev/tool_error"]
-        if error.get("code") != "daemon_unavailable":
-            raise SystemExit(f"{sys.platform} Go oracle tool_error code changed: {error.get('code')!r}")
-        # The transport metadata may contain an environment-specific socket
-        # or log path. It is deliberately not persisted as a fixture.
-    else:
-        sync_file(fixture_dir / f"{name}.out", out, check)
+    sync_file(fixture_dir / f"{name}.out", out, check)
     return {"input": f"{name}.in", "output": f"{name}.out"}
 
 
