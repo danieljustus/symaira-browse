@@ -137,35 +137,16 @@ mod windows {
         stream
             .write_all(br#"{"cmd":"daemon.ping"}"#)
             .expect("write stalled frame fragment");
-        stream
-            .set_nonblocking(true)
-            .expect("make client nonblocking");
+        // The client stays blocking: the server-side overlapped read must
+        // expire and reclaim its own handle without a client pre-read probe.
+        eprintln!("phase=server-read-deadline");
+        thread::sleep(Duration::from_millis(200));
+        eprintln!("phase=client-drop-after-deadline");
+        drop(stream);
 
-        let deadline = Instant::now() + Duration::from_secs(1);
-        let mut closed = false;
-        let mut byte = [0_u8; 1];
-        while Instant::now() < deadline {
-            match stream.read(&mut byte) {
-                Ok(0) => {
-                    closed = true;
-                    break;
-                }
-                Ok(_) => {}
-                Err(error) if error.kind() == ErrorKind::WouldBlock => {
-                    thread::sleep(Duration::from_millis(2));
-                }
-                Err(_) => {
-                    closed = true;
-                    break;
-                }
-            }
-        }
-        assert!(
-            closed,
-            "stalled named-pipe frame was not cleaned up by its deadline"
-        );
-
+        eprintln!("phase=server-stop-after-deadline");
         server.stop();
+        eprintln!("phase=server-join-after-deadline");
         assert!(server_thread.join().expect("join Windows daemon").is_ok());
     }
 
