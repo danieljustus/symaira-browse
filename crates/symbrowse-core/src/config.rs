@@ -266,7 +266,7 @@ pub fn load(context: &LoadContext) -> std::result::Result<Result, ConfigError> {
     let state_home = context
         .xdg_state_home
         .clone()
-        .unwrap_or_else(|| context.home.join(".local/state"));
+        .unwrap_or_else(|| context.home.join(".local").join("state"));
     let mut config = Config {
         log_level: "warn".to_owned(),
         log_format: "text".to_owned(),
