@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from run_bounded import kill_tree  # noqa: E402
+from startup_diagnostics import startup_failure  # noqa: E402
 
 
 def endpoint(env: dict[str, str], session: str) -> Path:
@@ -71,10 +72,12 @@ def main() -> int:
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline and not socket.exists():
                 if process.poll() is not None:
-                    raise SystemExit(f"pinned Go daemon exited during startup ({process.returncode})")
+                    raise startup_failure(
+                        log, f"pinned Go daemon exited during startup ({process.returncode})"
+                    )
                 time.sleep(0.02)
             if not socket.exists():
-                raise SystemExit(f"pinned Go daemon did not become ready: {socket}")
+                raise startup_failure(log, f"pinned Go daemon did not become ready: {socket}")
             env["SYMBROWSE_MCP_DAEMON_ENDPOINT"] = str(socket)
             result = subprocess.run(command, env=env, cwd=Path.cwd())
             return result.returncode

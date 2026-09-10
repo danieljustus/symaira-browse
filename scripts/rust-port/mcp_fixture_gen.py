@@ -18,6 +18,7 @@ MAX_ORACLE_OUTPUT_BYTES = 8 << 20
 ORACLE_TIMEOUT_SECONDS = 30
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from run_bounded import kill_tree  # noqa: E402
+from startup_diagnostics import startup_failure  # noqa: E402
 
 ORACLE_COMMIT = "652453d1595fc302bd69c328e7da8a21dbee28b9"
 SOURCE_FILES = (
@@ -137,15 +138,15 @@ def run_oracle(command: Sequence[str], *, input_data: bytes, environment: dict[s
 @contextlib.contextmanager
 def run_daemon(oracle: Path, environment: dict[str, str], session: str = "default"):
     endpoint = oracle_endpoint(environment, session)
-    stdout = tempfile.TemporaryFile()
-    stderr = tempfile.TemporaryFile()
+    log = Path(environment["TMPDIR"]) / f"daemon-{session}.log"
+    log_handle = log.open("wb")
     process = subprocess.Popen(
         [str(oracle), "daemon", "--session", session, "--engine", "static", "--ssrf", "--mcp-mode"],
         cwd=oracle.parent.parent.parent,
         env={**environment, "SYMBROWSE_NO_AUTOSTART": "1"},
         stdin=subprocess.DEVNULL,
-        stdout=stdout,
-        stderr=stderr,
+        stdout=log_handle,
+        stderr=subprocess.STDOUT,
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
         start_new_session=os.name != "nt",
     )
@@ -153,20 +154,21 @@ def run_daemon(oracle: Path, environment: dict[str, str], session: str = "defaul
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline and not endpoint.exists():
             if process.poll() is not None:
-                stderr.seek(0)
-                detail = stderr.read(MAX_ORACLE_OUTPUT_BYTES).decode(errors="replace")
-                raise SystemExit(f"pinned Go daemon exited during startup ({process.returncode}): {detail}")
+                raise startup_failure(
+                    log, f"pinned Go daemon exited during startup ({process.returncode})"
+                )
             time.sleep(0.02)
         if not endpoint.exists():
-            stderr.seek(0)
-            detail = stderr.read(MAX_ORACLE_OUTPUT_BYTES).decode(errors="replace")
-            raise SystemExit(f"pinned Go daemon did not create endpoint {endpoint}: {detail}")
+            raise startup_failure(log, f"pinned Go daemon did not create endpoint {endpoint}")
         yield process
     finally:
         if process.poll() is None:
             kill_tree(process)
-        stdout.close()
-        stderr.close()
+        log_handle.close()
+        try:
+            log.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def run(oracle: Path, frames: Sequence[object], *args: str) -> tuple[bytes, bytes]:
