@@ -262,43 +262,28 @@ mod windows {
 
         let mut peer = connect_when_server_ready(&endpoint);
         peer.write_all(
-            br#"{"cmd":"daemon.ping"}
+            br#"{"cmd":"large"}
 "#,
         )
         .expect("send request to backpressure daemon");
         peer.flush().expect("flush request");
         // Do not read the response: the server must exercise its bounded
-        // write timeout while the named-pipe peer applies backpressure.
+        // write/flush path while the named-pipe peer applies backpressure.
         thread::sleep(Duration::from_millis(100));
 
         server.stop();
-        assert!(
-            server_thread
-                .join()
-                .expect("join backpressure daemon")
-                .is_ok()
-        );
-
-        // PipeStream has no read-timeout API. Read on a helper thread and
-        // bound the join from the test thread so a missing EOF cannot hang CI.
         let (done, result) = std::sync::mpsc::channel();
         thread::spawn(move || {
-            let mut received = 0usize;
-            let mut buf = [0_u8; 8192];
-            let result = loop {
-                match peer.read(&mut buf) {
-                    Ok(0) => break Ok(received),
-                    Ok(n) => received += n,
-                    Err(error) => break Err(error),
-                }
-            };
+            let result = server_thread.join().expect("join backpressure daemon");
             let _ = done.send(result);
         });
-        let received = result
+        let result = result
             .recv_timeout(Duration::from_secs(2))
-            .expect("peer did not reach EOF after shutdown within timeout")
-            .expect("peer read failed after shutdown");
-        assert!(received > 0, "backpressure test received no response bytes");
+            .expect("daemon join exceeded bounded shutdown timeout");
+        assert!(result.is_ok(), "backpressure shutdown result = {result:?}");
+        // The peer intentionally never resumes reading. Dropping it after the
+        // joined server proves cleanup does not depend on a client-side drain.
+        drop(peer);
     }
 
     #[test]
