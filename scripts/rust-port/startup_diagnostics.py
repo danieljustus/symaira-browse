@@ -6,27 +6,35 @@ import re
 from pathlib import Path
 
 MAX_STARTUP_DIAGNOSTIC_BYTES = 16 << 10
-_SECRET = re.compile(
-    r"(?i)(?P<prefix>\b(?:authorization\s*:\s*bearer|(?:token|password|secret|api[_-]?key)\s*[=:])\s*)(?P<value>[^\s,;]+)"
+_DIAGNOSTIC_OMITTED = "<startup diagnostic omitted>"
+_SECRET_MARKER = re.compile(
+    r"(?is)(?<![A-Za-z0-9_])(?:authorization\s*:\s*bearer|token|password|secret|api[_-]?key)\s*[:=]\s*"
 )
 
 
+def _bounded_text(text: str, limit: int) -> str:
+    """Keep diagnostic output within limit UTF-8 bytes."""
+    encoded = text.encode("utf-8", errors="replace")
+    if len(encoded) <= limit:
+        return text
+    return encoded[:limit].decode("utf-8", errors="ignore")
+
+
 def redacted_tail(path: Path, limit: int = MAX_STARTUP_DIAGNOSTIC_BYTES) -> str:
-    """Return at most limit bytes of the log tail, with secret values masked."""
+    """Return a bounded startup diagnostic, omitting unsafe or oversized logs."""
     if limit <= 0:
         return ""
     try:
         with path.open("rb") as stream:
-            stream.seek(0, 2)
-            size = stream.tell()
-            stream.seek(max(0, size - limit))
-            data = stream.read(limit)
+            data = stream.read(limit + 1)
     except OSError as error:
-        return f"<unable to read daemon log: {error}>"
+        return _bounded_text(f"<unable to read daemon log: {error}>", limit)
+    if len(data) > limit:
+        return _bounded_text(_DIAGNOSTIC_OMITTED, limit)
     text = data.decode("utf-8", errors="replace")
-    if size > limit:
-        text = f"<tail truncated to {limit} bytes>\n" + text
-    return _SECRET.sub(r"\g<prefix><redacted>", text)
+    if _SECRET_MARKER.search(text):
+        return _bounded_text(_DIAGNOSTIC_OMITTED, limit)
+    return _bounded_text(text, limit)
 
 
 def preserve_startup_diagnostic(log: Path, *, directory: Path | None = None) -> Path | None:
