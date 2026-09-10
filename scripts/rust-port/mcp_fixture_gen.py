@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
+import sys
+import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -36,16 +39,42 @@ def framed(value: object) -> bytes:
     return b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
 
 
+def oracle_environment() -> tuple[tempfile.TemporaryDirectory[str], dict[str, str]]:
+    temporary = tempfile.TemporaryDirectory(prefix="symbrowse-mcp-oracle-")
+    base = Path(temporary.name)
+    runtime = base / "runtime"
+    data = base / "data"
+    home = base / "home"
+    for path in (runtime, data, home):
+        path.mkdir(mode=0o700)
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in {"SYMBROWSE_NO_AUTOSTART", "SYMBROWSE_RUNTIME_DIR", "SYMBROWSE_USER_DATA_DIR"}
+    }
+    environment.update({
+        "HOME": str(home),
+        "XDG_RUNTIME_DIR": str(runtime),
+        "SYMBROWSE_USER_DATA_DIR": str(data),
+    })
+    return temporary, environment
+
+
 def run(oracle: Path, frames: Sequence[object], *args: str) -> tuple[bytes, bytes]:
     data = b"".join(compact(frame) for frame in frames)
-    proc = subprocess.run(
-        [str(oracle), "mcp", "--engine", "static", *args],
-        input=data,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=True,
-    )
-    return proc.stdout, proc.stderr
+    temporary, environment = oracle_environment()
+    try:
+        proc = subprocess.run(
+            [str(oracle), "mcp", "--engine", "static", *args],
+            input=data,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=True,
+            env=environment,
+        )
+        return proc.stdout, proc.stderr
+    finally:
+        temporary.cleanup()
 
 
 def write_pair(root: Path, name: str, oracle: Path, frames: Sequence[object], *args: str, check: bool = False) -> dict[str, str]:
@@ -56,7 +85,20 @@ def write_pair(root: Path, name: str, oracle: Path, frames: Sequence[object], *a
     fixture_dir.mkdir(parents=True, exist_ok=True)
     input_data = b"".join(compact(frame) for frame in frames)
     sync_file(fixture_dir / f"{name}.in", input_data, check)
-    sync_file(fixture_dir / f"{name}.out", out, check)
+    if name == "tool_error" and sys.platform in {"darwin", "win32"}:
+        # The v0.8.0 Go oracle uses a Unix transport that is unavailable on
+        # these hosts. Its true result is therefore the transport error,
+        # before the static engine can apply the loopback policy. Keep this
+        # platform-specific oracle observation explicit; do not commit a
+        # path-bearing fixture or turn the error into a pass.
+        response = json.loads(out)
+        error = response["result"]["_meta"]["symaira.dev/tool_error"]
+        if error.get("code") != "daemon_unavailable":
+            raise SystemExit(f"{sys.platform} Go oracle tool_error code changed: {error.get('code')!r}")
+        # The transport metadata may contain an environment-specific socket
+        # or log path. It is deliberately not persisted as a fixture.
+    else:
+        sync_file(fixture_dir / f"{name}.out", out, check)
     return {"input": f"{name}.in", "output": f"{name}.out"}
 
 
@@ -213,7 +255,11 @@ def main() -> int:
 
 
 def write_pair_raw(root: Path, name: str, oracle: Path, data: bytes, *args: str, check: bool = False) -> dict[str, str]:
-    proc = subprocess.run([str(oracle), "mcp", "--engine", "static", *args], input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+    temporary, environment = oracle_environment()
+    try:
+        proc = subprocess.run([str(oracle), "mcp", "--engine", "static", *args], input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True, env=environment)
+    finally:
+        temporary.cleanup()
     if proc.stderr:
         raise SystemExit(f"oracle wrote stderr for {name}: {proc.stderr!r}")
     fixture_dir = root / "testdata" / "port" / "mcp"

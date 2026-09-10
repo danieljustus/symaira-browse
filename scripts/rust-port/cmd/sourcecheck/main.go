@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +21,11 @@ func main() {
 	if *oracle == "" || *paths == "" {
 		fatal("--oracle and --paths are required")
 	}
+	root, err := os.OpenRoot(".")
+	if err != nil {
+		fatal("open repository root: %v", err)
+	}
+	defer root.Close()
 	count := 0
 	seen := make(map[string]struct{})
 	for _, requested := range strings.Split(*paths, ",") {
@@ -36,7 +42,7 @@ func main() {
 				continue
 			}
 			seen[path] = struct{}{}
-			current, err := os.ReadFile(path) // #nosec G304 -- validated repository-relative operator input
+			current, err := readRootFile(root, path)
 			if err != nil {
 				fatal("read current %s: %v", path, err)
 			}
@@ -52,6 +58,22 @@ func main() {
 		}
 	}
 	fmt.Printf("PASS pinned fixture sources (%d files at %s)\n", count, *oracle)
+}
+
+func readRootFile(root *os.Root, path string) ([]byte, error) {
+	file, err := root.Open(filepath.ToSlash(path))
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("source path is not a regular file")
+	}
+	return io.ReadAll(file)
 }
 
 func expandFiles(path string) ([]string, error) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -41,5 +42,33 @@ func TestValidatePathAcceptsRepositoryRelativePath(t *testing.T) {
 		if err := validatePath(path); err != nil {
 			t.Fatalf("path %q rejected: %v", path, err)
 		}
+	}
+}
+
+func TestReadRootFileRejectsExternalSymlink(t *testing.T) {
+	base := t.TempDir()
+	rootDir := filepath.Join(base, "repo")
+	outsideDir := filepath.Join(base, "outside")
+	if err := os.Mkdir(rootDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(outsideDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(outsideDir, "same.go")
+	if err := os.WriteFile(outside, []byte("matching bytes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(rootDir, "same.go")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(rootDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	if _, err := readRootFile(root, "same.go"); err == nil {
+		t.Fatal("external symlink was read as repository content")
 	}
 }
