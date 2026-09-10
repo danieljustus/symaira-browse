@@ -6,6 +6,7 @@ mod windows {
     // handlers exercise that public ABI and do not own its error layout.
     #![allow(clippy::result_large_err)]
 
+    use std::io::Read;
     use std::path::Path;
 
     use symbrowse_daemon::{ClientOptions, default_socket_path, validate_session};
@@ -221,14 +222,112 @@ mod windows {
         // endpoint can be reclaimed by a fresh same-process server.
         eprintln!("phase=client-drop-blocked");
         drop(blocked);
-        let replacement = symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
-            socket_path: endpoint,
-            session,
-            idle_timeout: Some(Duration::from_millis(1)),
-            ..Default::default()
-        })
-        .expect("construct replacement after shutdown");
-        assert!(replacement.listen_and_serve().is_ok());
+        for attempt in 0..5 {
+            let replacement = symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+                socket_path: endpoint.clone(),
+                session: session.clone(),
+                idle_timeout: Some(Duration::from_millis(1)),
+                ..Default::default()
+            })
+            .unwrap_or_else(|error| panic!("construct replacement {attempt}: {error}"));
+            assert!(
+                replacement.listen_and_serve().is_ok(),
+                "same endpoint restart failed on attempt {attempt}"
+            );
+        }
+    }
+
+    #[test]
+    fn paused_peer_backpressure_closes_with_eof_after_shutdown() {
+        use std::{io::Write, sync::Arc, thread, time::Duration};
+
+        let session = format!("windows-backpressure-{}", std::process::id());
+        let endpoint = default_socket_path(&session);
+        let server = Arc::new(
+            symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+                socket_path: endpoint.clone(),
+                session,
+                idle_timeout: None,
+                handler: Some(Arc::new(|_, _| {
+                    Ok((
+                        Some(serde_json::json!({"payload": "x".repeat(256 * 1024)})),
+                        Vec::new(),
+                    ))
+                })),
+                ..Default::default()
+            })
+            .expect("construct backpressure daemon"),
+        );
+        let running = server.clone();
+        let server_thread = thread::spawn(move || running.listen_and_serve());
+
+        let mut peer = connect_when_server_ready(&endpoint);
+        peer.write_all(
+            br#"{"cmd":"large"}
+"#,
+        )
+        .expect("send request to backpressure daemon");
+        peer.flush().expect("flush request");
+        // Do not read the response: the server must exercise its bounded
+        // write/flush path while the named-pipe peer applies backpressure.
+        thread::sleep(Duration::from_millis(100));
+
+        server.stop();
+        let (done, result) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            let result = server_thread.join().expect("join backpressure daemon");
+            let _ = done.send(result);
+        });
+        let result = result
+            .recv_timeout(Duration::from_secs(2))
+            .expect("daemon join exceeded bounded shutdown timeout");
+        assert!(result.is_ok(), "backpressure shutdown result = {result:?}");
+        // Once the joined worker has closed its native handle, the peer may
+        // receive a partial response followed by a genuine EOF/reset. Drain
+        // in a separate thread so the assertion proves the close does not
+        // depend on the peer reading while the server is joining.
+        let (drained_tx, drained_rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            let mut buffer = [0_u8; 8192];
+            let mut total = 0_usize;
+            loop {
+                match peer.read(&mut buffer) {
+                    Ok(0) => {
+                        let _ = drained_tx.send((total, Ok(())));
+                        return;
+                    }
+                    Ok(read) => total += read,
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::BrokenPipe
+                                | std::io::ErrorKind::ConnectionReset
+                                | std::io::ErrorKind::UnexpectedEof
+                        ) =>
+                    {
+                        let _ = drained_tx.send((total, Err(error.kind())));
+                        return;
+                    }
+                    Err(error) => {
+                        let _ = drained_tx.send((total, Err(error.kind())));
+                        return;
+                    }
+                }
+            }
+        });
+        let (total, terminal) = drained_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("peer drain timed out after joined server");
+        assert!(
+            terminal.is_ok()
+                || matches!(
+                    terminal,
+                    Err(std::io::ErrorKind::BrokenPipe
+                        | std::io::ErrorKind::ConnectionReset
+                        | std::io::ErrorKind::UnexpectedEof)
+                ),
+            "peer did not observe EOF/reset after draining {total} bytes: {terminal:?}"
+        );
     }
 
     #[test]
