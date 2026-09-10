@@ -1,0 +1,20 @@
+[package]
+name = "symbrowse-cli"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "symbrowse"
+path = "src/main.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+symbrowse-core = { path = "../symbrowse-core", version = "=0.0.0" }
+symbrowse-daemon = { path = "../symbrowse-daemon", version = "=0.0.0" }
+symbrowse-mcp = { path = "../symbrowse-mcp", version = "=0.0.0" }
+symbrowse-protocol.workspace = true

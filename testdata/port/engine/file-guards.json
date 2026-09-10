@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "upload": [
+    {
+      "name": "valid_relative",
+      "path": "allowed/report.pdf",
+      "accepted": true,
+      "resolved": "\u003cROOT\u003e/allowed/report.pdf",
+      "supported": true
+    },
+    {
+      "name": "traversal",
+      "path": "allowed/sub/../../etc/passwd",
+      "accepted": false,
+      "error": "upload path rejected: traversal segment in \"allowed/sub/../../etc/passwd\"",
+      "supported": true
+    },
+    {
+      "name": "outside",
+      "path": "\u003cOUTSIDE\u003e/secret.txt",
+      "accepted": false,
+      "error": "upload path outside allowed directories: \u003cOUTSIDE\u003e/secret.txt",
+      "supported": true
+    },
+    {
+      "name": "missing",
+      "path": "allowed/missing.txt",
+      "accepted": false,
+      "error": "upload file does not exist: allowed/missing.txt",
+      "supported": true
+    },
+    {
+      "name": "no_allowed_directories",
+      "path": "allowed/report.pdf",
+      "accepted": false,
+      "error": "upload path rejected: no allowed upload directory is configured",
+      "supported": true
+    },
+    {
+      "name": "directory",
+      "path": "allowed",
+      "accepted": false,
+      "error": "upload path is not a regular file: allowed",
+      "supported": true
+    },
+    {
+      "name": "empty",
+      "path": "",
+      "accepted": false,
+      "error": "upload path is empty",
+      "supported": true
+    },
+    {
+      "name": "symlink_escape",
+      "path": "allowed/escape-link",
+      "accepted": false,
+      "error": "upload path outside allowed directories: allowed/escape-link",
+      "supported": true
+    }
+  ],
+  "download": {
+    "deny": {
+      "behavior": "deny",
+      "events_enabled": true
+    },
+    "allow": {
+      "behavior": "allow",
+      "download_path": "\u003cROOT\u003e/downloads",
+      "events_enabled": true
+    },
+    "traversal": {
+      "behavior": "allow",
+      "download_path": "\u003cROOT\u003e/normalized",
+      "events_enabled": true
+    },
+    "event": {
+      "guid": "g1",
+      "url": "https://example.test/file.pdf",
+      "filename": "file.pdf",
+      "state": "completed",
+      "received_bytes": 13,
+      "total_bytes": 13,
+      "sha256": "f5cb8992a6a59a3fbe3b884a9f8b3aa7b2c7d1a8e0a3e514b099bfd00b673945",
+      "timestamp": "\u003cTIMESTAMP\u003e"
+    },
+    "collision": {
+      "suggested_filename": "file.pdf",
+      "existing_payload": "old-file",
+      "guid_payload": "download-data",
+      "checksum_source": "\u003cROOT\u003e/downloads/g1",
+      "collision_handling": "none"
+    }
+  }
+}

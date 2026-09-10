@@ -1,0 +1,27 @@
+[package]
+name = "symbrowse-fetch"
+version = "0.0.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+brotli.workspace = true
+encoding_rs.workspace = true
+flate2.workspace = true
+futures-util.workspace = true
+html5ever.workspace = true
+httpdate.workspace = true
+markup5ever_rcdom.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+symbrowse-core.workspace = true
+time.workspace = true
+tokio.workspace = true
+url.workspace = true
+ruzstd.workspace = true

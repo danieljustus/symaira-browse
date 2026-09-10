@@ -1,0 +1,1179 @@
+{
+  "schema_version": 1,
+  "oracle_commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+  "contracts": [
+    {
+      "id": "CLI-001",
+      "seam": "CLI command tree",
+      "fixture": "root and every nested --help",
+      "go_oracle": "./symbrowse --help; recursively invoke child --help",
+      "expected": "command groups, names, order, usage, defaults and trailing newlines match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "CLI-002",
+      "seam": "CLI aliases",
+      "fixture": "goto/open and every documented compatibility alias",
+      "go_oracle": "./symbrowse goto https://fixture.invalid --json",
+      "expected": "alias resolution, output and exit status match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "CLI-003",
+      "seam": "CLI argument validation",
+      "fixture": "missing, extra, repeated and -- terminated arguments",
+      "go_oracle": "./symbrowse state save; ./symbrowse version extra",
+      "expected": "Cobra-compatible acceptance, stderr and exit code",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "CLI-004",
+      "seam": "inherited output flags",
+      "fixture": "--json/--output before root child, between nested commands, after final subcommand/positional, = syntax and repeats",
+      "go_oracle": "./symbrowse --json config show; ./symbrowse config --json show; ./symbrowse config show --json",
+      "expected": "each accepted/rejected permutation and actual format match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "CLI-005",
+      "seam": "eval input resolution",
+      "fixture": "argv expression, --stdin, --base64 and conflicting inputs",
+      "go_oracle": "printf '1+1' | ./symbrowse eval --stdin --json",
+      "expected": "input precedence, validation and payload match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "CLI-006",
+      "seam": "batch command execution",
+      "fixture": "mixed successful/failing commands, JSON-producing version, --bail and dry-run",
+      "go_oracle": "go test ./cmd/symbrowse -run 'TestBatch'",
+      "expected": "per-item results preserve input order; nested JSON is decoded as data; --bail stops at first failure; dry-run executes no side effect",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "OUT-001",
+      "seam": "version handshake",
+      "fixture": "text, --json and --output=json",
+      "go_oracle": "./symbrowse version; ./symbrowse version --json",
+      "expected": "JSON is exactly {tool,version,schema_version} in field order and bypasses envelope",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "OUT-002",
+      "seam": "success envelope",
+      "fixture": "representative scalar, object, array and warning outputs",
+      "go_oracle": "go test ./internal/output ./cmd/symbrowse -run 'Structured|Envelope'",
+      "expected": "success/data/warnings omission, order and newline match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "OUT-003",
+      "seam": "human/YAML rendering",
+      "fixture": "all dedicated human renderers and --output yaml",
+      "go_oracle": "go test ./internal/output ./cmd/symbrowse -run 'Human|YAML|Output'",
+      "expected": "text tables, YAML, ordering and newline match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "OUT-004",
+      "seam": "error envelope and exits",
+      "fixture": "every documented error code, including flow_failed, plus unclassified fallback",
+      "go_oracle": "go test ./internal/output ./cmd/symbrowse -run 'Error|Exit'",
+      "expected": "code/message/hint/details/retry fields and mapped process exit match; flow_failed maps to software/internal",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "OUT-005",
+      "seam": "truncate-and-store",
+      "fixture": "UTF-8 text at, below and above token/character boundaries",
+      "go_oracle": "go test ./internal/budget ./internal/daemon -run 'Budget|Cache'",
+      "expected": "rune-safe head/foot marker, out_ handle, range retrieval and fail-closed behavior match",
+      "comparison": "filesystem",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "OUT-006",
+      "seam": "warning transport",
+      "fixture": "prompt injection and blocked-request warnings",
+      "go_oracle": "go test ./internal/output ./internal/daemon -run 'Warning|Injection|Policy'",
+      "expected": "kind/severity/message/ref/excerpt and omission rules match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "MCP-001",
+      "seam": "MCP initialize",
+      "fixture": "protocol 2024-11-05 initialize request and initialized notification",
+      "go_oracle": "printf '%s\n' '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"fixture\",\"version\":\"0\"}}}' | ./symbrowse mcp",
+      "expected": "negotiated version, server info, capabilities and frame bytes match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "MCP-002",
+      "seam": "MCP profile registry",
+      "fixture": "core, nav, combined, all, invalid and list-profiles",
+      "go_oracle": "./symbrowse mcp --list-profiles; go test ./internal/mcp -run Profile",
+      "expected": "profile order/counts and selected tools match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "MCP-003",
+      "seam": "MCP tool metadata",
+      "fixture": "tools/list for all profiles",
+      "go_oracle": "printf initialize-and-tools-list frames | ./symbrowse mcp --tools all",
+      "expected": "tool names, aliases, descriptions, JSON Schemas and ordering match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "MCP-004",
+      "seam": "MCP daemon proxy",
+      "fixture": "one call for every registered canonical tool and alias",
+      "go_oracle": "go test ./internal/mcp -run 'Contract|Proxy|Alias'",
+      "expected": "daemon cmd/args/session mapping and transformed result match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "MCP-005",
+      "seam": "MCP tool errors",
+      "fixture": "typed fetch, daemon and generic failures",
+      "go_oracle": "go test ./internal/mcp -run 'ToolError|ErrorReachesClient'",
+      "expected": "isError tool result, text and symaira.dev/tool_error _meta fields match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "MCP-006",
+      "seam": "MCP stdio purity",
+      "fixture": "crates/symbrowse-mcp/src/proxy.rs + verified Rust MCP autostart/status/stop integration",
+      "go_oracle": "go test ./internal/mcp -run 'Stdio|Pollution|Handshake'",
+      "expected": "stdout contains only complete JSON-RPC frames; diagnostics only on stderr",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "MCP-007",
+      "seam": "MCP budgets",
+      "fixture": "default 4000, override, zero, overlong snapshot/read/fetch",
+      "go_oracle": "go test ./internal/mcp -run Budget",
+      "expected": "budgeted command set, truncation and MCP cache hint match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "MCP-008",
+      "seam": "MCP protocol failures",
+      "fixture": "malformed JSON, unknown method, notification, cancellation and EOF",
+      "go_oracle": "feed raw fixture frames to ./symbrowse mcp",
+      "expected": "JSON-RPC error codes/IDs, notification silence and shutdown match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "DMN-001",
+      "seam": "daemon frame schema",
+      "fixture": "all Frame fields and success/error/warnings responses",
+      "go_oracle": "go test ./internal/daemon -run 'Protocol|Frame'",
+      "expected": "newline-delimited JSON field names, omission and response shape match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "DMN-002",
+      "seam": "daemon frame limits",
+      "fixture": "empty cmd, malformed JSON, 1MiB boundary and oversized line",
+      "go_oracle": "go test ./internal/daemon -run 'Malformed|Frame|Large'",
+      "expected": "malformed_request vs connection close and max-size behavior match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "DMN-003",
+      "seam": "daemon socket security",
+      "fixture": "socket directory, mode, same/different peer UID",
+      "go_oracle": "go test ./internal/daemon -run 'Peer|Socket|Permission'",
+      "expected": "0600 socket and peer rejection behavior match",
+      "comparison": "filesystem",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "DMN-004",
+      "seam": "daemon startup race",
+      "fixture": "dead socket, live socket and concurrent starters",
+      "go_oracle": "go test ./internal/daemon -run 'Startup|Stale|Concurrent'",
+      "expected": "lock ownership, no live unlink, stale cleanup and one winner match",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "DMN-005",
+      "seam": "daemon status/lifecycle",
+      "fixture": "start, status, idle expiry and stop",
+      "go_oracle": "go test ./internal/daemon ./cmd/symbrowse -run 'Status|Idle|Stop'",
+      "expected": "status fields, timestamps, engine/policy and socket cleanup match",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "DMN-006",
+      "seam": "daemon deadlines",
+      "fixture": "read timeout, operation timeout, blocked handler and disconnect",
+      "go_oracle": "go test ./internal/daemon -run 'Timeout|Deadline|Cancel'",
+      "expected": "timeout code, cancellation and connection reuse/close match",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "DMN-007",
+      "seam": "session registry",
+      "fixture": "valid/invalid IDs, ensure/list/info/touch/clear",
+      "go_oracle": "go test ./internal/daemon ./internal/sessionid -run 'Session|Registry'",
+      "expected": "defaulting, order, timestamps and stable errors match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "DMN-008",
+      "seam": "client autostart",
+      "fixture": "missing daemon, concurrent clients, SYMBROWSE_NO_AUTOSTART and wrong engine/policy",
+      "go_oracle": "go test ./internal/daemon ./cmd/symbrowse -run 'Autostart|Client|Engine'",
+      "expected": "spawn argv, retry window, warnings and failure classification match",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "CFG-001",
+      "seam": "config precedence",
+      "fixture": "defaults, global TOML, project TOML, env and flags with conflicts",
+      "go_oracle": "go test ./internal/config -run 'Contract|Precedence|Override'",
+      "expected": "flag > env > project > global > default for every setting",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "CFG-002",
+      "seam": "XDG paths",
+      "fixture": "HOME and each XDG variable present/absent/relative",
+      "go_oracle": "go test ./internal/config ./internal/daemon -run 'XDG|Path|Socket'",
+      "expected": "config/cache/state/socket defaults and path normalization match",
+      "comparison": "filesystem",
+      "platforms": [
+        "all"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "CFG-003",
+      "seam": "TOML parsing",
+      "fixture": "unknown keys, invalid types, arrays, empty and corrupt files",
+      "go_oracle": "go test ./internal/config -run 'TOML|Invalid|Unknown'",
+      "expected": "accepted syntax, defaults and config error text/code match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "CFG-004",
+      "seam": "config show/redaction",
+      "fixture": "all sources plus secret env/key material",
+      "go_oracle": "./symbrowse config show --json",
+      "expected": "26 effective settings and sources appear; secrets never appear",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "CFG-005",
+      "seam": "engine selection",
+      "fixture": "flag/env/TOML/default and unknown engine",
+      "go_oracle": "go test ./cmd/symbrowse ./internal/config -run 'Engine'",
+      "expected": "precedence, validation and daemon propagation match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "CFG-006",
+      "seam": "transport mode and browser-engine selection",
+      "fixture": "TOML, environment and CLI selection for static/browser/compat and chrome/safari/firefox; omitted, conflicting, unknown and unavailable values",
+      "go_oracle": "new target contract; CFG-001 and CFG-005 remain precedence/daemon-propagation compatibility oracles",
+      "expected": "precedence and validation select one explicit transport mode and, in browser mode, one explicit engine; machine-readable config/status identifies the selected mode and engine without exposing browser profile data; unknown, conflicting or unavailable selections return typed errors and never trigger fallback",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "STATE-001",
+      "seam": "state file versions",
+      "fixture": "Go-generated plaintext v1/v2/v3 and encrypted v1/v2/v3 fixtures",
+      "go_oracle": "go test ./internal/state -run 'Version|Migration|RoundTrip'",
+      "expected": "all old versions read; save upgrades to v3 without data loss",
+      "comparison": "filesystem",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "STATE-002",
+      "seam": "AES-256-GCM layout",
+      "fixture": "fixed key/nonce test vectors and tampered header/body",
+      "go_oracle": "go test ./internal/state -run 'Crypto|AAD|Tamper'",
+      "expected": "magic, header newline, nonce+ciphertext, AAD and authentication failures match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "STATE-003",
+      "seam": "state key resolution",
+      "fixture": "symvault present/absent/error, macOS security 44/other, env valid/invalid",
+      "go_oracle": "go test ./internal/state -run 'Key|Resolver'",
+      "expected": "symvault > keychain > env > none and fail-vs-absent semantics match",
+      "comparison": "process",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "STATE-004",
+      "seam": "state plaintext fallback",
+      "fixture": "no key, existing encrypted state and resolver failure",
+      "go_oracle": "go test ./internal/state ./internal/daemon -run 'Plaintext|Fallback|Downgrade'",
+      "expected": "visible key_source, warning and no silent downgrade on resolver failure match",
+      "comparison": "filesystem",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "STATE-005",
+      "seam": "atomic persistence",
+      "fixture": "read-only dir, symlink, interrupted write, concurrent save/load",
+      "go_oracle": "go test ./internal/state -run 'Atomic|Concurrent|Permission|Symlink'",
+      "expected": "temp/write/sync/rename behavior, permissions and original preservation match",
+      "comparison": "filesystem",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "STATE-006",
+      "seam": "state CLI lifecycle",
+      "fixture": "save/load/list/show/clear/clean/key init with isolated browser data",
+      "go_oracle": "go test ./cmd/symbrowse ./internal/daemon -run 'State|KeyInit'",
+      "expected": "JSON/text outputs, age/expiry, counts and side effects match",
+      "comparison": "filesystem",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SEC-001",
+      "seam": "SSRF address policy",
+      "fixture": "IPv4/IPv6 loopback, RFC1918, link-local, ULA, .local, DNS rebinding and redirects",
+      "go_oracle": "go test ./internal/policy ./internal/fetch/... -run 'SSRF|Private|Redirect|DNS'",
+      "expected": "deny/allow decisions and peer_denied details match",
+      "comparison": "network",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SEC-002",
+      "seam": "domain allowlist",
+      "fixture": "exact, subdomain, port, IDN, case, trailing dot and redirects",
+      "go_oracle": "go test ./internal/policy ./internal/engine/... -run Allowlist",
+      "expected": "normalization and deny warnings match",
+      "comparison": "network",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SEC-003",
+      "seam": "upload path guard",
+      "fixture": "allowed roots, traversal, symlink escape, relative paths and missing file",
+      "go_oracle": "go test ./internal/daemon ./cmd/symbrowse -run Upload",
+      "expected": "canonical containment, denial code and no file disclosure match",
+      "comparison": "filesystem",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SEC-004",
+      "seam": "download path/integrity",
+      "fixture": "testdata/port/engine/file-guards.json + docs/rust-port/file-guards.md + issue #402",
+      "go_oracle": "go test ./internal/daemon ./cmd/symbrowse -run Download",
+      "expected": "Oracle behavior is preserved for migration parity: checksum `<download-dir>/<guid>`, suggested filename is metadata only, and checksum/size mismatch is not fail-closed. Strong collision/integrity enforcement is tracked in #402.",
+      "comparison": "filesystem",
+      "platforms": [
+        "all"
+      ],
+      "status": "accepted-difference"
+    },
+    {
+      "id": "SEC-005",
+      "seam": "prompt injection",
+      "fixture": "default/custom patterns, hidden DOM, opt-out and 100KB corpus",
+      "go_oracle": "go test ./internal/injection ./internal/daemon -run 'Injection|Boundary'",
+      "expected": "detections, excerpts, content preservation and boundary markers match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SEC-006",
+      "seam": "risk policy/guard",
+      "fixture": "every action class, confirmation, missing/slow/malformed symbrain guard",
+      "go_oracle": "go test ./internal/policy ./internal/daemon -run 'Risk|Guard|Approval'",
+      "expected": "risk class, fallback, timeout, journal and confirmation semantics match",
+      "comparison": "process",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SEC-007",
+      "seam": "secret redaction",
+      "fixture": "credentials in argv/env/config/daemon/MCP errors and logs",
+      "go_oracle": "run redaction corpus through CLI, daemon and MCP",
+      "expected": "no secret bytes appear on stdout/stderr/files; error classes remain useful",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "FETCH-001",
+      "seam": "HTTP profile selection",
+      "fixture": "chrome/firefox/opera/safari/edge/ios/honest/random/unknown; Rust slice: crates/symbrowse-fetch/tests/{http,retry,robots}.rs",
+      "go_oracle": "go test ./internal/fetch/fetch -run Profile",
+      "expected": "preset selection, random domain and unknown->chrome warning match",
+      "comparison": "network",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FETCH-002",
+      "seam": "legacy Go compatibility transport",
+      "fixture": "TLS ClientHello plus HTTP/2 settings/header order capture for six profiles",
+      "go_oracle": "run Go oracle against hermetic packet-signature fixture",
+      "expected": "compat mode preserves the pinned Go/AzureTLS wire fingerprint for released legacy callers; it is never presented as the version or identity of an installed browser",
+      "comparison": "network",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "FETCH-009",
+      "seam": "transport-mode selection",
+      "fixture": "static, browser and compat selections; omitted/unknown mode; unavailable requested engine",
+      "go_oracle": "new target contract; retain FETCH-001/FETCH-002 as compatibility oracles where applicable",
+      "expected": "each request selects exactly one declared mode: static uses the Rust HTTP stack, browser uses the requested real local engine, compat uses the legacy Go transport; selection is reported in machine-readable metadata and never silently falls back between modes or engines",
+      "comparison": "json-semantic",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FETCH-010",
+      "seam": "static transport honesty",
+      "fixture": "hermetic HTTP/DNS/proxy corpus with static-mode metadata",
+      "go_oracle": "new target contract; FETCH-003 through FETCH-008 remain the semantic oracle",
+      "expected": "static mode makes no browser-identity or TLS/HTTP2 impersonation claim; it preserves declared HTTP semantics, redirect policy, cookie-session behavior and typed errors without fabricating browser-only state",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FETCH-011",
+      "seam": "compat sidecar protocol and lifecycle",
+      "fixture": "version handshake, NDJSON request/response frames, typed errors, timeout, restart, exit and rollback cases",
+      "go_oracle": "pinned Go browser-profile transport plus a hermetic sidecar fixture server",
+      "expected": "Rust-to-Go compat traffic has an explicit protocol version, request ID, bounded timeout, stable error codes, private local endpoint permissions and deterministic restart/exit behavior; failure remains typed and does not select another transport",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "FETCH-003",
+      "seam": "HTTP semantics",
+      "fixture": "methods, headers, body, gzip/br/zstd, charset, limits and content types; Rust slice: crates/symbrowse-fetch/tests/{http,retry,robots}.rs",
+      "go_oracle": "go test ./internal/fetch/fetch -run 'Fetch|Decode|Charset|Body'",
+      "expected": "status, headers, decoded UTF-8 body, protocol and size errors match",
+      "comparison": "network",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FETCH-004",
+      "seam": "redirect/proxy/cookies",
+      "fixture": "redirect chain/loop, cross-host policy, HTTP/SOCKS proxy and named cookie jar; Rust slice: crates/symbrowse-fetch/tests/{http,retry,robots}.rs",
+      "go_oracle": "go test ./internal/fetch/fetch -run 'Redirect|Proxy|Cookie|Session'",
+      "expected": "hop policy, final URL, cookie persistence and proxy behavior match",
+      "comparison": "network",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FETCH-005",
+      "seam": "robots/retry/rate limit",
+      "fixture": "allow/disallow, matching UA, 408/429/5xx, Retry-After and circuit breaker; Rust slice: crates/symbrowse-fetch/tests/{http,retry,robots}.rs",
+      "go_oracle": "go test ./internal/fetch/... -run 'Robots|Retry|Backoff|Circuit|Rate'",
+      "expected": "request order, deterministic delays and retryable classification match",
+      "comparison": "network",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FETCH-006",
+      "seam": "HTML to document",
+      "fixture": "full static corpus including malformed HTML, shadow-like markup, JSON-LD and languages",
+      "go_oracle": "go test ./internal/fetch/... -run 'Render|DOM|Semantic|JSONLD|Conformance'",
+      "expected": "title/lang/schema, cleanup, links, markdown and metadata match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FETCH-007",
+      "seam": "relevance/truncation/cache",
+      "fixture": "BM25 query/top_k, selectors, raw, frontmatter, no-cache and store_full_text",
+      "go_oracle": "go test ./internal/fetch/... ./internal/daemon -run 'Relevance|Selector|Cache|Frontmatter|Truncat'",
+      "expected": "section order, budgets, cache IDs, metadata and output bytes match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FETCH-008",
+      "seam": "batch/Wayback/recovery",
+      "fixture": "1/20/21 URLs, concurrency/failures/order, snapshots, 404/410 recovery and fallback",
+      "go_oracle": "go test ./internal/fetch/... ./internal/mcp -run 'Batch|Wayback|Recovery'",
+      "expected": "bounded concurrency, input order, partial failures and candidate schema match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "ENG-001",
+      "seam": "engine capabilities",
+      "fixture": "chrome/static/safari-attach/safari-bidi before and after launch",
+      "go_oracle": "go test ./internal/engine/... ./cmd/symbrowse -run 'Capabilities|EngineInfo'",
+      "expected": "kind/launch_mode/interfaces/unsupported sorted partition match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "ENG-002",
+      "seam": "Chrome launch/attach",
+      "fixture": "docs/rust-port/rust011-cdp-probe.json + docs/rust-port/rust011-cdp-feasibility.md",
+      "go_oracle": "go test ./internal/engine/chrome ./internal/engine/doctor -run 'Launch|Attach|Discover|Timeout'",
+      "expected": "argv, process ownership, endpoint attach and diagnostics match",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "ENG-003",
+      "seam": "navigation/runtime/AX",
+      "fixture": "testdata/port/engine/engine-neutral.json + issue #401",
+      "go_oracle": "go test ./internal/engine/chrome ./e2e -run 'Navigate|Evaluate|AX|Smoke'",
+      "expected": "frame/loader/error fields, JSON values and AX payload semantics match Rust applies ref replacement atomically; the pinned Go oracle can chain colliding replacements nondeterministically (#401).",
+      "comparison": "json-semantic",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "accepted-difference"
+    },
+    {
+      "id": "ENG-004",
+      "seam": "stable refs/snapshots",
+      "fixture": "17 registered fixture routes, diff, subtree/depth/interactive/compact/urls",
+      "go_oracle": "go test ./internal/engine -run 'StableRefsAndSnapshotDiffBenchmark|Snapshot|Ref'",
+      "expected": "stable @refs, tombstones, rendering, ref retention and diff classification match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "ENG-005",
+      "seam": "interaction and inspection",
+      "fixture": "click/dblclick/fill/type/press/focus/hover/select/check/scroll/find/get/is; Rust slice: crates/symbrowse-engine-chrome/tests/full.rs plus opt-in native Chrome smoke",
+      "go_oracle": "go test ./internal/engine/... ./cmd/symbrowse -run 'Interaction|Inspection|Find|Wait'",
+      "expected": "selector/@ref resolution, events, waits, result fields and errors match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "ENG-006",
+      "seam": "tabs/frames/dialogs",
+      "fixture": "nested frames, multiple tabs, popups and manual/auto JS dialogs; Rust slice: crates/symbrowse-engine-chrome/tests/full.rs plus opt-in native Chrome smoke",
+      "go_oracle": "go test ./internal/engine/... ./internal/flows -run 'Tab|Frame|Dialog'",
+      "expected": "IDs, active selection, event order and unsupported failures match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "ENG-007",
+      "seam": "network/file/screenshot/a11y",
+      "fixture": "requests/HAR/mock/offline, uploads/downloads, PNG/JPEG/full/selector, axe; Rust slice: crates/symbrowse-engine-chrome/tests/full.rs plus opt-in native Chrome smoke",
+      "go_oracle": "go test ./internal/engine/... ./cmd/symbrowse -run 'Network|Upload|Download|Screenshot|A11y'",
+      "expected": "events, artifacts, image bytes/metadata and audit schema match",
+      "comparison": "filesystem",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "fixture-ready"
+    },
+    {
+      "id": "ENG-008",
+      "seam": "Safari engines",
+      "fixture": "attach via Apple Events and isolated safaridriver BiDi lifecycle/capabilities",
+      "go_oracle": "go test ./internal/engine/safari ./internal/engine/safaribidi",
+      "expected": "requested Safari uses local Safari only; launch/attach, navigation, errors, cleanup and capability truth match, while unavailable Remote Automation prerequisites return typed errors without Chrome, Firefox, static or compat substitution",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "ENG-009",
+      "seam": "real-browser transport class",
+      "fixture": "local Chrome, Safari and Firefox navigation fixture with redirect, JavaScript, cookies, storage, response capture, timeout and cleanup probes",
+      "go_oracle": "new target contract; existing engine fixtures remain capability oracles",
+      "expected": "browser mode starts or attaches only to the explicitly requested installed engine and uses that engine's own network stack and browser state; it reports the selected engine and detected version, preserves browser-specific capability truth and returns a typed unavailable/precondition error rather than substituting a different engine or compat mode",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "ENG-010",
+      "seam": "Firefox launch/attach and BiDi",
+      "fixture": "Firefox WebDriver/BiDi lifecycle, navigation, cookies/storage, JavaScript, downloads/response capture, timeout and cleanup corpus",
+      "go_oracle": "new target contract with browser-mode fixture server and Firefox-native evidence",
+      "expected": "Firefox is a first-class requested browser engine, using local Firefox through its native automation surface; supported capabilities pass executable native cases and unsupported capabilities fail explicitly without Chrome, Safari or compat substitution",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "FLOW-001",
+      "seam": "flow schema/parser",
+      "fixture": "valid/minimal/full/unknown/malformed YAML and variable inputs",
+      "go_oracle": "go test ./internal/flows ./cmd/symbrowse -run 'Schema|Discovery|Validate|Input'",
+      "expected": "accepted grammar, defaults, line-accurate errors and discovery order match",
+      "comparison": "bytes",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FLOW-002",
+      "seam": "flow execution",
+      "fixture": "dry-run and real deterministic multi-step flows with assertions",
+      "go_oracle": "go test ./internal/flows ./cmd/symbrowse -run 'Runner|E2E|DryRun'",
+      "expected": "risk plan, step order, aborts, outputs and side effects match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FLOW-003",
+      "seam": "flow record/replay",
+      "fixture": "start/status/stop draft, trace export/replay and mutation",
+      "go_oracle": "go test ./internal/flows ./internal/trace ./cmd/symbrowse -run 'Record|Trace|Replay'",
+      "expected": "canonical artifacts, mutation detection and replay results match",
+      "comparison": "filesystem",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "FLOW-004",
+      "seam": "public Go formflow API and form automation runtime",
+      "fixture": "normal, hostile, captcha, confirmation and field fallback corpus",
+      "go_oracle": "go test ./formflow -count=1",
+      "expected": "exported Go API shape remains available until consumers migrate; pacing, risk classes, outcome codes, evidence and hard stops match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SES-001",
+      "seam": "session control lifecycle",
+      "fixture": "agent->human handoff, resume confirmation, timeout, inactive and completion",
+      "go_oracle": "go test ./internal/session ./cmd/symbrowse -run 'Lifecycle|Handoff|Resume'",
+      "expected": "state transitions, hard-stop metadata and no implicit takeover match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity",
+      "rust_test": "crates/symbrowse-core/tests/session_lifecycle.rs"
+    },
+    {
+      "id": "SES-002",
+      "seam": "cookies/storage",
+      "fixture": "origin-scoped cookies/local/session storage list/get/set/clear",
+      "go_oracle": "go test ./internal/daemon ./cmd/symbrowse -run 'Cookie|Storage'",
+      "expected": "origin scope, ordering, values, validation and mutation match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SES-003",
+      "seam": "journal/watch",
+      "fixture": "mixed-risk actions, tail/show/live watch, truncation and cancellation",
+      "go_oracle": "go test ./internal/journal ./internal/daemon ./cmd/symbrowse -run 'Journal|Watch'",
+      "expected": "JSONL bytes, sequence/order, redaction and stream shutdown match",
+      "comparison": "filesystem",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SES-004",
+      "seam": "OOB channel",
+      "fixture": "no notifier, delivered/failed/timeout messages and status",
+      "go_oracle": "go test ./internal/oob ./internal/daemon ./cmd/symbrowse -run OOB",
+      "expected": "fallback, status fields, timeout and errors match",
+      "comparison": "process",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SES-005",
+      "seam": "auth login",
+      "fixture": "symvault absent/error/success and varied login-form fixtures",
+      "go_oracle": "go test ./internal/daemon ./cmd/symbrowse -run Auth",
+      "expected": "runtime discovery, no plaintext persistence, field detection and errors match",
+      "comparison": "process",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "SES-006",
+      "seam": "settings/profiles",
+      "fixture": "device list and each viewport/device/geo/offline/header/media/UA mutation",
+      "go_oracle": "go test ./internal/engine/... ./cmd/symbrowse -run 'Settings|Profiles|Viewport|Device|Geo|Headers'",
+      "expected": "validation, forbidden headers, persistent session effect and output match",
+      "comparison": "json-semantic",
+      "platforms": [
+        "all"
+      ],
+      "status": "parity"
+    },
+    {
+      "id": "REL-001",
+      "seam": "native targets",
+      "fixture": "release builds and smoke tests on six target tuples",
+      "go_oracle": "native CI builds then symbrowse version --json and help smoke",
+      "expected": "all configured targets run natively with no dynamic project runtime dependency",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "REL-002",
+      "seam": "archive layout",
+      "fixture": "v0.8.0 release assets as oracle",
+      "go_oracle": "gh release download v0.8.0; inspect archives",
+      "expected": "names, tar.gz/zip formats and LICENSE/README/AGENTS/binary layout match",
+      "comparison": "filesystem",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "REL-003",
+      "seam": "checksums/signatures/SBOM",
+      "fixture": "checksums.txt, cosign sig/pem and per-archive SPDX SBOM",
+      "go_oracle": "download v0.8.0 assets and verify",
+      "expected": "asset naming, SHA-256 lines, keyless signatures and SBOM attachment match",
+      "comparison": "filesystem",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "REL-004",
+      "seam": "macOS signing/notarization",
+      "fixture": "amd64 and arm64 release binaries",
+      "go_oracle": "codesign --verify --deep --strict; spctl; xcrun stapler validate where applicable",
+      "expected": "Developer ID hardened-runtime signature and notarization pass",
+      "comparison": "manual-gate",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "REL-005",
+      "seam": "Homebrew and runtime upgrade",
+      "fixture": "generated Formula plus upgrade check/apply success, signature failure, wrong asset and rollback",
+      "go_oracle": "go test ./cmd/symbrowse -run 'Upgrade'; brew install/test/upgrade in clean prefixes",
+      "expected": "formula name/URL/checksum and runtime release selection, verification, atomic replacement and rollback match",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "REL-006",
+      "seam": "dual implementation rollback",
+      "fixture": "Go-default, Rust opt-in, Rust-default, forced Go and missing sibling binary",
+      "go_oracle": "run launcher matrix with isolated PATH and SYMBROWSE_IMPL",
+      "expected": "selection is explicit, observable and never strands the last known-good Go path",
+      "comparison": "process",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "PERF-001",
+      "seam": "CLI startup/RSS",
+      "fixture": "paired 30-run release-mode version/help/config distributions",
+      "go_oracle": "run neutral benchmark harness against symbrowse-go and symbrowse-rs",
+      "expected": "Rust p95 latency <=110% Go and median RSS <=80% Go if RSS is claimed",
+      "comparison": "manual-gate",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "PERF-002",
+      "seam": "MCP/daemon steady state",
+      "fixture": "paired initialize/list/call and 100-frame daemon workload",
+      "go_oracle": "run neutral benchmark harness with isolated sockets/HOME",
+      "expected": "Rust p95 <=110% Go; no unbounded task/channel growth",
+      "comparison": "manual-gate",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "PERF-003",
+      "seam": "fetch/engine representative latency",
+      "fixture": "hermetic static corpus and real-Chrome fixture flow",
+      "go_oracle": "run paired fetch and Chrome benchmark suites",
+      "expected": "Rust p95 <=110% Go and deterministic outputs retain existing benchmark gates",
+      "comparison": "manual-gate",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    },
+    {
+      "id": "PERF-004",
+      "seam": "binary/value gate",
+      "fixture": "paired stripped release artifacts and process benchmark set",
+      "go_oracle": "measure uncompressed assets and paired RSS distributions",
+      "expected": "at least 20% smaller binary OR 20% lower median RSS, with all no-regression gates passing",
+      "comparison": "manual-gate",
+      "platforms": [
+        "darwin-amd64",
+        "darwin-arm64",
+        "linux-amd64",
+        "linux-arm64",
+        "windows-amd64",
+        "windows-arm64"
+      ],
+      "status": "todo"
+    }
+  ]
+}

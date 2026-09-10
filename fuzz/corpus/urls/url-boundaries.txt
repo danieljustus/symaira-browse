@@ -1,0 +1,5 @@
+https://example.test/path?q=1
+http://127.0.0.1:8080/
+file:///etc/passwd
+https://notexample.test/
+https://user:password@example.test/

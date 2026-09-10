@@ -1,0 +1,1364 @@
+{
+  "schema_version": 2,
+  "report_version": "rust016-benchmark-v2",
+  "captured_at": "2026-09-08T14:04:57Z",
+  "source_revision": "9d84c9ac9235e3d0239fdeda7a7072fe6859a115",
+  "host": {
+    "system": "Darwin",
+    "machine": "arm64"
+  },
+  "runs_per_workload": 30,
+  "cache_policy": "no_cache=true for fetch requests; fresh HOME/XDG roots per process probe",
+  "workload_fixture": "rust016-static-fetch-html-v1",
+  "workloads": [
+    "cli",
+    "daemon",
+    "fetch",
+    "mcp"
+  ],
+  "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
+  "binaries": {
+    "go": {
+      "identity": {
+        "path": "/private/tmp/symbrowse-go",
+        "size_bytes": 18264882,
+        "sha256": "d97bcbb560941175be1c3f7f8924a090909875f52830137d86b95d215fea4c55",
+        "vcs_revision": "9d84c9ac9235e3d0239fdeda7a7072fe6859a115"
+      },
+      "cli": {
+        "status": "pass",
+        "samples": 30,
+        "raw_samples": [
+          {
+            "duration_ns": 9216417,
+            "peak_rss_bytes": 21331968
+          },
+          {
+            "duration_ns": 8698584,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9213458,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8417875,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8721625,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8246667,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8838375,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8289000,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8659625,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8434667,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8515000,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8316750,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8448792,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9208250,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8601666,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8661083,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8614750,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8638833,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9609750,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8341042,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8169709,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8461500,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8362000,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8639417,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8592833,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8470125,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8337292,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8830333,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8622666,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9046042,
+            "peak_rss_bytes": 0
+          }
+        ],
+        "median_duration_ns": 8608208,
+        "p95_duration_ns": 9216417,
+        "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
+        "statuses": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "median_peak_rss_bytes": 21331968
+      },
+      "mcp": {
+        "status": "pass",
+        "samples": 30,
+        "raw_samples": [
+          {
+            "duration_ns": 8956458,
+            "peak_rss_bytes": 507904
+          },
+          {
+            "duration_ns": 9201000,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8887250,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9103917,
+            "peak_rss_bytes": 114688
+          },
+          {
+            "duration_ns": 8688667,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9505542,
+            "peak_rss_bytes": 147456
+          },
+          {
+            "duration_ns": 9702084,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9336750,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8936417,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9438083,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9652875,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9045125,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9507500,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9133708,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9436083,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9117500,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9007084,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9018708,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8847209,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9466166,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8764375,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9345250,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9162625,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9351750,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9256750,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9048458,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9034209,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 9906500,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8817084,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 8660084,
+            "peak_rss_bytes": 0
+          }
+        ],
+        "median_duration_ns": 9125604,
+        "p95_duration_ns": 9702084,
+        "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
+        "statuses": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "median_peak_rss_bytes": 147456
+      },
+      "daemon": {
+        "status": "pass",
+        "samples": 30,
+        "raw_samples": [
+          {
+            "duration_ns": 46518375,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 47142166,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 45063916,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 48626667,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 41961125,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 45275375,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 46058875,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 45435167,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 43204333,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 41575125,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 40914708,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 47355459,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 40467125,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 47320917,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 43696416,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 47235125,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 48508875,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 48554458,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 48030625,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 41699458,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 42055083,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 46611625,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 66237375,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 50503417,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 48184833,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 44526584,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 43834250,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 46072500,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 43240916,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 49716209,
+            "peak_rss_bytes": null
+          }
+        ],
+        "median_duration_ns": 46065687,
+        "p95_duration_ns": 50503417,
+        "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
+        "statuses": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "fetch": {
+        "status": "pass",
+        "samples": 30,
+        "raw_samples": [
+          {
+            "duration_ns": 12387292,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 5828625,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4138292,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 5069250,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4704625,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 3994458,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 2977917,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4019708,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4094833,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4818125,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 6050875,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4032625,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4029500,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4861208,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4107750,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 6849458,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 7046125,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4921291,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4250416,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4831459,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4927916,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 3995958,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 3932417,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4976833,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 5056250,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4833792,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 5239916,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4835458,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 5019958,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 4922833,
+            "peak_rss_bytes": null
+          }
+        ],
+        "median_duration_ns": 4834625,
+        "p95_duration_ns": 7046125,
+        "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
+        "statuses": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "semantic_contract": {
+          "fixture_id": "rust016-static-fetch-html-v1",
+          "checks": [
+            "final_url",
+            "status_code",
+            "body",
+            "document_metadata",
+            "errors"
+          ],
+          "negative_control": {
+            "candidate": "success=true with wrong title/body",
+            "rejected": true
+          }
+        }
+      }
+    },
+    "rust": {
+      "identity": {
+        "path": "/Users/daniel/Dev/Symaira Dev/symaira-browse/.worktrees/subagent-sa-0-39055277/target/release/symbrowse",
+        "size_bytes": 7826384,
+        "sha256": "0a57fe49b1966452503232f74bee2a09220b55a48bbdaaf94ff655272c66d915",
+        "vcs_revision": "9d84c9ac9235e3d0239fdeda7a7072fe6859a115"
+      },
+      "cli": {
+        "status": "pass",
+        "samples": 30,
+        "raw_samples": [
+          {
+            "duration_ns": 5796167,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5791084,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5605709,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5629958,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 7052459,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5791292,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5751041,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5516667,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5054250,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5433334,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5545583,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5880250,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5679625,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5505875,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5136750,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5619458,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5640208,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5698625,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5320209,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5646917,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5504333,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5338625,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 6393500,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5917792,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5356375,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5805333,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5569209,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5790334,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 6107208,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5673458,
+            "peak_rss_bytes": 0
+          }
+        ],
+        "median_duration_ns": 5643562,
+        "p95_duration_ns": 6393500,
+        "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
+        "statuses": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "mcp": {
+        "status": "pass",
+        "samples": 30,
+        "raw_samples": [
+          {
+            "duration_ns": 5755875,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5690875,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5863250,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5708291,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5676875,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5182333,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5837833,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5971875,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 6015250,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5579250,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5952625,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5725166,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5336334,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5693500,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5602292,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5841625,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5632708,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5549750,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5925500,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5592000,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5408833,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5457125,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 7358416,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5531958,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5754666,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5783666,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5399250,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 6830958,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 5812417,
+            "peak_rss_bytes": 0
+          },
+          {
+            "duration_ns": 6029792,
+            "peak_rss_bytes": 0
+          }
+        ],
+        "median_duration_ns": 5716728,
+        "p95_duration_ns": 6830958,
+        "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
+        "statuses": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "daemon": {
+        "status": "pass",
+        "samples": 30,
+        "raw_samples": [
+          {
+            "duration_ns": 21950958,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 20408208,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 20283500,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 20877334,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 23583875,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 20379709,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 24207875,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 20765541,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 21738917,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 24010708,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 25004834,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 22471791,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 25299959,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 24085958,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 25344375,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 23611250,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 22101792,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 23838459,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 21111625,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 23232125,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 22963417,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 25322250,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 22632334,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 21655833,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 24919292,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 22970167,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 25985959,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 23057542,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 25493375,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 32584416,
+            "peak_rss_bytes": null
+          }
+        ],
+        "median_duration_ns": 23144833,
+        "p95_duration_ns": 25985959,
+        "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
+        "statuses": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ]
+      },
+      "fetch": {
+        "status": "pass",
+        "samples": 30,
+        "raw_samples": [
+          {
+            "duration_ns": 1495375,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 670458,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 703917,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 549042,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 475209,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 357750,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 383625,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 603959,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 381041,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 352291,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 422375,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 415875,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 247875,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 331584,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 312125,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 310292,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 296667,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 366417,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 331375,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 355000,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 282791,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 312625,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 298875,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 368833,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 294542,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 277000,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 303417,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 297625,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 313667,
+            "peak_rss_bytes": null
+          },
+          {
+            "duration_ns": 329000,
+            "peak_rss_bytes": null
+          }
+        ],
+        "median_duration_ns": 341937,
+        "p95_duration_ns": 703917,
+        "p95_calculation": "nearest-rank: sorted_samples[ceil(0.95*n)-1]",
+        "statuses": [
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass",
+          "pass"
+        ],
+        "semantic_contract": {
+          "fixture_id": "rust016-static-fetch-html-v1",
+          "checks": [
+            "final_url",
+            "status_code",
+            "body",
+            "document_metadata",
+            "errors"
+          ],
+          "negative_control": {
+            "candidate": "success=true with wrong title/body",
+            "rejected": true
+          }
+        }
+      }
+    }
+  },
+  "gate": "pass",
+  "limitations": [
+    "Peak RSS is collected from child-process resource usage where the host exposes it; daemon RSS remains unavailable in this portable runner.",
+    "The fetch probe is a local HTTP fixture and does not certify real browser/CDP behavior.",
+    "Unsupported candidate surfaces remain a BLOCK for cutover, not a passing result."
+  ],
+  "candidate_size_bytes": 7826384,
+  "reference_size_bytes": 18264882
+}

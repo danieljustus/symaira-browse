@@ -1,0 +1,767 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+    "release": "v0.8.0"
+  },
+  "cases": [
+    {
+      "id": "version-text",
+      "stage": "version",
+      "args": [
+        "version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "version-json-root-flag",
+      "stage": "version",
+      "args": [
+        "--json",
+        "version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "version-json-child-flag",
+      "stage": "version",
+      "args": [
+        "version",
+        "--json"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "version-output-json-separated",
+      "stage": "version",
+      "args": [
+        "version",
+        "--output",
+        "json"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "version-output-json-equals",
+      "stage": "version",
+      "args": [
+        "--output=json",
+        "version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "version-output-yaml",
+      "stage": "version",
+      "args": [
+        "version",
+        "--output",
+        "yaml"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "version-extra-argument",
+      "stage": "version",
+      "args": [
+        "version",
+        "extra"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "version-flag-after-separator",
+      "stage": "version",
+      "args": [
+        "version",
+        "--",
+        "--json"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "invalid-output",
+      "stage": "version",
+      "args": [
+        "version",
+        "--output",
+        "wat"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "root-version-shorthand",
+      "stage": "version",
+      "args": [
+        "-v"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "root-version-long",
+      "stage": "version",
+      "args": [
+        "--version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "root-help",
+      "stage": "full-cli",
+      "args": [
+        "--help"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "unknown-command",
+      "stage": "full-cli",
+      "args": [
+        "definitely-not-a-command"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "config-default-json",
+      "stage": "config-output",
+      "args": [
+        "config",
+        "show",
+        "--json"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "config-default-text",
+      "stage": "config-output",
+      "args": [
+        "config",
+        "show"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "config-precedence-json",
+      "stage": "config-output",
+      "args": [
+        "config",
+        "show",
+        "--json",
+        "--log-level",
+        "trace",
+        "--state-dir",
+        "flag-state"
+      ],
+      "env": {
+        "SYMBROWSE_LOG_LEVEL": "error",
+        "SYMBROWSE_READ_TIMEOUT": "90"
+      },
+      "setup": [
+        {
+          "path": ".symbrowse.toml",
+          "content": "log_level = \"debug\"\noperation_timeout = 44\nengine = \"static\"\n",
+          "mode": 384
+        }
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "config-invalid-engine-json",
+      "stage": "config-output",
+      "args": [
+        "config",
+        "show",
+        "--json"
+      ],
+      "env": {
+        "SYMBROWSE_ENGINE": "wat"
+      },
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "config-json-root-flag",
+      "stage": "config-output",
+      "args": [
+        "--json",
+        "config",
+        "show"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "config-json-between-commands",
+      "stage": "config-output",
+      "args": [
+        "config",
+        "--json",
+        "show"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "config-default-yaml",
+      "stage": "config-output",
+      "args": [
+        "config",
+        "show",
+        "--output",
+        "yaml"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "stage": "config-output",
+      "args": [
+        "config",
+        "show",
+        "--json"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "id": "config-unknown-toml-key",
+      "setup": [
+        {
+          "path": ".symbrowse.toml",
+          "content": "future_setting = 42\n",
+          "mode": 384
+        }
+      ]
+    },
+    {
+      "stage": "config-output",
+      "args": [
+        "config",
+        "show",
+        "--json"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "id": "config-malformed-toml",
+      "setup": [
+        {
+          "path": ".symbrowse.toml",
+          "content": "log_level = [\n",
+          "mode": 384
+        }
+      ]
+    },
+    {
+      "stage": "config-output",
+      "args": [
+        "config",
+        "show",
+        "--json"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "id": "config-invalid-toml-type",
+      "setup": [
+        {
+          "path": ".symbrowse.toml",
+          "content": "read_timeout = \"slow\"\n",
+          "mode": 384
+        }
+      ]
+    },
+    {
+      "id": "batch-dry-run-json",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "--dry-run",
+        "click @e1",
+        "fill @e2 \"hello world\""
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "batch-dry-run-text",
+      "stage": "batch",
+      "args": [
+        "batch",
+        "--dry-run",
+        "read https://example.com",
+        "open https://example.com",
+        "version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "batch-dry-run-stdin",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "--dry-run"
+      ],
+      "stdin": "[\"read https://example.com\",\"version\"]",
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "batch-dry-run-unbalanced",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "--dry-run",
+        "\"unbalanced"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "batch-version-results",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "version --json",
+        "version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "json",
+      "stderr_mode": "bytes",
+      "ignore_json_fields": [
+        "duration_ms"
+      ],
+      "compare_files": true
+    },
+    {
+      "id": "batch-bail-unknown",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "--bail",
+        "version --json",
+        "definitely-not-command",
+        "version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "json",
+      "stderr_mode": "bytes",
+      "ignore_json_fields": [
+        "duration_ms"
+      ],
+      "compare_files": true
+    },
+    {
+      "id": "batch-empty-continues",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "",
+        "version --json"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "json",
+      "stderr_mode": "bytes",
+      "ignore_json_fields": [
+        "duration_ms"
+      ],
+      "compare_files": true
+    },
+    {
+      "id": "batch-empty-bails",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "--bail",
+        "",
+        "version --json"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "json",
+      "stderr_mode": "bytes",
+      "ignore_json_fields": [
+        "duration_ms"
+      ],
+      "compare_files": true
+    },
+    {
+      "id": "batch-config-json",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "config show --json --config-dir config --cache-dir cache --state-dir state"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "json",
+      "stderr_mode": "bytes",
+      "ignore_json_fields": [
+        "duration_ms"
+      ],
+      "compare_files": true
+    },
+    {
+      "id": "batch-risk-classes-all",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "--dry-run",
+        "snapshot",
+        "screenshot",
+        "a11y",
+        "read",
+        "console.list",
+        "console.clear",
+        "errors.list",
+        "errors.clear",
+        "get.text",
+        "get.html",
+        "get.value",
+        "get.attr",
+        "get.title",
+        "get.url",
+        "get.count",
+        "get.box",
+        "get.styles",
+        "is.visible",
+        "is.enabled",
+        "is.checked",
+        "find",
+        "session.list",
+        "session.info",
+        "daemon.status",
+        "state.list",
+        "state.show",
+        "journal.tail",
+        "journal.show",
+        "policy.explain",
+        "oob.status",
+        "cookies.list",
+        "storage.list",
+        "trace.replay",
+        "watch",
+        "cache.get",
+        "fetch.url",
+        "fetch.batch",
+        "wayback.snapshots",
+        "open",
+        "goto",
+        "back",
+        "forward",
+        "reload",
+        "click",
+        "dblclick",
+        "fill",
+        "type",
+        "press",
+        "hover",
+        "focus",
+        "select",
+        "check",
+        "uncheck",
+        "scroll",
+        "scrollintoview",
+        "wait",
+        "submit",
+        "eval",
+        "auth.login",
+        "download",
+        "upload",
+        "downloads.list",
+        "download.setdir",
+        "network.route",
+        "network.unroute",
+        "network.requests",
+        "network.request",
+        "network.har",
+        "set.headers",
+        "set.offline",
+        "state.save",
+        "state.load",
+        "state.clear",
+        "state.clean",
+        "cookies.set",
+        "cookies.clear",
+        "storage.set",
+        "storage.clear",
+        "set.viewport",
+        "set.device",
+        "set.geo",
+        "set.media",
+        "set.user-agent",
+        "version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "batch-dry-run-yaml",
+      "stage": "batch",
+      "args": [
+        "--output",
+        "yaml",
+        "batch",
+        "--dry-run",
+        "read https://example.com",
+        "version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "batch-empty-stdin",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch"
+      ],
+      "stdin": "",
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "batch-empty-array",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch"
+      ],
+      "stdin": "[]",
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "bytes",
+      "compare_files": true
+    },
+    {
+      "id": "batch-bool-equals",
+      "stage": "batch",
+      "args": [
+        "batch",
+        "--bail=false",
+        "--dry-run=true",
+        "--json=false",
+        "version"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "batch-reserved-word-version",
+      "stage": "batch",
+      "args": [
+        "version",
+        "batch"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "batch-reserved-word-config",
+      "stage": "batch",
+      "args": [
+        "config",
+        "show",
+        "batch"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "batch-root-version-precedence",
+      "stage": "batch",
+      "args": [
+        "--version",
+        "batch"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "console_text",
+      "stderr_mode": "console_text",
+      "compare_files": true
+    },
+    {
+      "id": "batch-nested-flag-error",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch",
+        "--",
+        "--bail"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "json",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "ignore_json_fields": [
+        "duration_ms"
+      ]
+    },
+    {
+      "id": "batch-null-stdin",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "stdin": "null"
+    },
+    {
+      "id": "batch-malformed-stdin",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "stdin": "not json"
+    },
+    {
+      "id": "batch-object-stdin",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "stdin": "{}"
+    },
+    {
+      "id": "batch-nonstring-stdin",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "stdin": "[1]"
+    },
+    {
+      "id": "batch-truncated-stdin",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "bytes",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "stdin": "["
+    },
+    {
+      "id": "batch-null-element",
+      "stage": "batch",
+      "args": [
+        "--json",
+        "batch"
+      ],
+      "timeout_ms": 10000,
+      "stdout_mode": "json",
+      "stderr_mode": "console_text",
+      "compare_files": true,
+      "stdin": "[\"version --json\",null]",
+      "ignore_json_fields": [
+        "duration_ms"
+      ]
+    }
+  ]
+}

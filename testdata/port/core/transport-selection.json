@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {"id":"static-default","mode":"static","engine":null,"expect":"static"},
+    {"id":"browser-chrome","mode":"browser","engine":"chrome","expect":"chrome"},
+    {"id":"browser-safari","mode":"browser","engine":"safari","expect":"safari"},
+    {"id":"browser-firefox","mode":"browser","engine":"firefox","expect":"firefox"},
+    {"id":"browser-missing-engine","mode":"browser","engine":null,"error":"browser_engine_required"},
+    {"id":"static-engine-conflict","mode":"static","engine":"chrome","error":"engine_not_allowed"},
+    {"id":"unknown-mode","mode":"wat","engine":null,"error":"invalid_transport_mode"},
+    {"id":"unknown-engine","mode":"browser","engine":"wat","error":"invalid_browser_engine"}
+  ]
+}

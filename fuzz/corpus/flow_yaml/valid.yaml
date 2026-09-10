@@ -1,0 +1,8 @@
+name: seed-flow
+version: 1
+domains: [example.test]
+steps:
+  - open: {url: https://example.test/}
+  - find: {role: button, name: Continue}
+outputs:
+  - {name: page, from: html}

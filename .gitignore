@@ -1,6 +1,12 @@
 # Build outputs
 /symbrowse
 dist/
+/target/
+/fuzz/target/
+/fuzz/artifacts/
+/fuzz/reports/
+/port/results/
+**/__pycache__/
 
 # macOS
 .DS_Store
@@ -9,6 +15,7 @@ dist/
 # Go
 *.test
 *.out
+!testdata/port/mcp/*.out
 vendor/
 
 # Config / secrets

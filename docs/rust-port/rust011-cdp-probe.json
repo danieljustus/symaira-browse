@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-09-06T20:18:54Z",
+  "issue": "RUST-009",
+  "scope": "real Chrome CDP launch and endpoint attach feasibility probe",
+  "host": {
+    "os": "macOS 27.0",
+    "arch": "arm64",
+    "chrome": "Google Chrome 152.0.7977.82",
+    "rust": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+    "oracle_go": "go1.26.6",
+    "oracle_commit": "652453d1595fc302bd69c328e7da8a21dbee28b9"
+  },
+  "candidate": {
+    "crate": "chromiumoxide",
+    "version": "0.9.1",
+    "source_commit": "afcc3a4313f2087249b4490d94e54bf8e3bfaccf",
+    "supporting_pins": {
+      "chromiumoxide_cdp": "0.9.1",
+      "chromiumoxide_pdl": "0.9.1",
+      "chromiumoxide_types": "0.9.1",
+      "async_tungstenite": "0.32.1",
+      "tokio": "1.53.1",
+      "futures": "0.3.34"
+    }
+  },
+  "probe": {
+    "argv": ["--headless"],
+    "fixture_url": "data:text/html,<title>symbrowse-cdp</title><h1>CDP fixture</h1>",
+    "launch": {
+      "exit_code": 0,
+      "mode": "launch",
+      "title": "symbrowse-cdp",
+      "evaluated_value": {"heading": "CDP fixture", "ready": "complete"},
+      "ax_node_count": 6,
+      "screenshot_bytes": 6192,
+      "event_count": 1
+    },
+    "attach": {
+      "command": ["--attach", "http://127.0.0.1:9229"],
+      "exit_code": 0,
+      "mode": "attach",
+      "title": "symbrowse-cdp",
+      "evaluated_value": {"heading": "CDP fixture", "ready": "complete"},
+      "ax_node_count": 6,
+      "screenshot_bytes": 5527,
+      "event_count": 1
+    }
+  },
+  "verification": {
+    "cargo_test": "pass",
+    "real_chrome_launch_test": "pass",
+    "cargo_clippy_warnings_denied": "pass",
+    "cargo_doc_test": "pass",
+    "windows_target_check_x86_64_pc_windows_msvc": "pass",
+    "windows_runtime_test": "not_run; no native Windows runner"
+  }
+}

@@ -1,0 +1,315 @@
+{
+  "schema_version": 1,
+  "oracle": {
+    "commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+    "release": "v0.8.0"
+  },
+  "key_hex": "abababababababababababababababababababababababababababababababab",
+  "cases": [
+    {
+      "name": "plaintext-v1",
+      "path": "plaintext-v1.state",
+      "version": 1,
+      "encrypted": false,
+      "sha256": "1a8d2b977bd5166b224a7dffa71b35b8dbc51ec6eeab21782229c44b49e84282",
+      "expected": {
+        "schema_version": 1,
+        "name": "fixture-v1",
+        "saved_at": "2026-08-25T14:00:00Z",
+        "expires_at": "2026-09-24T14:00:00Z",
+        "origins": {
+          "https://example.test": {
+            "cookies": [
+              {
+                "name": "session",
+                "value": "fixture-secret",
+                "domain": ".example.test",
+                "path": "/",
+                "expires": -1,
+                "size": 21,
+                "http_only": true,
+                "secure": true,
+                "session": true,
+                "same_site": "Lax"
+              }
+            ],
+            "local_storage": {
+              "theme": "dark"
+            },
+            "session_storage": {
+              "step": "2"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "encrypted-v1",
+      "path": "encrypted-v1.state",
+      "version": 1,
+      "encrypted": true,
+      "sha256": "1c9d0d0fb4522a466397e9f5957d9bfcd8fe43c432336c84f7c930fabf1ae035",
+      "expected": {
+        "schema_version": 1,
+        "name": "fixture-v1",
+        "saved_at": "2026-08-25T14:00:00Z",
+        "expires_at": "2026-09-24T14:00:00Z",
+        "origins": {
+          "https://example.test": {
+            "cookies": [
+              {
+                "name": "session",
+                "value": "fixture-secret",
+                "domain": ".example.test",
+                "path": "/",
+                "expires": -1,
+                "size": 21,
+                "http_only": true,
+                "secure": true,
+                "session": true,
+                "same_site": "Lax"
+              }
+            ],
+            "local_storage": {
+              "theme": "dark"
+            },
+            "session_storage": {
+              "step": "2"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "plaintext-v2",
+      "path": "plaintext-v2.state",
+      "version": 2,
+      "encrypted": false,
+      "sha256": "536a16d8a1919972ddf762ae9580ecf5581a424bf889c5da2a707c17a8c37517",
+      "expected": {
+        "schema_version": 2,
+        "name": "fixture-v2",
+        "saved_at": "2026-08-25T14:00:00Z",
+        "expires_at": "2026-09-24T14:00:00Z",
+        "key_source": "none",
+        "origins": {
+          "https://example.test": {
+            "cookies": [
+              {
+                "name": "session",
+                "value": "fixture-secret",
+                "domain": ".example.test",
+                "path": "/",
+                "expires": -1,
+                "size": 21,
+                "http_only": true,
+                "secure": true,
+                "session": true,
+                "same_site": "Lax"
+              }
+            ],
+            "local_storage": {
+              "theme": "dark"
+            },
+            "session_storage": {
+              "step": "2"
+            }
+          }
+        }
+      },
+      "header_json": "{\"schema_version\":2,\"saved_at\":\"2026-08-25T14:00:00Z\",\"expires_at\":\"2026-09-24T14:00:00Z\",\"key_source\":\"none\"}"
+    },
+    {
+      "name": "encrypted-v2",
+      "path": "encrypted-v2.state",
+      "version": 2,
+      "encrypted": true,
+      "sha256": "b5914e1ee0d2193ab4bc63ade7f434269d869cf407bdbe9e03c1847dc4a47aad",
+      "expected": {
+        "schema_version": 2,
+        "name": "fixture-v2",
+        "saved_at": "2026-08-25T14:00:00Z",
+        "expires_at": "2026-09-24T14:00:00Z",
+        "key_source": "environment",
+        "origins": {
+          "https://example.test": {
+            "cookies": [
+              {
+                "name": "session",
+                "value": "fixture-secret",
+                "domain": ".example.test",
+                "path": "/",
+                "expires": -1,
+                "size": 21,
+                "http_only": true,
+                "secure": true,
+                "session": true,
+                "same_site": "Lax"
+              }
+            ],
+            "local_storage": {
+              "theme": "dark"
+            },
+            "session_storage": {
+              "step": "2"
+            }
+          }
+        }
+      },
+      "header_json": "{\"schema_version\":2,\"saved_at\":\"2026-08-25T14:00:00Z\",\"expires_at\":\"2026-09-24T14:00:00Z\",\"key_source\":\"environment\"}"
+    },
+    {
+      "name": "plaintext-v3",
+      "path": "plaintext-v3.state",
+      "version": 3,
+      "encrypted": false,
+      "sha256": "816f2b1beac747e7ac211477b5c488d87a2aadd6c843d39433644aac679d336b",
+      "expected": {
+        "schema_version": 3,
+        "name": "fixture-v3",
+        "saved_at": "2026-08-25T14:00:00Z",
+        "expires_at": "2026-09-24T14:00:00Z",
+        "key_source": "none",
+        "origins": {
+          "https://example.test": {
+            "cookies": [
+              {
+                "name": "session",
+                "value": "fixture-secret",
+                "domain": ".example.test",
+                "path": "/",
+                "expires": -1,
+                "size": 21,
+                "http_only": true,
+                "secure": true,
+                "session": true,
+                "same_site": "Lax"
+              }
+            ],
+            "local_storage": {
+              "theme": "dark"
+            },
+            "session_storage": {
+              "step": "2"
+            }
+          }
+        }
+      },
+      "header_json": "{\"schema_version\":3,\"saved_at\":\"2026-08-25T14:00:00Z\",\"expires_at\":\"2026-09-24T14:00:00Z\",\"key_source\":\"none\"}"
+    },
+    {
+      "name": "encrypted-v3",
+      "path": "encrypted-v3.state",
+      "version": 3,
+      "encrypted": true,
+      "sha256": "f2abad6d683c6c9bcfc98a37221d0ca51ecfda96f3b5b67310bedf82e041e92a",
+      "expected": {
+        "schema_version": 3,
+        "name": "fixture-v3",
+        "saved_at": "2026-08-25T14:00:00Z",
+        "expires_at": "2026-09-24T14:00:00Z",
+        "key_source": "environment",
+        "origins": {
+          "https://example.test": {
+            "cookies": [
+              {
+                "name": "session",
+                "value": "fixture-secret",
+                "domain": ".example.test",
+                "path": "/",
+                "expires": -1,
+                "size": 21,
+                "http_only": true,
+                "secure": true,
+                "session": true,
+                "same_site": "Lax"
+              }
+            ],
+            "local_storage": {
+              "theme": "dark"
+            },
+            "session_storage": {
+              "step": "2"
+            }
+          }
+        }
+      },
+      "header_json": "{\"schema_version\":3,\"saved_at\":\"2026-08-25T14:00:00Z\",\"expires_at\":\"2026-09-24T14:00:00Z\",\"key_source\":\"environment\"}"
+    }
+  ],
+  "resolution_cases": [
+    {
+      "name": "vault",
+      "source": "symvault",
+      "key_sha256": "9a2db2e23f1504cd056606553ac049c5e718e8f9ce9233876df1a7a1821af885"
+    },
+    {
+      "name": "vault-missing-env",
+      "source": "environment",
+      "key_sha256": "7969ec0fcb8b648dfde24b1d0ae24568d398dcc3a83b80a850f973238cdfd3d9"
+    },
+    {
+      "name": "vault-uninitialized-env",
+      "source": "environment",
+      "key_sha256": "7969ec0fcb8b648dfde24b1d0ae24568d398dcc3a83b80a850f973238cdfd3d9"
+    },
+    {
+      "name": "vault-failure",
+      "source": "",
+      "error": "symvault entry \"symbrowse/encryption-key\": provider failed"
+    },
+    {
+      "name": "keychain-raw",
+      "source": "keychain",
+      "key_sha256": "9a2db2e23f1504cd056606553ac049c5e718e8f9ce9233876df1a7a1821af885"
+    },
+    {
+      "name": "keychain-invalid",
+      "source": "",
+      "error": "symbrowse/encryption-key: keychain value must be a 64-character hex string or 32 raw bytes"
+    },
+    {
+      "name": "environment",
+      "source": "environment",
+      "key_sha256": "7969ec0fcb8b648dfde24b1d0ae24568d398dcc3a83b80a850f973238cdfd3d9"
+    },
+    {
+      "name": "environment-invalid",
+      "source": "",
+      "error": "SYMBROWSE_ENCRYPTION_KEY: key must be a 64-character hex string (32 bytes)"
+    },
+    {
+      "name": "none",
+      "source": "none"
+    }
+  ],
+  "init_cases": [
+    {
+      "name": "existing",
+      "action": "already_configured",
+      "configured": true,
+      "source": "environment",
+      "instruction_present": false
+    },
+    {
+      "name": "environment-fallback",
+      "action": "configure_environment",
+      "configured": false,
+      "source": "environment",
+      "instruction_present": true
+    },
+    {
+      "name": "vault",
+      "action": "initialized",
+      "configured": true,
+      "source": "symvault",
+      "instruction_present": false
+    },
+    {
+      "name": "vault-failure",
+      "configured": false,
+      "instruction_present": false,
+      "error": "provision state encryption key in symvault: provider failed"
+    }
+  ]
+}

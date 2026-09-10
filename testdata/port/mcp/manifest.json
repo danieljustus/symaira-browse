@@ -1,0 +1,65 @@
+{
+  "fixtures": {
+    "eof": {
+      "input": "eof.in",
+      "output": "eof.out"
+    },
+    "framed_initialize": {
+      "input": "framed_initialize.in",
+      "output": "framed_initialize.out"
+    },
+    "initialize": {
+      "input": "initialize.in",
+      "output": "initialize.out"
+    },
+    "initialized": {
+      "input": "initialized.in",
+      "output": "initialized.out"
+    },
+    "malformed": {
+      "input": "malformed.in",
+      "output": "malformed.out"
+    },
+    "missing_argument": {
+      "input": "missing_argument.in",
+      "output": "missing_argument.out"
+    },
+    "notifications": {
+      "input": "notifications.in",
+      "output": "notifications.out"
+    },
+    "tool_error": {
+      "input": "tool_error.in",
+      "output": "tool_error.out"
+    },
+    "tools_all": {
+      "input": "tools_all.in",
+      "output": "tools_all.out"
+    },
+    "tools_core": {
+      "input": "tools_core.in",
+      "output": "tools_core.out"
+    },
+    "tools_nav": {
+      "input": "tools_nav.in",
+      "output": "tools_nav.out"
+    },
+    "unknown_method": {
+      "input": "unknown_method.in",
+      "output": "unknown_method.out"
+    },
+    "unknown_tool": {
+      "input": "unknown_tool.in",
+      "output": "unknown_tool.out"
+    }
+  },
+  "oracle_commit": "652453d1595fc302bd69c328e7da8a21dbee28b9",
+  "oracle_release": "v0.8.0",
+  "schema_version": 1,
+  "source_files": {
+    "cmd/symbrowse/mcp.go": "2b227ad48822e009f769b7cd9340b16148da3ac28788c164bb284a75f56d7d2f",
+    "internal/mcp/profiles.go": "7dbe1c0ab408d8ad69776fd5858f6db65be041ecfa8c8108cb86f58a45dffb46",
+    "internal/mcp/server.go": "40b261d7c443447fee9dcf9605294657d84a882893c683807451dcee4d658ab4",
+    "internal/mcp/tools.go": "9295edc4517b07a3ff767b16716ab129d91278db9c447d6501fb7f8a381ab212"
+  }
+}
