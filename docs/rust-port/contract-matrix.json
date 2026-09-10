@@ -294,7 +294,8 @@
         "linux-amd64",
         "linux-arm64"
       ],
-      "status": "fixture-ready"
+      "status": "fixture-ready",
+      "rust_test": "crates/symbrowse-daemon/tests/lifecycle.rs"
     },
     {
       "id": "DMN-005",
