@@ -8,7 +8,7 @@ mod unix {
         os::unix::fs::{FileTypeExt, PermissionsExt},
         path::{Path, PathBuf},
         sync::{
-            Arc,
+            Arc, Barrier,
             atomic::{AtomicBool, AtomicU64, Ordering},
         },
         thread,
@@ -163,6 +163,101 @@ mod unix {
         assert!(socket.exists());
         server.stop();
         assert!(thread.join().unwrap().is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    // Mirrors the pinned Go oracle's TestConcurrentStartupYieldsOneOwner:
+    // concurrent recovery of one session must never unlink a live socket and
+    // split ownership across multiple daemon instances.
+    #[test]
+    #[allow(clippy::result_large_err)]
+    fn concurrent_unix_starts_have_one_owner_and_recover_after_stop() {
+        const STARTERS: usize = 6;
+
+        let root = root("concurrent");
+        let socket = root.join("default.sock");
+        let barrier = Arc::new(Barrier::new(STARTERS));
+        let servers: Vec<_> = (0..STARTERS)
+            .map(|_| {
+                Arc::new(
+                    Server::new(ServerOptions {
+                        socket_path: socket.clone(),
+                        session: "default".to_owned(),
+                        idle_timeout: None,
+                        handler: Some(Arc::new(|_, _| {
+                            Ok((Some(serde_json::json!({"pong": true})), Vec::new()))
+                        })),
+                        ..Default::default()
+                    })
+                    .unwrap(),
+                )
+            })
+            .collect();
+        let threads = servers
+            .iter()
+            .cloned()
+            .map(|server| {
+                let barrier = barrier.clone();
+                thread::spawn(move || {
+                    barrier.wait();
+                    server.listen_and_serve()
+                })
+            })
+            .collect::<Vec<_>>();
+
+        wait_for_listener(&socket);
+        let client = Client::new(ClientOptions {
+            socket_path: socket.clone(),
+            session: "default".to_owned(),
+            autostart: false,
+            ..Default::default()
+        });
+        let response = client
+            .request_without_autostart(Frame {
+                cmd: "daemon.ping".to_owned(),
+                request_id: "race-owner".to_owned(),
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(response.success, "ping the surviving daemon: {response:?}");
+        assert_eq!(response.data.unwrap()["pong"], true);
+        for server in &servers {
+            server.stop();
+        }
+        let results = threads
+            .into_iter()
+            .map(|thread| thread.join().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            results.iter().filter(|result| result.is_ok()).count(),
+            1,
+            "exactly one concurrent starter owns the endpoint: {results:?}"
+        );
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| matches!(result, Err(ServerError::AlreadyRunning)))
+                .count(),
+            STARTERS - 1,
+            "every losing starter must preserve the live owner's socket: {results:?}"
+        );
+        assert!(!socket.exists(), "owner did not clean up its socket");
+
+        // Once the owner has released its advisory lock and removed its own
+        // socket, a fresh same-process daemon can reclaim the endpoint.
+        let replacement = Server::new(ServerOptions {
+            socket_path: socket,
+            session: "default".to_owned(),
+            idle_timeout: Some(Duration::from_millis(1)),
+            handler: Some(Arc::new(|_, _| Ok((None, Vec::new())))),
+            ..Default::default()
+        })
+        .unwrap();
+        assert!(
+            replacement.listen_and_serve().is_ok(),
+            "released endpoint was not recoverable"
+        );
         fs::remove_dir_all(root).unwrap();
     }
 
