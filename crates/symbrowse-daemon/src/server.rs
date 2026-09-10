@@ -641,20 +641,19 @@ fn serve_connection(
 
 #[cfg(windows)]
 struct OverlappedPipeStream {
-    runtime: tokio::runtime::Runtime,
+    // Drop the registered stream before dropping its runtime. Tokio's
+    // PollEvented/mio owner cancels only its own read/connect OVERLAPPEDs and
+    // keeps the Arc-backed write state alive until its IOCP completion.
     stream: interprocess::os::windows::named_pipe::tokio::PipeStream<
         interprocess::os::windows::named_pipe::pipe_mode::Bytes,
         interprocess::os::windows::named_pipe::pipe_mode::Bytes,
     >,
-    stopping: Arc<AtomicBool>,
+    runtime: tokio::runtime::Runtime,
 }
 
 #[cfg(windows)]
 impl OverlappedPipeStream {
-    fn new(
-        handle: std::os::windows::io::OwnedHandle,
-        stopping: Arc<AtomicBool>,
-    ) -> io::Result<Self> {
+    fn new(handle: std::os::windows::io::OwnedHandle) -> io::Result<Self> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_io()
             .enable_time()
@@ -670,39 +669,7 @@ impl OverlappedPipeStream {
             >::try_from(handle)
             .map_err(|error| io::Error::other(error.to_string()))?
         };
-        Ok(Self {
-            runtime,
-            stream,
-            stopping,
-        })
-    }
-}
-
-#[cfg(windows)]
-impl OverlappedPipeStream {
-    #[allow(unsafe_code)]
-    fn cancel_pending_io(&self) {
-        // Tokio cancels the future, while CancelIoEx also retires the exact
-        // operation on this owned handle. No other thread can reclaim it until
-        // this adapter is dropped by the joined connection worker.
-        use std::os::windows::io::AsRawHandle;
-        unsafe {
-            let _ = windows_sys::Win32::System::IO::CancelIoEx(
-                self.stream.as_raw_handle(),
-                std::ptr::null_mut(),
-            );
-        }
-    }
-}
-
-#[cfg(windows)]
-impl Drop for OverlappedPipeStream {
-    fn drop(&mut self) {
-        // No buffered response is allowed to outlive this joined worker. The
-        // interprocess Tokio wrapper otherwise sends a duplex stream to its
-        // linger pool when its flush state is dirty, which would detach handle
-        // reclamation from server shutdown.
-        self.stream.assume_flushed();
+        Ok(Self { stream, runtime })
     }
 }
 
@@ -714,14 +681,9 @@ impl io::Read for OverlappedPipeStream {
             tokio::time::timeout(Duration::from_millis(10), self.stream.read(buf)).await
         }) {
             Ok(result) => result,
-            // Dropping the timeout future cancels the overlapped operation;
-            // report readiness polling to the existing bounded frame reader.
-            Err(_) => {
-                if self.stopping.load(Ordering::Acquire) {
-                    self.cancel_pending_io();
-                }
-                Err(io::Error::from(io::ErrorKind::WouldBlock))
-            }
+            // Dropping the timeout future stops waiting; mio retains the pending
+            // operation and its Arc-backed buffer until IOCP completion.
+            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
     }
 }
@@ -734,12 +696,7 @@ impl io::Write for OverlappedPipeStream {
             tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)).await
         }) {
             Ok(result) => result,
-            Err(_) => {
-                if self.stopping.load(Ordering::Acquire) {
-                    self.cancel_pending_io();
-                }
-                Err(io::Error::from(io::ErrorKind::WouldBlock))
-            }
+            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
     }
 
@@ -748,12 +705,7 @@ impl io::Write for OverlappedPipeStream {
             tokio::time::timeout(Duration::from_millis(10), self.stream.flush()).await
         }) {
             Ok(result) => result,
-            Err(_) => {
-                if self.stopping.load(Ordering::Acquire) {
-                    self.cancel_pending_io();
-                }
-                Err(io::Error::from(io::ErrorKind::WouldBlock))
-            }
+            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
     }
 }
@@ -770,7 +722,7 @@ fn serve_connection_windows(
     registry: Arc<crate::SessionRegistry>,
     dispatch_gate: Arc<std::sync::Mutex<()>>,
 ) {
-    let Ok(stream) = OverlappedPipeStream::new(handle, stopping.clone()) else {
+    let Ok(stream) = OverlappedPipeStream::new(handle) else {
         return;
     };
     serve_connection_parts(

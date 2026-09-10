@@ -232,6 +232,68 @@ mod windows {
     }
 
     #[test]
+    fn paused_peer_backpressure_closes_with_eof_after_shutdown() {
+        use std::{
+            io::{Read, Write},
+            sync::Arc,
+            thread,
+            time::Duration,
+        };
+
+        let session = format!("windows-backpressure-{}", std::process::id());
+        let endpoint = default_socket_path(&session);
+        let server = Arc::new(
+            symbrowse_daemon::Server::new(symbrowse_daemon::ServerOptions {
+                socket_path: endpoint.clone(),
+                session,
+                idle_timeout: None,
+                handler: Some(Arc::new(|_, _| {
+                    Ok((
+                        Some(serde_json::json!({"payload": "x".repeat(256 * 1024)})),
+                        Vec::new(),
+                    ))
+                })),
+                ..Default::default()
+            })
+            .expect("construct backpressure daemon"),
+        );
+        let running = server.clone();
+        let server_thread = thread::spawn(move || running.listen_and_serve());
+
+        let mut peer = connect_when_server_ready(&endpoint);
+        peer.set_read_timeout(Some(Duration::from_secs(2)))
+            .expect("set peer read timeout");
+        peer.write_all(
+            br#"{"cmd":"daemon.ping"}
+"#,
+        )
+        .expect("send request to backpressure daemon");
+        peer.flush().expect("flush request");
+        // Do not read the response: the server must exercise its bounded
+        // write timeout while the named-pipe peer applies backpressure.
+        thread::sleep(Duration::from_millis(100));
+
+        server.stop();
+        assert!(
+            server_thread
+                .join()
+                .expect("join backpressure daemon")
+                .is_ok()
+        );
+
+        let mut received = 0usize;
+        let mut buf = [0_u8; 8192];
+        loop {
+            match peer.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => received += n,
+                Err(error) => panic!("peer did not reach EOF after shutdown: {error}"),
+            }
+        }
+        assert!(received > 0, "backpressure test received no response bytes");
+    }
+
+    #[test]
     fn concurrent_starts_have_one_owner_and_recover_after_stop() {
         use std::{sync::Arc, thread, time::Duration};
 
