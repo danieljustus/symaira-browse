@@ -157,11 +157,6 @@ pub fn default_socket_path(session: &str) -> PathBuf {
     if cfg!(windows) {
         return PathBuf::from(format!(r"\\.\pipe\symbrowse-{session}"));
     }
-    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
-        return PathBuf::from(runtime)
-            .join("symbrowse")
-            .join(format!("{session}.sock"));
-    }
     if cfg!(target_os = "macos") {
         return std::env::var_os("HOME").map_or_else(
             || std::env::temp_dir().join(format!("symbrowse-{session}.sock")),
@@ -171,6 +166,11 @@ pub fn default_socket_path(session: &str) -> PathBuf {
                     .join(format!("{session}.sock"))
             },
         );
+    }
+    if let Some(runtime) = std::env::var_os("XDG_RUNTIME_DIR") {
+        return PathBuf::from(runtime)
+            .join("symbrowse")
+            .join(format!("{session}.sock"));
     }
     default_state_dir()
         .join("run")

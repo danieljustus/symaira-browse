@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 MODULE = Path(__file__).with_name("mcp_fixture_gen.py")
@@ -25,6 +26,22 @@ class MCPFixtureGeneratorTests(unittest.TestCase):
             path.write_bytes(b"old")
             with self.assertRaises(SystemExit):
                 fixture_gen.sync_file(path, b"new", check=True)
+
+    def test_windows_endpoint_prefers_xdg_runtime_dir(self):
+        environment = {
+            "HOME": "/poison/home",
+            "LOCALAPPDATA": "/windows/cache",
+            "XDG_RUNTIME_DIR": "/explicit/runtime",
+        }
+        with mock.patch.object(fixture_gen.sys, "platform", "win32"):
+            endpoint = fixture_gen.oracle_endpoint(environment, "session")
+        self.assertEqual(endpoint, Path("/explicit/runtime/symbrowse/session.sock"))
+
+    def test_windows_endpoint_falls_back_to_localappdata_without_xdg(self):
+        environment = {"LOCALAPPDATA": "/windows/cache", "XDG_RUNTIME_DIR": ""}
+        with mock.patch.object(fixture_gen.sys, "platform", "win32"):
+            endpoint = fixture_gen.oracle_endpoint(environment, "session")
+        self.assertEqual(endpoint, Path("/windows/cache/symbrowse/run/session.sock"))
 
     def test_oracle_environment_has_no_runner_configuration_or_secret_roots(self):
         poison = {

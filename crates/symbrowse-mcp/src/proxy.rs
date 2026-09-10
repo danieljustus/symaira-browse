@@ -182,13 +182,6 @@ impl DaemonProxy {
             .filter(|value| !value.is_empty())
             .unwrap_or(&self.options.session);
         let command = daemon_command(tool, arguments);
-        if !self.options.allow_private
-            && tool.name == "fetch_url"
-            && let Some(url) = arguments.get("url").and_then(Value::as_str)
-            && let Some(error) = private_url_error(url)
-        {
-            return Err(Box::new(error));
-        }
         let endpoint = self.endpoint(session)?;
         let max_tokens = requested_max_tokens(&command, arguments);
         let frame = DaemonFrame {
@@ -678,49 +671,6 @@ impl DaemonResponse {
             Ok(json!({"data": data, "warnings": self.warnings}))
         }
     }
-}
-
-#[allow(clippy::collapsible_if)]
-fn private_url_error(url: &str) -> Option<ToolError> {
-    let authority = url
-        .split_once("://")
-        .map(|(_, rest)| rest.split(['/', '?', '#']).next().unwrap_or(rest))?;
-    let host = authority
-        .rsplit_once('@')
-        .map_or(authority, |(_, host)| host);
-    let host = host
-        .trim_start_matches('[')
-        .split(']')
-        .next()
-        .unwrap_or(host);
-    let host = host
-        .rsplit_once(':')
-        .filter(|(candidate, port)| {
-            !candidate.contains(':') && port.chars().all(|c| c.is_ascii_digit())
-        })
-        .map_or(host, |(candidate, _)| candidate);
-    let blocked = host == "localhost"
-        || host == "::1"
-        || host
-            .parse::<std::net::Ipv4Addr>()
-            .is_ok_and(|ip| ip.is_loopback() || ip.is_private() || ip.is_link_local())
-        || host
-            .parse::<std::net::Ipv6Addr>()
-            .is_ok_and(|ip| ip.is_loopback() || ip.is_unique_local() || ip.is_unicast_link_local());
-    blocked.then(|| ToolError {
-        code: "peer_denied".to_owned(),
-        message: format!(
-            "blocked_private: {url} targets a private or loopback address"
-        ),
-        hint: None,
-        retryable: Some(false),
-        requires_user_confirmation: Some(false),
-        resume_hint: Some(
-            "the target is a private or loopback address; start the daemon with --allow-private to permit it"
-                .to_owned(),
-        ),
-        details: None,
-    })
 }
 
 fn daemon_command(tool: &ToolSpec, input: &Value) -> String {
