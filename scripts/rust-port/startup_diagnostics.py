@@ -8,7 +8,7 @@ from pathlib import Path
 MAX_STARTUP_DIAGNOSTIC_BYTES = 16 << 10
 _DIAGNOSTIC_OMITTED = "<startup diagnostic omitted>"
 _SECRET_MARKER = re.compile(
-    r"(?is)(?<![A-Za-z0-9_])(?:authorization\s*:\s*bearer|token|password|secret|api[_-]?key)\s*[:=]\s*"
+    r"(?is)(?<![A-Za-z0-9_])(?:authorization|token|password|secret|api[_-]?key)[\"']?\s*[:=]\s*"
 )
 
 

@@ -43,6 +43,20 @@ class RunMcpContractTests(unittest.TestCase):
             self.assertLessEqual(len(artifact_bytes), DIAGNOSTICS.MAX_STARTUP_DIAGNOSTIC_BYTES)
             self.assertEqual(artifact_bytes.decode("utf-8"), "<startup diagnostic omitted>")
 
+    def test_authorization_and_quoted_keys_are_omitted(self):
+        cases = [
+            "Authorization: Bearer sensitive-value",
+            "Authorization: Basic sensitive-value",
+            '{"token": "sensitive value"}',
+            "{'password': 'sensitive value'}",
+        ]
+        with tempfile.TemporaryDirectory() as root:
+            log = Path(root) / "daemon.log"
+            for content in cases:
+                with self.subTest(content=content):
+                    log.write_text(content, encoding="utf-8")
+                    self.assertEqual(DIAGNOSTICS.redacted_tail(log), "<startup diagnostic omitted>")
+
     def test_sensitive_quoted_whitespace_value_is_omitted(self):
         with tempfile.TemporaryDirectory() as root:
             log = Path(root) / "daemon.log"
