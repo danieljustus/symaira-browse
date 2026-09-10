@@ -644,11 +644,9 @@ struct OverlappedPipeStream {
     // Drop the registered stream before dropping its runtime. Tokio's
     // PollEvented/mio owner cancels only its own read/connect OVERLAPPEDs and
     // keeps the Arc-backed write state alive until its IOCP completion.
-    stream: Option<
-        interprocess::os::windows::named_pipe::tokio::PipeStream<
-            interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-            interprocess::os::windows::named_pipe::pipe_mode::Bytes,
-        >,
+    stream: interprocess::os::windows::named_pipe::tokio::PipeStream<
+        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
+        interprocess::os::windows::named_pipe::pipe_mode::Bytes,
     >,
     runtime: tokio::runtime::Runtime,
     stopping: Arc<AtomicBool>,
@@ -676,21 +674,10 @@ impl OverlappedPipeStream {
             .map_err(|error| io::Error::other(error.to_string()))?
         };
         Ok(Self {
-            stream: Some(stream),
+            stream,
             runtime,
             stopping,
         })
-    }
-}
-
-#[cfg(windows)]
-impl Drop for OverlappedPipeStream {
-    fn drop(&mut self) {
-        if self.stopping.load(Ordering::Acquire) {
-            if let Some(stream) = self.stream.take() {
-                stream.evade_limbo();
-            }
-        }
     }
 }
 
@@ -706,10 +693,9 @@ impl io::Read for OverlappedPipeStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         use tokio::io::AsyncReadExt;
         let stopping = self.stopping.clone();
-        let stream = self.stream.as_mut().expect("pipe stream present");
         let result = self.runtime.block_on(async {
             tokio::select! {
-                result = tokio::time::timeout(Duration::from_millis(10), stream.read(buf)) => Ok(result),
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.read(buf)) => Ok(result),
                 _ = wait_for_pipe_stop(stopping) => Err(()),
             }
         });
@@ -726,10 +712,9 @@ impl io::Write for OverlappedPipeStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         use tokio::io::AsyncWriteExt;
         let stopping = self.stopping.clone();
-        let stream = self.stream.as_mut().expect("pipe stream present");
         let result = self.runtime.block_on(async {
             tokio::select! {
-                result = tokio::time::timeout(Duration::from_millis(10), stream.write(buf)) => Ok(result),
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)) => Ok(result),
                 _ = wait_for_pipe_stop(stopping) => Err(()),
             }
         });
@@ -742,10 +727,9 @@ impl io::Write for OverlappedPipeStream {
 
     fn flush(&mut self) -> io::Result<()> {
         let stopping = self.stopping.clone();
-        let stream = self.stream.as_mut().expect("pipe stream present");
         let result = self.runtime.block_on(async {
             tokio::select! {
-                result = tokio::time::timeout(Duration::from_millis(10), stream.flush()) => Ok(result),
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.flush()) => Ok(result),
                 _ = wait_for_pipe_stop(stopping) => Err(()),
             }
         });
