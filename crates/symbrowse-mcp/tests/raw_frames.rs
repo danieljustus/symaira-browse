@@ -2,28 +2,7 @@
 
 use std::io::Cursor;
 
-use serde_json::Value;
-use symbrowse_mcp::{ServeOptions, ToolError, ToolProxy, registry, serve_stdio, serve_with_proxy};
-
-struct GoToolErrorFixtureProxy;
-
-impl ToolProxy for GoToolErrorFixtureProxy {
-    fn call(
-        &mut self,
-        _tool: &registry::ToolSpec,
-        _arguments: &Value,
-    ) -> Result<Value, Box<ToolError>> {
-        Err(Box::new(ToolError {
-            code: "peer_denied".to_owned(),
-            message: "blocked_private: http://127.0.0.1:1 targets a private or loopback address".to_owned(),
-            hint: None,
-            retryable: Some(false),
-            requires_user_confirmation: Some(false),
-            resume_hint: Some("the target is a private or loopback address; start the daemon with --allow-private to permit it".to_owned()),
-            details: None,
-        }))
-    }
-}
+use symbrowse_mcp::{ServeOptions, serve_stdio};
 
 fn run_fixture(name: &str, args: &[&str]) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -45,19 +24,15 @@ fn run_fixture(name: &str, args: &[&str]) {
         allow_private: false,
         engine: None,
         daemon_log_path: None,
+        endpoint: Some(std::env::var("SYMBROWSE_MCP_DAEMON_ENDPOINT").unwrap_or_else(|_| {
+            panic!("SYMBROWSE_MCP_DAEMON_ENDPOINT is required; run through the isolated MCP daemon harness")
+        })),
     };
     let mut actual = Vec::new();
-    if name == "tool_error" {
-        serve_with_proxy(
-            Cursor::new(input),
-            &mut actual,
-            options,
-            &mut GoToolErrorFixtureProxy,
-        )
-        .expect("serve MCP fixture");
-    } else {
-        serve_stdio(Cursor::new(input), &mut actual, options).expect("serve MCP fixture");
-    }
+    // Every fixture, including policy failures, must traverse the production
+    // daemon proxy. A test-only proxy can make Rust agree with an expected
+    // file without exercising transport, policy, or platform endpoint code.
+    serve_stdio(Cursor::new(input), &mut actual, options).expect("serve MCP fixture");
     assert_eq!(actual, expected, "fixture={name}");
 }
 

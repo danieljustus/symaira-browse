@@ -483,6 +483,7 @@ fn run_mcp(
             allow_private,
             engine: Some(engine),
             daemon_log_path: Some(daemon_log_path),
+            endpoint: None,
         },
     ) {
         Ok(()) => ExitCode::SUCCESS,

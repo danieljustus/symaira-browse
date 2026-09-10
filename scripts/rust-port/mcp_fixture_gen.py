@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
+import os
 import subprocess
+import sys
+import tempfile
+import time
 from collections.abc import Sequence
 from pathlib import Path
+
+MAX_ORACLE_OUTPUT_BYTES = 8 << 20
+ORACLE_TIMEOUT_SECONDS = 30
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from run_bounded import kill_tree  # noqa: E402
 
 ORACLE_COMMIT = "652453d1595fc302bd69c328e7da8a21dbee28b9"
 SOURCE_FILES = (
@@ -36,16 +46,142 @@ def framed(value: object) -> bytes:
     return b"Content-Length: " + str(len(body)).encode() + b"\r\n\r\n" + body
 
 
+def oracle_environment() -> tuple[tempfile.TemporaryDirectory[str], dict[str, str]]:
+    temporary = tempfile.TemporaryDirectory(prefix="o-", dir="/tmp" if sys.platform == "darwin" else None)
+    base = Path(temporary.name)
+    runtime = base / "runtime"
+    data = base / "data"
+    home = base / "home"
+    for path in (runtime, data, home):
+        path.mkdir(mode=0o700)
+    # Start from an explicit allowlist. In particular, do not inherit runner
+    # profiles, credential paths, XDG roots, or SYMBROWSE configuration.
+    inherited = {"PATH": os.environ.get("PATH", "")}
+    environment = {key: value for key, value in inherited.items() if value}
+    environment.update({
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "LOCALAPPDATA": str(data / "localappdata"),
+        "APPDATA": str(data / "appdata"),
+        "XDG_CONFIG_HOME": str(home / ".config"),
+        "XDG_DATA_HOME": str(home / ".local" / "share"),
+        "XDG_CACHE_HOME": str(home / ".cache"),
+        "XDG_STATE_HOME": str(home / ".local" / "state"),
+        "XDG_RUNTIME_DIR": str(runtime),
+        "TMPDIR": str(base / "tmp"),
+        "TMP": str(base / "tmp"),
+        "TEMP": str(base / "tmp"),
+        "SYMBROWSE_RUNTIME_DIR": str(runtime),
+        "SYMBROWSE_USER_DATA_DIR": str(data),
+        "SYMBROWSE_CONFIG_DIR": str(home / ".config" / "symbrowse"),
+        "SYMBROWSE_CACHE_DIR": str(home / ".cache" / "symbrowse"),
+        "SYMBROWSE_STATE_DIR": str(home / ".local" / "state" / "symbrowse"),
+        "SYMBROWSE_NO_AUTOSTART": "0",
+        "LANG": "C",
+        "LC_ALL": "C",
+        "TZ": "UTC",
+    })
+    for path in (environment["LOCALAPPDATA"], environment["APPDATA"],
+                 environment["XDG_CONFIG_HOME"], environment["XDG_DATA_HOME"],
+                 environment["XDG_CACHE_HOME"], environment["XDG_STATE_HOME"],
+                 environment["TMPDIR"]):
+        Path(path).mkdir(parents=True, exist_ok=True)
+    return temporary, environment
+
+
+def oracle_endpoint(environment: dict[str, str], session: str = "default") -> Path:
+    # Keep this precedence identical to internal/daemon/socketBaseDir: macOS
+    # uses its Library cache, while every other platform prefers XDG_RUNTIME_DIR
+    # when present (including Windows). This matters when roots intentionally
+    # differ in a CI fixture.
+    if sys.platform == "darwin":
+        return Path(environment["HOME"]) / "Library" / "Caches" / "symbrowse" / "run" / f"{session}.sock"
+    runtime = environment.get("XDG_RUNTIME_DIR", "")
+    if runtime:
+        return Path(runtime) / "symbrowse" / f"{session}.sock"
+    return Path(environment["LOCALAPPDATA"]) / "symbrowse" / "run" / f"{session}.sock"
+
+
+def run_oracle(command: Sequence[str], *, input_data: bytes, environment: dict[str, str]) -> tuple[bytes, bytes]:
+    stdout = tempfile.TemporaryFile()
+    stderr = tempfile.TemporaryFile()
+    process = subprocess.Popen(
+        list(command),
+        stdin=subprocess.PIPE,
+        stdout=stdout,
+        stderr=stderr,
+        env=environment,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+        start_new_session=os.name != "nt",
+    )
+    try:
+        try:
+            process.communicate(input=input_data, timeout=ORACLE_TIMEOUT_SECONDS)
+        except subprocess.TimeoutExpired:
+            kill_tree(process)
+            raise SystemExit(f"pinned Go oracle timed out after {ORACLE_TIMEOUT_SECONDS}s") from None
+        if process.returncode:
+            stderr.seek(0)
+            detail = stderr.read(MAX_ORACLE_OUTPUT_BYTES + 1).decode(errors="replace")
+            raise SystemExit(f"pinned Go oracle exited with {process.returncode}: {detail[:MAX_ORACLE_OUTPUT_BYTES]}")
+        if stdout.tell() > MAX_ORACLE_OUTPUT_BYTES or stderr.tell() > MAX_ORACLE_OUTPUT_BYTES:
+            raise SystemExit(f"pinned Go oracle output exceeded {MAX_ORACLE_OUTPUT_BYTES} bytes")
+        stdout.seek(0)
+        stderr.seek(0)
+        return stdout.read(MAX_ORACLE_OUTPUT_BYTES + 1), stderr.read(MAX_ORACLE_OUTPUT_BYTES + 1)
+    finally:
+        stdout.close()
+        stderr.close()
+
+
+@contextlib.contextmanager
+def run_daemon(oracle: Path, environment: dict[str, str], session: str = "default"):
+    endpoint = oracle_endpoint(environment, session)
+    stdout = tempfile.TemporaryFile()
+    stderr = tempfile.TemporaryFile()
+    process = subprocess.Popen(
+        [str(oracle), "daemon", "--session", session, "--engine", "static", "--ssrf", "--mcp-mode"],
+        cwd=oracle.parent.parent.parent,
+        env={**environment, "SYMBROWSE_NO_AUTOSTART": "1"},
+        stdin=subprocess.DEVNULL,
+        stdout=stdout,
+        stderr=stderr,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
+        start_new_session=os.name != "nt",
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not endpoint.exists():
+            if process.poll() is not None:
+                stderr.seek(0)
+                detail = stderr.read(MAX_ORACLE_OUTPUT_BYTES).decode(errors="replace")
+                raise SystemExit(f"pinned Go daemon exited during startup ({process.returncode}): {detail}")
+            time.sleep(0.02)
+        if not endpoint.exists():
+            stderr.seek(0)
+            detail = stderr.read(MAX_ORACLE_OUTPUT_BYTES).decode(errors="replace")
+            raise SystemExit(f"pinned Go daemon did not create endpoint {endpoint}: {detail}")
+        yield process
+    finally:
+        if process.poll() is None:
+            kill_tree(process)
+        stdout.close()
+        stderr.close()
+
+
 def run(oracle: Path, frames: Sequence[object], *args: str) -> tuple[bytes, bytes]:
     data = b"".join(compact(frame) for frame in frames)
-    proc = subprocess.run(
-        [str(oracle), "mcp", "--engine", "static", *args],
-        input=data,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        check=True,
-    )
-    return proc.stdout, proc.stderr
+    temporary, environment = oracle_environment()
+    try:
+        environment["SYMBROWSE_NO_AUTOSTART"] = "1"
+        with run_daemon(oracle, environment):
+            return run_oracle(
+                [str(oracle), "mcp", "--engine", "static", *args],
+                input_data=data,
+                environment=environment,
+            )
+    finally:
+        temporary.cleanup()
 
 
 def write_pair(root: Path, name: str, oracle: Path, frames: Sequence[object], *args: str, check: bool = False) -> dict[str, str]:
@@ -213,7 +349,18 @@ def main() -> int:
 
 
 def write_pair_raw(root: Path, name: str, oracle: Path, data: bytes, *args: str, check: bool = False) -> dict[str, str]:
-    proc = subprocess.run([str(oracle), "mcp", "--engine", "static", *args], input=data, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+    temporary, environment = oracle_environment()
+    try:
+        environment["SYMBROWSE_NO_AUTOSTART"] = "1"
+        with run_daemon(oracle, environment):
+            out, err = run_oracle(
+                [str(oracle), "mcp", "--engine", "static", *args],
+                input_data=data,
+                environment=environment,
+            )
+    finally:
+        temporary.cleanup()
+    proc = subprocess.CompletedProcess([], 0, stdout=out, stderr=err)
     if proc.stderr:
         raise SystemExit(f"oracle wrote stderr for {name}: {proc.stderr!r}")
     fixture_dir = root / "testdata" / "port" / "mcp"
