@@ -671,10 +671,9 @@ impl OverlappedPipeStream {
 impl io::Read for OverlappedPipeStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         use tokio::io::AsyncReadExt;
-        match self.runtime.block_on(tokio::time::timeout(
-            Duration::from_millis(10),
-            self.stream.read(buf),
-        )) {
+        match self.runtime.block_on(async {
+            tokio::time::timeout(Duration::from_millis(10), self.stream.read(buf)).await
+        }) {
             Ok(result) => result,
             // Dropping the timeout future cancels the overlapped operation;
             // report readiness polling to the existing bounded frame reader.
@@ -687,20 +686,18 @@ impl io::Read for OverlappedPipeStream {
 impl io::Write for OverlappedPipeStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         use tokio::io::AsyncWriteExt;
-        match self.runtime.block_on(tokio::time::timeout(
-            Duration::from_millis(10),
-            self.stream.write(buf),
-        )) {
+        match self.runtime.block_on(async {
+            tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)).await
+        }) {
             Ok(result) => result,
             Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        match self.runtime.block_on(tokio::time::timeout(
-            Duration::from_millis(10),
-            self.stream.flush(),
-        )) {
+        match self.runtime.block_on(async {
+            tokio::time::timeout(Duration::from_millis(10), self.stream.flush()).await
+        }) {
             Ok(result) => result,
             Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
