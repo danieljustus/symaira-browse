@@ -1997,7 +1997,17 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
         std::fs::create_dir_all(&root).expect("test root");
         let mut spec = temp_spec("server-flow-cancel");
-        spec.socket_path = root.join("default.sock");
+        #[cfg(unix)]
+        {
+            spec.socket_path = root.join("default.sock");
+        }
+        #[cfg(windows)]
+        {
+            spec.socket_path = crate::spec::default_socket_path(&format!(
+                "server-flow-cancel-{}",
+                std::process::id()
+            ));
+        }
         spec.state_dir = root.join("state");
         spec.cache_dir = root.join("cache");
         spec.operation_timeout = Duration::from_secs(2);
