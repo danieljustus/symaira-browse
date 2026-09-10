@@ -646,11 +646,15 @@ struct OverlappedPipeStream {
         interprocess::os::windows::named_pipe::pipe_mode::Bytes,
         interprocess::os::windows::named_pipe::pipe_mode::Bytes,
     >,
+    stopping: Arc<AtomicBool>,
 }
 
 #[cfg(windows)]
 impl OverlappedPipeStream {
-    fn new(handle: std::os::windows::io::OwnedHandle) -> io::Result<Self> {
+    fn new(
+        handle: std::os::windows::io::OwnedHandle,
+        stopping: Arc<AtomicBool>,
+    ) -> io::Result<Self> {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_io()
             .enable_time()
@@ -666,7 +670,11 @@ impl OverlappedPipeStream {
             >::try_from(handle)
             .map_err(|error| io::Error::other(error.to_string()))?
         };
-        Ok(Self { runtime, stream })
+        Ok(Self {
+            runtime,
+            stream,
+            stopping,
+        })
     }
 }
 
@@ -698,7 +706,9 @@ impl io::Read for OverlappedPipeStream {
             // Dropping the timeout future cancels the overlapped operation;
             // report readiness polling to the existing bounded frame reader.
             Err(_) => {
-                self.cancel_pending_io();
+                if self.stopping.load(Ordering::Acquire) {
+                    self.cancel_pending_io();
+                }
                 Err(io::Error::from(io::ErrorKind::WouldBlock))
             }
         }
@@ -714,7 +724,9 @@ impl io::Write for OverlappedPipeStream {
         }) {
             Ok(result) => result,
             Err(_) => {
-                self.cancel_pending_io();
+                if self.stopping.load(Ordering::Acquire) {
+                    self.cancel_pending_io();
+                }
                 Err(io::Error::from(io::ErrorKind::WouldBlock))
             }
         }
@@ -726,7 +738,9 @@ impl io::Write for OverlappedPipeStream {
         }) {
             Ok(result) => result,
             Err(_) => {
-                self.cancel_pending_io();
+                if self.stopping.load(Ordering::Acquire) {
+                    self.cancel_pending_io();
+                }
                 Err(io::Error::from(io::ErrorKind::WouldBlock))
             }
         }
@@ -745,7 +759,7 @@ fn serve_connection_windows(
     registry: Arc<crate::SessionRegistry>,
     dispatch_gate: Arc<std::sync::Mutex<()>>,
 ) {
-    let Ok(stream) = OverlappedPipeStream::new(handle) else {
+    let Ok(stream) = OverlappedPipeStream::new(handle, stopping.clone()) else {
         return;
     };
     serve_connection_parts(
