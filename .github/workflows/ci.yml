@@ -300,7 +300,18 @@ jobs:
             make rust-mcp-test
           fi
       - name: Rust MCP stdio contract
-        run: make rust-mcp-contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            # rust-mcp-contract chains port-mcp-fixtures-check and
+            # rust-mcp-test; both spawn the pinned Go oracle, whose
+            # net.Listen("unix", ...) bind is rejected on Windows runners.
+            # Same skip rationale as the step above.
+            echo "Skipping pinned Go Unix-socket MCP stdio contract on Windows; native named-pipe coverage is required."
+          else
+            make rust-mcp-contract
+          fi
       - name: MCP fixture generator isolation regressions
         run: python3 -m unittest scripts/rust-port/test_mcp_fixture_gen.py
       - name: Go/Rust version contract
