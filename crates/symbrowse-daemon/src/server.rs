@@ -693,18 +693,16 @@ impl io::Read for OverlappedPipeStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         use tokio::io::AsyncReadExt;
         let stopping = self.stopping.clone();
-        let (stopped, result) = self.runtime.block_on(async {
+        let result = self.runtime.block_on(async {
             tokio::select! {
-                result = tokio::time::timeout(Duration::from_millis(10), self.stream.read(buf)) => (false, result),
-                _ = wait_for_pipe_stop(stopping) => (true, Err(())),
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.read(buf)) => Ok(result),
+                _ = wait_for_pipe_stop(stopping) => Err(()),
             }
         });
-        if stopped {
-            return Err(io::Error::from(io::ErrorKind::Interrupted));
-        }
         match result {
-            Ok(result) => result,
-            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+            Err(()) => Err(io::Error::from(io::ErrorKind::Interrupted)),
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
     }
 }
@@ -714,47 +712,31 @@ impl io::Write for OverlappedPipeStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         use tokio::io::AsyncWriteExt;
         let stopping = self.stopping.clone();
-        let (stopped, result) = self.runtime.block_on(async {
+        let result = self.runtime.block_on(async {
             tokio::select! {
-                result = tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)) => {
-                    if stopping.load(Ordering::Acquire) {
-                        (true, Err(()))
-                    } else {
-                        (false, result)
-                    }
-                },
-                _ = wait_for_pipe_stop(stopping) => (true, Err(())),
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.write(buf)) => Ok(result),
+                _ = wait_for_pipe_stop(stopping) => Err(()),
             }
         });
-        if stopped {
-            return Err(io::Error::from(io::ErrorKind::Interrupted));
-        }
         match result {
-            Ok(result) => result,
-            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+            Err(()) => Err(io::Error::from(io::ErrorKind::Interrupted)),
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
         let stopping = self.stopping.clone();
-        let (stopped, result) = self.runtime.block_on(async {
+        let result = self.runtime.block_on(async {
             tokio::select! {
-                result = tokio::time::timeout(Duration::from_millis(10), self.stream.flush()) => {
-                    if stopping.load(Ordering::Acquire) {
-                        (true, Err(()))
-                    } else {
-                        (false, result)
-                    }
-                },
-                _ = wait_for_pipe_stop(stopping) => (true, Err(())),
+                result = tokio::time::timeout(Duration::from_millis(10), self.stream.flush()) => Ok(result),
+                _ = wait_for_pipe_stop(stopping) => Err(()),
             }
         });
-        if stopped {
-            return Err(io::Error::from(io::ErrorKind::Interrupted));
-        }
         match result {
-            Ok(result) => result,
-            Err(_) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
+            Err(()) => Err(io::Error::from(io::ErrorKind::Interrupted)),
+            Ok(Ok(result)) => result,
+            Ok(Err(_)) => Err(io::Error::from(io::ErrorKind::WouldBlock)),
         }
     }
 }
