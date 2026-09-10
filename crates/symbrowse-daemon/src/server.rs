@@ -696,6 +696,17 @@ impl OverlappedPipeStream {
 }
 
 #[cfg(windows)]
+impl Drop for OverlappedPipeStream {
+    fn drop(&mut self) {
+        // No buffered response is allowed to outlive this joined worker. The
+        // interprocess Tokio wrapper otherwise sends a duplex stream to its
+        // linger pool when its flush state is dirty, which would detach handle
+        // reclamation from server shutdown.
+        self.stream.assume_flushed();
+    }
+}
+
+#[cfg(windows)]
 impl io::Read for OverlappedPipeStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         use tokio::io::AsyncReadExt;
