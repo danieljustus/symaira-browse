@@ -81,14 +81,26 @@ func expandFiles(path string) ([]string, error) {
 }
 
 func validatePath(path string) error {
-	if path == "" || filepath.IsAbs(path) {
+	if path == "" || filepath.IsAbs(path) || isWindowsAbsolute(path) {
 		return fmt.Errorf("source path must be non-empty and relative: %q", path)
 	}
-	clean := filepath.Clean(path)
-	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+	// Check both separators so validation remains safe when a path is
+	// supplied by a different host platform or passed to git on Windows.
+	portable := strings.ReplaceAll(path, `\`, "/")
+	clean := filepath.Clean(portable)
+	if clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || strings.HasPrefix(clean, "../") {
 		return fmt.Errorf("source path escapes repository: %q", path)
 	}
 	return nil
+}
+
+func isWindowsAbsolute(path string) bool {
+	if strings.HasPrefix(path, "/") || strings.HasPrefix(path, `\`) {
+		return true
+	}
+	// Reject drive-relative paths (C:foo) as well as drive-rooted paths
+	// (C:\\foo): neither is a repository-relative source path.
+	return len(path) >= 2 && ((path[0] >= 'a' && path[0] <= 'z') || (path[0] >= 'A' && path[0] <= 'Z')) && path[1] == ':'
 }
 
 func compareSource(path string, current, pinned []byte) error {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -19,9 +20,26 @@ func TestCompareSourceNegativeControl(t *testing.T) {
 }
 
 func TestValidatePathRejectsEscape(t *testing.T) {
-	for _, path := range []string{"", "../secret", "/absolute"} {
+	for _, path := range []string{
+		"",
+		"../secret",
+		`..\secret`,
+		"/absolute",
+		`\absolute`,
+		`C:\absolute`,
+		`C:relative`,
+		`\\server\share\file`,
+	} {
 		if err := validatePath(path); err == nil {
 			t.Fatalf("path %q accepted", path)
+		}
+	}
+}
+
+func TestValidatePathAcceptsRepositoryRelativePath(t *testing.T) {
+	for _, path := range []string{"scripts/rust-port/cmd/sourcecheck/main.go", filepath.Join("scripts", "rust-port", "cmd", "sourcecheck", "main.go")} {
+		if err := validatePath(path); err != nil {
+			t.Fatalf("path %q rejected: %v", path, err)
 		}
 	}
 }

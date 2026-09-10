@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
 func TestPercentileUsesNearestRank(t *testing.T) {
 	values := make([]int64, 30)
@@ -19,7 +22,7 @@ func TestBenchmarkEnvIsIsolated(t *testing.T) {
 	env := benchmarkEnv("/isolated/home", "/isolated/tmp")
 	for _, expected := range []string{
 		"HOME=/isolated/home",
-		"XDG_CONFIG_HOME=/isolated/home/.config",
+		"XDG_CONFIG_HOME=" + filepath.Join("/isolated/home", ".config"),
 		"TZ=UTC",
 		"SYMBROWSE_CHECK_UPDATES=0",
 		"SYMBROWSE_SYMGUARD=off",
