@@ -37,15 +37,15 @@ type Case struct {
 	StdoutMode string            `json:"stdout_mode,omitempty"`
 	StderrMode string            `json:"stderr_mode,omitempty"`
 	// IgnoreJSONFields removes volatile object fields recursively in JSON mode.
-	IgnoreJSONFields []string    `json:"ignore_json_fields,omitempty"`
-	CompareFiles     bool        `json:"compare_files,omitempty"`
+	IgnoreJSONFields []string `json:"ignore_json_fields,omitempty"`
+	CompareFiles     bool     `json:"compare_files,omitempty"`
 	// DiagnoseContent allows mismatch errors to include a bounded excerpt of
 	// the differing lines. Default false: mismatch errors never carry stream
 	// content, because compared output may contain secrets. Set only for
 	// cases whose output is known to be secret-free (for example config
 	// path listings).
 	DiagnoseContent bool        `json:"diagnose_content,omitempty"`
-	Setup            []SetupFile `json:"setup,omitempty"`
+	Setup           []SetupFile `json:"setup,omitempty"`
 }
 
 // SetupFile is created below the isolated workspace before a process starts.
