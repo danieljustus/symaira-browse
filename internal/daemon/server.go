@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -378,15 +379,7 @@ func (s *Server) lastActivity() time.Time {
 }
 
 func filepathDir(path string) string {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			if i == 0 {
-				return "/"
-			}
-			return path[:i]
-		}
-	}
-	return "."
+	return filepath.Dir(path)
 }
 
 func isStopFrame(line []byte) bool {

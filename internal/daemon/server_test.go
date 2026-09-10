@@ -286,3 +286,11 @@ func TestStaleSocketIsReplaced(t *testing.T) {
 		t.Fatalf("stale socket was not removed: %v", err)
 	}
 }
+
+func TestFilepathDirUsesNativeSeparators(t *testing.T) {
+	path := filepath.Join("runtime", "symbrowse", "default.sock")
+	want := filepath.Join("runtime", "symbrowse")
+	if got := filepathDir(path); got != want {
+		t.Fatalf("filepathDir(%q) = %q, want %q", path, got, want)
+	}
+}

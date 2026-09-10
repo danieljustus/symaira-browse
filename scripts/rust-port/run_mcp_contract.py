@@ -20,6 +20,11 @@ def endpoint(env: dict[str, str], session: str) -> Path:
     return Path(env["XDG_RUNTIME_DIR"]) / "symbrowse" / f"{session}.sock"
 
 
+def prepare_endpoint_parent(path: Path) -> None:
+    """Create the daemon endpoint directory before starting old Go oracles."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--oracle", type=Path, required=True)
@@ -54,6 +59,7 @@ def main() -> int:
         for value in (env["XDG_CONFIG_HOME"], env["XDG_CACHE_HOME"], env["XDG_STATE_HOME"]):
             Path(value).mkdir(parents=True, exist_ok=True)
         socket = endpoint(env, args.session)
+        prepare_endpoint_parent(socket)
         log = root / "daemon.log"
         process = subprocess.Popen(
             [str(oracle), "daemon", "--session", args.session, "--engine", "static", "--ssrf", "--mcp-mode"],
