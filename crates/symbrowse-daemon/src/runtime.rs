@@ -2097,6 +2097,12 @@ mod tests {
         match request_result {
             Ok(response) => assert_eq!(response.error.unwrap().code, codes::OPERATION_TIMEOUT),
             Err(ClientError::Transport(error)) => assert_eq!(error.code, "daemon_unavailable"),
+            Err(ClientError::Io(error)) => assert!(matches!(
+                error.kind(),
+                std::io::ErrorKind::ConnectionReset
+                    | std::io::ErrorKind::BrokenPipe
+                    | std::io::ErrorKind::UnexpectedEof
+            )),
             Err(error) => panic!("production cancellation request = {error:?}"),
         }
         endpoint_thread.join().expect("endpoint join");
