@@ -261,8 +261,6 @@ mod windows {
         let server_thread = thread::spawn(move || running.listen_and_serve());
 
         let mut peer = connect_when_server_ready(&endpoint);
-        peer.set_read_timeout(Some(Duration::from_secs(2)))
-            .expect("set peer read timeout");
         peer.write_all(
             br#"{"cmd":"daemon.ping"}
 "#,
@@ -281,15 +279,25 @@ mod windows {
                 .is_ok()
         );
 
-        let mut received = 0usize;
-        let mut buf = [0_u8; 8192];
-        loop {
-            match peer.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => received += n,
-                Err(error) => panic!("peer did not reach EOF after shutdown: {error}"),
-            }
-        }
+        // PipeStream has no read-timeout API. Read on a helper thread and
+        // bound the join from the test thread so a missing EOF cannot hang CI.
+        let (done, result) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            let mut received = 0usize;
+            let mut buf = [0_u8; 8192];
+            let result = loop {
+                match peer.read(&mut buf) {
+                    Ok(0) => break Ok(received),
+                    Ok(n) => received += n,
+                    Err(error) => break Err(error),
+                }
+            };
+            let _ = done.send(result);
+        });
+        let received = result
+            .recv_timeout(Duration::from_secs(2))
+            .expect("peer did not reach EOF after shutdown within timeout")
+            .expect("peer read failed after shutdown");
         assert!(received > 0, "backpressure test received no response bytes");
     }
 
