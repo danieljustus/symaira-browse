@@ -169,3 +169,22 @@ complete; this evidence does not authorize cutover.
 5. Exercise the full dual implementation matrix on signed artifacts before any
    cutover proposal. No signing, notarization, native-target runtime, or Rust
    default claim is made by this evidence.
+
+## 2026-09-11 benchmark-harness handover run
+
+The startup blocker was reproduced on the pinned Go oracle (`652453d1`, release
+`v0.8.0`) and the Rust candidate built from the handover base
+`1a383d8651e1461712a4da43cdf0683884e46a3a`. Go completed all four real local
+workloads (CLI, MCP, daemon ping/stop, and static HTTP fetch). Rust CLI and MCP
+completed, but daemon and fetch could not start: the candidate exited before
+creating its socket with `invalid transport selection: unknown browser engine
+"static": use chrome, safari, or firefox`.
+
+The benchmark harness now records the child startup diagnostic instead of
+collapsing it to “socket did not appear”, and its regression test preserves the
+separate Go and Rust static-selection argument contracts. This is a harness
+repair only; no product protocol or backend code was changed. The paired
+30-run release gate was therefore not cleared: a genuine four-workload pair was
+not executable, so the RUST-016 release gate remains **BLOCKED**. The raw
+30-run report and comparison output must be captured after the candidate's
+transport-selection incompatibility is resolved; no synthetic p95 is reported.

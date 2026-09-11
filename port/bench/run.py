@@ -9,6 +9,7 @@ the JSON report and never become a passing value gate.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Collection
 import hashlib
 import json
 import os
@@ -190,7 +191,29 @@ def summarize(samples: list[dict[str, object]]) -> dict[str, object]:
     return summary
 
 
-def daemon_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dict[str, object]:
+def daemon_command(binary: Path, session: str, *, static_mode: bool) -> list[str]:
+    if static_mode:
+        return [str(binary), "daemon", "--session", session, "--mode", "static"]
+    return [str(binary), "daemon", "--session", session, "--engine", "static"]
+
+
+def startup_failure(process: subprocess.Popen[bytes], prefix: str) -> dict[str, object]:
+    try:
+        _, stderr = process.communicate(timeout=3)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        _, stderr = process.communicate()
+    detail = stderr.decode("utf-8", errors="replace").strip()
+    if not detail:
+        detail = f"exit {process.returncode}"
+    if "password=" in detail.lower() or "token=" in detail.lower():
+        detail = "secret-like startup diagnostic suppressed"
+    return {"status": "error", "reason": f"{prefix}: {detail[:256]}"}
+
+
+def daemon_probe(
+    binary: Path, env: dict[str, str], root: Path, runs: int, *, static_mode: bool
+) -> dict[str, object]:
     if os.name != "posix":
         return {"status": "unsupported", "reason": "Unix socket probe requires a native Unix host"}
     results: list[dict[str, object]] = []
@@ -207,7 +230,7 @@ def daemon_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> di
         )
     for _ in range(runs):
         process = subprocess.Popen(
-            [str(binary), "daemon", "--session", session, "--engine", "static"],
+            daemon_command(binary, session, static_mode=static_mode),
             cwd=root,
             env=env,
             stdin=subprocess.DEVNULL,
@@ -224,7 +247,7 @@ def daemon_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> di
                 time.sleep(0.02)
             socket_path = next((path for path in socket_paths if path.exists()), None)
             if socket_path is None:
-                results.append({"status": "unsupported" if process.poll() == 0 else "error", "reason": "daemon socket did not appear"})
+                results.append(startup_failure(process, "daemon socket did not appear"))
                 continue
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(3)
@@ -286,7 +309,9 @@ def negative_control_rejected(expected_url: str) -> bool:
     return not accepted
 
 
-def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dict[str, object]:
+def fetch_probe(
+    binary: Path, env: dict[str, str], root: Path, runs: int, *, static_mode: bool
+) -> dict[str, object]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -302,7 +327,7 @@ def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dic
             / f"{session}.sock"
         )
     process = subprocess.Popen(
-        [str(binary), "daemon", "--session", session, "--engine", "static"],
+        daemon_command(binary, session, static_mode=static_mode),
         cwd=root,
         env=env,
         stdin=subprocess.DEVNULL,
@@ -318,7 +343,7 @@ def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dic
             time.sleep(0.02)
         socket_path = next((path for path in socket_paths if path.exists()), None)
         if socket_path is None:
-            return {"status": "error", "reason": "fetch daemon socket did not appear"}
+            return startup_failure(process, "fetch daemon socket did not appear")
         samples = []
         for index in range(runs):
             started = time.perf_counter_ns()
@@ -404,7 +429,15 @@ def binary_identity(binary: Path, repo_root: Path) -> dict[str, object]:
     }
 
 
-def run_binary(binary: Path, selected: set[str], runs: int, root: Path, repo_root: Path) -> dict[str, object]:
+def run_binary(
+    binary: Path,
+    selected: Collection[str],
+    runs: int,
+    root: Path,
+    repo_root: Path,
+    *,
+    static_mode: bool,
+) -> dict[str, object]:
     if not binary.is_file() or not os.access(binary, os.X_OK):
         return {"status": "blocked", "reason": f"missing or non-executable binary: {binary}"}
     env = base_env(root)
@@ -422,9 +455,9 @@ def run_binary(binary: Path, selected: set[str], runs: int, root: Path, repo_roo
         if name in selected:
             result[name] = summarize([run_once(binary, probe, env, root) for _ in range(runs)])
     if "daemon" in selected:
-        result["daemon"] = daemon_probe(binary, env, root, runs)
+        result["daemon"] = daemon_probe(binary, env, root, runs, static_mode=static_mode)
     if "fetch" in selected:
-        result["fetch"] = fetch_probe(binary, env, root, runs)
+        result["fetch"] = fetch_probe(binary, env, root, runs, static_mode=static_mode)
     return result
 
 
@@ -468,7 +501,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             if path is None:
                 report["binaries"][name] = {"status": "blocked", "reason": "binary argument not supplied"}
                 continue
-            report["binaries"][name] = run_binary(path.resolve(), selected, args.runs, root, Path(__file__).resolve().parents[2])
+            report["binaries"][name] = run_binary(
+                path.resolve(),
+                selected,
+                args.runs,
+                root,
+                Path(__file__).resolve().parents[2],
+                static_mode=name == "rust",
+            )
         rust_result = report["binaries"].get("rust")
         if isinstance(rust_result, dict):
             if isinstance(rust_result.get("identity"), dict) and isinstance(rust_result["identity"].get("size_bytes"), int):
