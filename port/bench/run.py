@@ -9,10 +9,12 @@ the JSON report and never become a passing value gate.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Collection
 import hashlib
 import json
 import os
 import platform
+import signal
 try:
     import resource
 except ImportError:  # pragma: no cover - resource is not available on native Windows
@@ -76,7 +78,6 @@ def base_env(root: Path) -> dict[str, str]:
         "NO_COLOR": "1",
         "SYMBROWSE_CHECK_UPDATES": "0",
         "SYMBROWSE_SYMGUARD": "off",
-        "SYMBROWSE_ENGINE": "static",
         "SYMBROWSE_ALLOW_PRIVATE": "true",
     }
     (root / "tmp").mkdir(mode=0o700, exist_ok=True)
@@ -85,6 +86,63 @@ def base_env(root: Path) -> dict[str, str]:
             env[key] = os.environ[key]
     return env
 
+
+
+def implementation_env(root: Path, implementation: str) -> dict[str, str]:
+    """Apply only the selection variable understood by each CLI."""
+    env = base_env(root)
+    if implementation == "go":
+        env["SYMBROWSE_ENGINE"] = "static"
+    elif implementation == "rust":
+        # Rust validates the loaded browser config before daemon flags apply.
+        # Leave that config in its valid default; --mode static is the explicit
+        # daemon selection and clears the inherited browser engine in the CLI.
+        env["SYMBROWSE_MODE"] = "browser"
+    else:
+        raise ValueError(f"unknown implementation: {implementation}")
+    return env
+
+
+def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
+    if getattr(process, "_bench_tree_terminated", False):
+        return
+    # Every owned probe starts a new session. Clean that group even when the
+    # leader has exited; descendants may still retain files or sockets.
+    if os.name == "posix":
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    elif process.poll() is None:
+        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        return
+    # Avoid signaling a recycled group ID when a caller's finally repeats
+    # cleanup after startup_failure already terminated the owned group.
+    setattr(process, "_bench_tree_terminated", True)
+
+
+def read_startup_diagnostic(path: Path, limit: int = 1 << 20) -> str:
+    try:
+        with path.open("rb") as stream:
+            data = stream.read(limit + 1)
+    except OSError as error:
+        return f"<unable to read startup diagnostic: {error}>"
+    if len(data) > limit:
+        return "<startup diagnostic exceeded output limit>"
+    detail = data.decode("utf-8", errors="replace").strip()
+    return detail or "startup process exited without diagnostics"
 
 
 def child_peak_rss_bytes() -> int | None:
@@ -190,7 +248,37 @@ def summarize(samples: list[dict[str, object]]) -> dict[str, object]:
     return summary
 
 
-def daemon_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dict[str, object]:
+def daemon_command(binary: Path, session: str, *, static_mode: bool) -> list[str]:
+    if static_mode:
+        return [str(binary), "daemon", "--session", session, "--mode", "static"]
+    return [str(binary), "daemon", "--session", session, "--engine", "static"]
+
+
+def startup_failure(process: subprocess.Popen[bytes], prefix: str, stderr_path: Path) -> dict[str, object]:
+    """Terminate descendants, then read a bounded file (never a pipe join)."""
+    terminate_process_tree(process)
+    detail = read_startup_diagnostic(stderr_path)
+    if "password=" in detail.lower() or "token=" in detail.lower():
+        detail = "secret-like startup diagnostic suppressed"
+    return {"status": "error", "reason": f"{prefix}: {detail[:256]}"}
+
+
+def launch_daemon(command: list[str], root: Path, env: dict[str, str]) -> tuple[subprocess.Popen[bytes], Path]:
+    fd, name = tempfile.mkstemp(prefix="symbrowse-startup-", suffix=".log", dir=root / "tmp")
+    stderr_path = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as stderr:
+            process = subprocess.Popen(command, cwd=root, env=env, stdin=subprocess.DEVNULL,
+                                       stdout=subprocess.DEVNULL, stderr=stderr, start_new_session=True)
+    except BaseException:
+        stderr_path.unlink(missing_ok=True)
+        raise
+    return process, stderr_path
+
+
+def daemon_probe(
+    binary: Path, env: dict[str, str], root: Path, runs: int, *, static_mode: bool
+) -> dict[str, object]:
     if os.name != "posix":
         return {"status": "unsupported", "reason": "Unix socket probe requires a native Unix host"}
     results: list[dict[str, object]] = []
@@ -206,15 +294,7 @@ def daemon_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> di
             / f"{session}.sock"
         )
     for _ in range(runs):
-        process = subprocess.Popen(
-            [str(binary), "daemon", "--session", session, "--engine", "static"],
-            cwd=root,
-            env=env,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            start_new_session=True,
-        )
+        process, stderr_path = launch_daemon(daemon_command(binary, session, static_mode=static_mode), root, env)
         started = time.perf_counter_ns()
         try:
             deadline = time.monotonic() + 5
@@ -224,7 +304,7 @@ def daemon_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> di
                 time.sleep(0.02)
             socket_path = next((path for path in socket_paths if path.exists()), None)
             if socket_path is None:
-                results.append({"status": "unsupported" if process.poll() == 0 else "error", "reason": "daemon socket did not appear"})
+                results.append(startup_failure(process, "daemon socket did not appear", stderr_path))
                 continue
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
                 connection.settimeout(3)
@@ -244,9 +324,8 @@ def daemon_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> di
         except (OSError, subprocess.TimeoutExpired) as error:
             results.append({"status": "error", "reason": str(error)})
         finally:
-            if process.poll() is None:
-                process.kill()
-                process.wait(timeout=3)
+            terminate_process_tree(process)
+            stderr_path.unlink(missing_ok=True)
             for socket_path in socket_paths:
                 if socket_path.exists():
                     socket_path.unlink()
@@ -286,7 +365,9 @@ def negative_control_rejected(expected_url: str) -> bool:
     return not accepted
 
 
-def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dict[str, object]:
+def fetch_probe(
+    binary: Path, env: dict[str, str], root: Path, runs: int, *, static_mode: bool
+) -> dict[str, object]:
     server = ThreadingHTTPServer(("127.0.0.1", 0), FixtureHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -301,15 +382,7 @@ def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dic
             / "run"
             / f"{session}.sock"
         )
-    process = subprocess.Popen(
-        [str(binary), "daemon", "--session", session, "--engine", "static"],
-        cwd=root,
-        env=env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
-    )
+    process, stderr_path = launch_daemon(daemon_command(binary, session, static_mode=static_mode), root, env)
     try:
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline and not any(path.exists() for path in socket_paths):
@@ -318,7 +391,7 @@ def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dic
             time.sleep(0.02)
         socket_path = next((path for path in socket_paths if path.exists()), None)
         if socket_path is None:
-            return {"status": "error", "reason": "fetch daemon socket did not appear"}
+            return startup_failure(process, "fetch daemon socket did not appear", stderr_path)
         samples = []
         for index in range(runs):
             started = time.perf_counter_ns()
@@ -375,11 +448,8 @@ def fetch_probe(binary: Path, env: dict[str, str], root: Path, runs: int) -> dic
                     connection.recv(1 << 16)
             except OSError:
                 pass
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=3)
+        terminate_process_tree(process)
+        stderr_path.unlink(missing_ok=True)
         for path in socket_paths:
             if path.exists():
                 path.unlink()
@@ -404,10 +474,18 @@ def binary_identity(binary: Path, repo_root: Path) -> dict[str, object]:
     }
 
 
-def run_binary(binary: Path, selected: set[str], runs: int, root: Path, repo_root: Path) -> dict[str, object]:
+def run_binary(
+    binary: Path,
+    selected: Collection[str],
+    runs: int,
+    root: Path,
+    repo_root: Path,
+    *,
+    static_mode: bool,
+) -> dict[str, object]:
     if not binary.is_file() or not os.access(binary, os.X_OK):
         return {"status": "blocked", "reason": f"missing or non-executable binary: {binary}"}
-    env = base_env(root)
+    env = implementation_env(root, "rust" if static_mode else "go")
     probes = {
         "cli": Probe("cli", ("version", "--json")),
         "mcp": Probe(
@@ -422,9 +500,9 @@ def run_binary(binary: Path, selected: set[str], runs: int, root: Path, repo_roo
         if name in selected:
             result[name] = summarize([run_once(binary, probe, env, root) for _ in range(runs)])
     if "daemon" in selected:
-        result["daemon"] = daemon_probe(binary, env, root, runs)
+        result["daemon"] = daemon_probe(binary, env, root, runs, static_mode=static_mode)
     if "fetch" in selected:
-        result["fetch"] = fetch_probe(binary, env, root, runs)
+        result["fetch"] = fetch_probe(binary, env, root, runs, static_mode=static_mode)
     return result
 
 
@@ -468,7 +546,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             if path is None:
                 report["binaries"][name] = {"status": "blocked", "reason": "binary argument not supplied"}
                 continue
-            report["binaries"][name] = run_binary(path.resolve(), selected, args.runs, root, Path(__file__).resolve().parents[2])
+            report["binaries"][name] = run_binary(
+                path.resolve(),
+                selected,
+                args.runs,
+                root,
+                Path(__file__).resolve().parents[2],
+                static_mode=name == "rust",
+            )
         rust_result = report["binaries"].get("rust")
         if isinstance(rust_result, dict):
             if isinstance(rust_result.get("identity"), dict) and isinstance(rust_result["identity"].get("size_bytes"), int):
