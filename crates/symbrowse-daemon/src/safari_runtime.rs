@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 use symbrowse_core::state::OriginState;
-use symbrowse_engine::Page;
+use symbrowse_engine::{Page, capabilities::Capabilities};
 use symbrowse_engine_safari::{
     AttachEngine, BidiEngine, BidiError, DriverOptions, NavigationPolicy, OsascriptRunner,
 };
@@ -63,6 +63,14 @@ impl SafariRuntime {
         Ok(Self {
             session: SafariSession::Bidi { engine, page },
         })
+    }
+
+    #[must_use]
+    pub fn capabilities(&self) -> Capabilities {
+        match &self.session {
+            SafariSession::Attach { engine, .. } => engine.capabilities(),
+            SafariSession::Bidi { engine, .. } => engine.capabilities(),
+        }
     }
 
     pub async fn command(&mut self, frame: &Frame, timeout: Duration) -> HandlerResult {
@@ -427,6 +435,32 @@ mod tests {
         fn close<'a>(&'a mut self) -> BoxFuture<'a, ()> {
             Box::pin(async { Ok(()) })
         }
+    }
+
+    #[test]
+    fn bidi_capabilities_are_exposed_by_the_safari_runtime() {
+        let fake = FakeTransport::default();
+        let engine = BidiEngine::from_transport(Box::new(fake), "page-1");
+        let page = engine.new_page().expect("page");
+        let runtime = SafariRuntime {
+            session: SafariSession::Bidi { engine, page },
+        };
+        let capabilities = runtime.capabilities();
+        assert_eq!(capabilities.kind, "safari-bidi");
+        assert_eq!(
+            capabilities.interfaces,
+            [
+                "CookieEngine",
+                "InspectionEngine",
+                "NavigationStateProvider"
+            ]
+        );
+        assert!(
+            capabilities
+                .unsupported
+                .iter()
+                .any(|name| name == "InteractionEngine")
+        );
     }
 
     async fn assert_bidi_interaction_unsupported(command: &str) {

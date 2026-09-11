@@ -188,17 +188,39 @@ impl DispatchRuntime {
             "cache.get" => self.cache_get(&frame),
             "wayback.snapshots" => self.wayback_snapshots(&frame).await,
             "flow.run" => self.flow_run(&frame, operation.clone()).await,
-            "capabilities" => Ok((
-                Some(
-                    serde_json::to_value(if self.spec.engine == "firefox" {
-                        symbrowse_engine_firefox::canonical_capabilities()
-                    } else {
-                        symbrowse_engine_chrome::canonical_capabilities()
-                    })
-                    .map_err(runtime_error)?,
-                ),
-                Vec::new(),
-            )),
+            "capabilities" => {
+                #[cfg(target_os = "macos")]
+                if matches!(self.spec.engine.as_str(), "safari-attach" | "safari-bidi") {
+                    self.ensure_safari().await?;
+                    let guard = self.safari.lock().await;
+                    let runtime = guard
+                        .as_ref()
+                        .ok_or_else(|| runtime_error("Safari runtime was not initialized"))?;
+                    return Ok((
+                        Some(serde_json::to_value(runtime.capabilities()).map_err(runtime_error)?),
+                        Vec::new(),
+                    ));
+                }
+                #[cfg(not(target_os = "macos"))]
+                if matches!(self.spec.engine.as_str(), "safari-attach" | "safari-bidi") {
+                    return Err(DaemonError {
+                        code: codes::OPERATION_FAILED.into(),
+                        message: "Safari engines are only available on macOS".into(),
+                        ..Default::default()
+                    });
+                }
+                Ok((
+                    Some(
+                        serde_json::to_value(if self.spec.engine == "firefox" {
+                            symbrowse_engine_firefox::canonical_capabilities()
+                        } else {
+                            symbrowse_engine_chrome::canonical_capabilities()
+                        })
+                        .map_err(runtime_error)?,
+                    ),
+                    Vec::new(),
+                ))
+            }
             "open" | "goto" | "read" | "snapshot" | "click" | "dblclick" | "fill" | "type"
             | "press" | "focus" | "hover" | "select" | "check" | "uncheck" | "wait" | "back"
             | "forward" | "reload" | "scrollintoview" | "get.text" | "get.html" | "get.title"
