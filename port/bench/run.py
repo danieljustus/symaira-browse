@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import platform
+import signal
 try:
     import resource
 except ImportError:  # pragma: no cover - resource is not available on native Windows
@@ -103,27 +104,33 @@ def implementation_env(root: Path, implementation: str) -> dict[str, str]:
 
 
 def terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
+    if getattr(process, "_bench_tree_terminated", False):
         return
+    # Every owned probe starts a new session. Clean that group even when the
+    # leader has exited; descendants may still retain files or sockets.
     if os.name == "posix":
         try:
-            os.killpg(process.pid, __import__("signal").SIGTERM)
+            os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
         try:
             process.wait(timeout=1)
         except subprocess.TimeoutExpired:
-            try:
-                os.killpg(process.pid, __import__("signal").SIGKILL)
-            except ProcessLookupError:
-                pass
-    else:
+            pass
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    elif process.poll() is None:
         subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
     try:
         process.wait(timeout=2)
     except subprocess.TimeoutExpired:
-        pass
+        return
+    # Avoid signaling a recycled group ID when a caller's finally repeats
+    # cleanup after startup_failure already terminated the owned group.
+    setattr(process, "_bench_tree_terminated", True)
 
 
 def read_startup_diagnostic(path: Path, limit: int = 1 << 20) -> str:
@@ -257,13 +264,15 @@ def startup_failure(process: subprocess.Popen[bytes], prefix: str, stderr_path: 
 
 
 def launch_daemon(command: list[str], root: Path, env: dict[str, str]) -> tuple[subprocess.Popen[bytes], Path]:
-    stderr_path = Path(tempfile.mkstemp(prefix="symbrowse-startup-", suffix=".log", dir=root / "tmp")[1])
-    stderr = stderr_path.open("wb")
+    fd, name = tempfile.mkstemp(prefix="symbrowse-startup-", suffix=".log", dir=root / "tmp")
+    stderr_path = Path(name)
     try:
-        process = subprocess.Popen(command, cwd=root, env=env, stdin=subprocess.DEVNULL,
-                                   stdout=subprocess.DEVNULL, stderr=stderr, start_new_session=True)
-    finally:
-        stderr.close()
+        with os.fdopen(fd, "wb") as stderr:
+            process = subprocess.Popen(command, cwd=root, env=env, stdin=subprocess.DEVNULL,
+                                       stdout=subprocess.DEVNULL, stderr=stderr, start_new_session=True)
+    except BaseException:
+        stderr_path.unlink(missing_ok=True)
+        raise
     return process, stderr_path
 
 
@@ -315,8 +324,7 @@ def daemon_probe(
         except (OSError, subprocess.TimeoutExpired) as error:
             results.append({"status": "error", "reason": str(error)})
         finally:
-            if process.poll() is None:
-                terminate_process_tree(process)
+            terminate_process_tree(process)
             stderr_path.unlink(missing_ok=True)
             for socket_path in socket_paths:
                 if socket_path.exists():
@@ -440,8 +448,7 @@ def fetch_probe(
                     connection.recv(1 << 16)
             except OSError:
                 pass
-        if process.poll() is None:
-            terminate_process_tree(process)
+        terminate_process_tree(process)
         stderr_path.unlink(missing_ok=True)
         for path in socket_paths:
             if path.exists():

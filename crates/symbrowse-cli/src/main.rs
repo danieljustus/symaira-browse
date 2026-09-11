@@ -599,9 +599,7 @@ fn run_daemon(
         engine
     };
     let selection_engine = (mode == "browser").then_some(engine.as_str());
-    if let Err(error) =
-        symbrowse_core::config::resolve_selection(Some(&mode), selection_engine)
-    {
+    if let Err(error) = symbrowse_core::config::resolve_selection(Some(&mode), selection_engine) {
         let _ = writeln!(
             io::stderr(),
             "invalid transport selection: {}",

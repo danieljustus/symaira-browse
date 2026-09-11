@@ -193,5 +193,25 @@ A genuine paired 30-run report was captured at
 (`652453d1`) and the Rust candidate built from this repaired source. The fetch
 semantic contract and negative control passed for both implementations. The
 report includes the actual binary digests and remains a measurement artifact;
-the independent value comparison still requires the release baseline and does
-not authorize Rust cutover.
+the independent value comparison does not authorize Rust cutover.
+
+The coordinator repeated the paired run after strengthening cleanup for exited
+leaders with SIGTERM-resistant descendants and closing the startup-file descriptor
+on failed launch. The final local report is
+`/tmp/pb-benchmark-parent-20260911.json`; all eight workload/implementation pairs
+passed with 30 samples each. Running `port/bench/compare.py` against
+`docs/rust-port/baseline.json` returned **pass**, with a 54.75% uncompressed-size
+reduction and fetch p95 94.38% below the measured Go result. The other three p95
+comparisons also passed, without changing thresholds. These are local fixture
+measurements, not signed-artifact, browser-driver or cross-platform acceptance.
+The Go oracle digest remains
+`c4e5fef4fd9a1d22c7eab929ee5b17a99b541ad84c21c14cae30560199bf818b`;
+the measured Rust digest is
+`abf740e8a73976de67465ddcd3eb84c9c9b1ecc143fafbe12341c54abeaf9087`.
+The script's `vcs_revision` identifies the measuring worktree, not the Go oracle
+source; the pinned Go source remains `652453d1`.
+
+Local regression evidence: four benchmark-harness tests (including both live
+and exited leaders), 21 Python rust-port tests, and 14 Rust CLI tests passed.
+Rust formatting was corrected and checked. The remaining release blockers above
+remain applicable; no release or default-implementation change was performed.
