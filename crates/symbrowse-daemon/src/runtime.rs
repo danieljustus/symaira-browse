@@ -182,23 +182,49 @@ impl DispatchRuntime {
                 ..Default::default()
             });
         }
+        #[cfg(target_os = "macos")]
+        if self.spec.engine == "safari-bidi"
+            && matches!(frame.cmd.as_str(), "click" | "fill" | "type" | "press")
+        {
+            return Err(SafariRuntime::unsupported_interaction(&frame.cmd));
+        }
         match frame.cmd.as_str() {
             "fetch.url" => self.fetch_url(&frame).await,
             "fetch.batch" => self.fetch_batch(&frame).await,
             "cache.get" => self.cache_get(&frame),
             "wayback.snapshots" => self.wayback_snapshots(&frame).await,
             "flow.run" => self.flow_run(&frame, operation.clone()).await,
-            "capabilities" => Ok((
-                Some(
-                    serde_json::to_value(if self.spec.engine == "firefox" {
-                        symbrowse_engine_firefox::canonical_capabilities()
-                    } else {
-                        symbrowse_engine_chrome::canonical_capabilities()
-                    })
-                    .map_err(runtime_error)?,
-                ),
-                Vec::new(),
-            )),
+            "capabilities" => {
+                #[cfg(target_os = "macos")]
+                if matches!(self.spec.engine.as_str(), "safari-attach" | "safari-bidi") {
+                    return Ok((
+                        Some(
+                            serde_json::to_value(SafariRuntime::planned_capabilities(&self.spec))
+                                .map_err(runtime_error)?,
+                        ),
+                        Vec::new(),
+                    ));
+                }
+                #[cfg(not(target_os = "macos"))]
+                if matches!(self.spec.engine.as_str(), "safari-attach" | "safari-bidi") {
+                    return Err(DaemonError {
+                        code: codes::OPERATION_FAILED.into(),
+                        message: "Safari engines are only available on macOS".into(),
+                        ..Default::default()
+                    });
+                }
+                Ok((
+                    Some(
+                        serde_json::to_value(if self.spec.engine == "firefox" {
+                            symbrowse_engine_firefox::canonical_capabilities()
+                        } else {
+                            symbrowse_engine_chrome::canonical_capabilities()
+                        })
+                        .map_err(runtime_error)?,
+                    ),
+                    Vec::new(),
+                ))
+            }
             "open" | "goto" | "read" | "snapshot" | "click" | "dblclick" | "fill" | "type"
             | "press" | "focus" | "hover" | "select" | "check" | "uncheck" | "wait" | "back"
             | "forward" | "reload" | "scrollintoview" | "get.text" | "get.html" | "get.title"
@@ -1859,6 +1885,67 @@ mod tests {
         spec.allow_private = true;
         spec.engine = "static".into();
         spec
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn safari_bidi_capabilities_are_planned_without_starting_safari() {
+        let mut spec = temp_spec("safari-capabilities");
+        spec.engine = "safari-bidi".into();
+        let runtime = DispatchRuntime::new(spec).expect("runtime");
+        let (data, _) = runtime
+            .runtime
+            .block_on(runtime.dispatch(
+                Frame {
+                    cmd: "capabilities".into(),
+                    ..Frame::default()
+                },
+                OperationContext::for_test(),
+            ))
+            .expect("capabilities dispatch");
+        let data = data.expect("capabilities data");
+        assert_eq!(data["kind"], "safari-bidi");
+        assert_eq!(
+            data["interfaces"],
+            json!([
+                "CookieEngine",
+                "InspectionEngine",
+                "NavigationStateProvider"
+            ])
+        );
+        assert!(
+            data["unsupported"]
+                .as_array()
+                .expect("unsupported interfaces")
+                .iter()
+                .any(|name| name == "InteractionEngine")
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn safari_bidi_interactions_are_rejected_before_initialization() {
+        let mut spec = temp_spec("safari-interactions");
+        spec.engine = "safari-bidi".into();
+        let runtime = DispatchRuntime::new(spec).expect("runtime");
+        for command in ["click", "fill", "type", "press"] {
+            let error = runtime
+                .runtime
+                .block_on(runtime.dispatch(
+                    Frame {
+                        cmd: command.into(),
+                        args: Some(json!({"selector": "#target", "value": "text", "key": "Enter"})),
+                        ..Frame::default()
+                    },
+                    OperationContext::for_test(),
+                ))
+                .expect_err("fresh Safari BiDi interaction must be unsupported");
+            assert_eq!(error.code, "unsupported");
+            assert_eq!(
+                error.message,
+                format!("safari-bidi engine: unsupported operation: {command}")
+            );
+        }
     }
 
     fn http_server(body: &'static [u8], content_type: &'static str) -> String {
