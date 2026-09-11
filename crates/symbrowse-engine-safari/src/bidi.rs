@@ -684,7 +684,7 @@ impl BidiEngine {
     }
 
     #[must_use]
-    pub fn capabilities(&self) -> Capabilities {
+    pub fn planned_capabilities() -> Capabilities {
         // Safari BiDi has no supported input module. JavaScript emulation does
         // not provide InteractionEngine's native hit-testing semantics.
         let mut caps = capabilities_for(
@@ -697,6 +697,11 @@ impl BidiEngine {
         );
         caps.launch_mode = "launch".to_owned();
         caps
+    }
+
+    #[must_use]
+    pub fn capabilities(&self) -> Capabilities {
+        Self::planned_capabilities()
     }
 
     /// Safari's measured BiDi surface has no network module, so policy reaches

@@ -66,10 +66,27 @@ impl SafariRuntime {
     }
 
     #[must_use]
-    pub fn capabilities(&self) -> Capabilities {
-        match &self.session {
-            SafariSession::Attach { engine, .. } => engine.capabilities(),
-            SafariSession::Bidi { engine, .. } => engine.capabilities(),
+    pub fn planned_capabilities(spec: &SessionSpec) -> Capabilities {
+        if spec.engine == "safari-attach" {
+            let policy = NavigationPolicy::from_allowlist(&spec.allowed_domains);
+            let mut engine = AttachEngine::default_engine().with_navigation_policy(policy);
+            engine.set_interactions_opt_in(true);
+            engine.capabilities()
+        } else {
+            BidiEngine::planned_capabilities()
+        }
+    }
+
+    #[must_use]
+    pub fn unsupported_interaction(operation: &str) -> DaemonError {
+        DaemonError {
+            code: "unsupported".into(),
+            message: BidiError::Unsupported {
+                operation: operation.to_owned(),
+            }
+            .to_string(),
+            hint: "the operation is explicitly unsupported by this engine".into(),
+            ..Default::default()
         }
     }
 
@@ -108,15 +125,7 @@ impl SafariRuntime {
             }
             "click" | "fill" | "type" | "press" => {
                 if matches!(self.session, SafariSession::Bidi { .. }) {
-                    return Err(DaemonError {
-                        code: "unsupported".into(),
-                        message: BidiError::Unsupported {
-                            operation: frame.cmd.clone(),
-                        }
-                        .to_string(),
-                        hint: "the operation is explicitly unsupported by this engine".into(),
-                        ..Default::default()
-                    });
+                    return Err(Self::unsupported_interaction(&frame.cmd));
                 }
                 let selector = args
                     .get("selector")
@@ -439,13 +448,7 @@ mod tests {
 
     #[test]
     fn bidi_capabilities_are_exposed_by_the_safari_runtime() {
-        let fake = FakeTransport::default();
-        let engine = BidiEngine::from_transport(Box::new(fake), "page-1");
-        let page = engine.new_page().expect("page");
-        let runtime = SafariRuntime {
-            session: SafariSession::Bidi { engine, page },
-        };
-        let capabilities = runtime.capabilities();
+        let capabilities = BidiEngine::planned_capabilities();
         assert_eq!(capabilities.kind, "safari-bidi");
         assert_eq!(
             capabilities.interfaces,
