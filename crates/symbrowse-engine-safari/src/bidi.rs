@@ -685,12 +685,13 @@ impl BidiEngine {
 
     #[must_use]
     pub fn capabilities(&self) -> Capabilities {
+        // Safari BiDi has no supported input module. JavaScript emulation does
+        // not provide InteractionEngine's native hit-testing semantics.
         let mut caps = capabilities_for(
             ENGINE_KIND,
             [
                 "CookieEngine",
                 "InspectionEngine",
-                "InteractionEngine",
                 "NavigationStateProvider",
             ],
         );

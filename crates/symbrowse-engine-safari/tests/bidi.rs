@@ -7,6 +7,7 @@ use std::{
 
 use serde_json::{Value, json};
 use symbrowse_core::policy::SsrfGuard;
+use symbrowse_engine::capabilities::OPTIONAL_INTERFACE_NAMES;
 use symbrowse_engine::{EvaluationResult, Page};
 use symbrowse_engine_safari::{
     BIDI_ENGINE_KIND, BidiEngine, BidiError, BidiTransport, BoxFuture, DriverOptions,
@@ -42,6 +43,43 @@ impl BidiTransport for FakeTransport {
         *self.close_count.lock().expect("close lock") += 1;
         Box::pin(async { Ok(()) })
     }
+}
+
+#[test]
+fn bidi_capabilities_partition_excludes_unsupported_interactions() {
+    let fake = FakeTransport::default();
+    let engine = BidiEngine::from_transport(Box::new(fake.clone()), "page-1");
+    let caps = engine.capabilities();
+    assert_eq!(caps.kind, BIDI_ENGINE_KIND);
+    assert_eq!(caps.launch_mode, "launch");
+    assert_eq!(
+        caps.interfaces,
+        [
+            "CookieEngine",
+            "InspectionEngine",
+            "NavigationStateProvider"
+        ]
+    );
+    assert!(
+        caps.unsupported
+            .iter()
+            .any(|name| name == "InteractionEngine")
+    );
+    for name in OPTIONAL_INTERFACE_NAMES {
+        assert_eq!(
+            caps.interfaces
+                .iter()
+                .chain(&caps.unsupported)
+                .filter(|item| *item == name)
+                .count(),
+            1,
+            "{name} must occur in exactly one capability partition"
+        );
+    }
+    assert!(
+        fake.calls().is_empty(),
+        "capabilities must not call the transport"
+    );
 }
 
 #[test]
@@ -299,6 +337,9 @@ async fn real_safari_bidi_launch_is_opt_in_or_reports_typed_blocked_gate() {
         DriverOptions::default()
     } else {
         DriverOptions {
+            // A non-directory parent guarantees a missing driver without
+            // probing Safari or its Remote Automation permissions.
+            driver_path: Path::new("/dev/null/safaridriver").to_path_buf(),
             ready_timeout: std::time::Duration::from_millis(100),
             session_timeout: std::time::Duration::from_millis(100),
             request_timeout: std::time::Duration::from_millis(100),

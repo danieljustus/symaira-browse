@@ -89,17 +89,19 @@ fn production_daemon_path_runs_safari_bidi_and_reaps_owned_driver() {
     let title = request(&socket, "get.title", json!({"selector":"body"}));
     assert_eq!(title["success"], true, "title: {title}");
     assert_eq!(title["data"], "safari-native");
-    let filled = request(
-        &socket,
-        "fill",
-        json!({"selector":"#name","value":"native"}),
-    );
-    assert_eq!(filled["success"], true, "fill: {filled}");
+    for (command, args) in [
+        ("fill", json!({"selector":"#name","value":"native"})),
+        ("type", json!({"selector":"#name","value":"native"})),
+        ("press", json!({"selector":"#name","key":"Enter"})),
+        ("click", json!({"selector":"#go"})),
+    ] {
+        let response = request(&socket, command, args);
+        assert_eq!(response["success"], false, "{command}: {response}");
+        assert_eq!(response["error"]["code"], "unsupported", "{response}");
+    }
     let value = request(&socket, "get.value", json!({"selector":"#name"}));
     assert_eq!(value["success"], true, "value: {value}");
-    assert_eq!(value["data"], "native");
-    let clicked = request(&socket, "click", json!({"selector":"#go"}));
-    assert_eq!(clicked["success"], true, "click: {clicked}");
+    assert_eq!(value["data"], "");
 
     let _ = fixture_thread.join();
     server.stop();

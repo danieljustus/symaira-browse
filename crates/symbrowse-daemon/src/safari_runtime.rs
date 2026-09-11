@@ -1,8 +1,8 @@
 #![cfg(target_os = "macos")]
 
-//! Shared Safari daemon dispatch.  The attach and BiDi engines expose the same
-//! browser-backed command surface; this module keeps protocol details out of
-//! the portable daemon and never owns a user's ordinary Safari process.
+//! Safari daemon dispatch preserves each adapter's supported command surface.
+//! This module keeps protocol details out of the portable daemon and never
+//! owns a user's ordinary Safari process.
 
 use std::time::Duration;
 
@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use symbrowse_core::state::OriginState;
 use symbrowse_engine::Page;
 use symbrowse_engine_safari::{
-    AttachEngine, BidiEngine, DriverOptions, NavigationPolicy, OsascriptRunner,
+    AttachEngine, BidiEngine, BidiError, DriverOptions, NavigationPolicy, OsascriptRunner,
 };
 
 use crate::{DaemonError, Frame, HandlerResult, SessionSpec, codes};
@@ -99,6 +99,17 @@ impl SafariRuntime {
                 Ok((Some(json!({"nodes": value})), Vec::new()))
             }
             "click" | "fill" | "type" | "press" => {
+                if matches!(self.session, SafariSession::Bidi { .. }) {
+                    return Err(DaemonError {
+                        code: "unsupported".into(),
+                        message: BidiError::Unsupported {
+                            operation: frame.cmd.clone(),
+                        }
+                        .to_string(),
+                        hint: "the operation is explicitly unsupported by this engine".into(),
+                        ..Default::default()
+                    });
+                }
                 let selector = args
                     .get("selector")
                     .and_then(Value::as_str)
@@ -388,5 +399,95 @@ fn runtime_error(error: impl std::fmt::Display) -> DaemonError {
         code: codes::OPERATION_FAILED.into(),
         message: crate::redact_str(&error.to_string()),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use symbrowse_engine_safari::{BidiTransport, BoxFuture};
+
+    use super::*;
+
+    #[derive(Clone, Default)]
+    struct FakeTransport {
+        calls: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl BidiTransport for FakeTransport {
+        fn command<'a>(&'a mut self, method: &'a str, _params: Value) -> BoxFuture<'a, Value> {
+            self.calls
+                .lock()
+                .expect("calls lock")
+                .push(method.to_owned());
+            Box::pin(async { Ok(json!({"result": {"type": "string", "value": "fixture title"}})) })
+        }
+
+        fn close<'a>(&'a mut self) -> BoxFuture<'a, ()> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+
+    async fn assert_bidi_interaction_unsupported(command: &str) {
+        let fake = FakeTransport::default();
+        let engine = BidiEngine::from_transport(Box::new(fake.clone()), "page-1");
+        let page = engine.new_page().expect("page");
+        let mut runtime = SafariRuntime {
+            session: SafariSession::Bidi { engine, page },
+        };
+        let timeout = Duration::from_secs(1);
+        let inspection = Frame {
+            cmd: "get.title".into(),
+            args: Some(json!({"selector": "body"})),
+            ..Default::default()
+        };
+        assert_eq!(
+            runtime
+                .command(&inspection, timeout)
+                .await
+                .expect("inspection")
+                .0,
+            Some(json!("fixture title"))
+        );
+        assert_eq!(*fake.calls.lock().expect("calls lock"), ["script.evaluate"]);
+        fake.calls.lock().expect("calls lock").clear();
+
+        let frame = Frame {
+            cmd: command.into(),
+            args: Some(json!({"selector": "#target", "value": "text", "key": "Enter"})),
+            ..Default::default()
+        };
+        let result = runtime.command(&frame, timeout).await;
+        assert!(
+            fake.calls.lock().expect("calls lock").is_empty(),
+            "unsupported {command} reached the BiDi transport"
+        );
+        let error = result.expect_err("BiDi interactions are unsupported");
+        assert_eq!(error.code, "unsupported");
+        assert_eq!(
+            error.message,
+            format!("safari-bidi engine: unsupported operation: {command}")
+        );
+    }
+
+    #[tokio::test]
+    async fn bidi_click_is_unsupported_without_script_transport() {
+        assert_bidi_interaction_unsupported("click").await;
+    }
+
+    #[tokio::test]
+    async fn bidi_fill_is_unsupported_without_script_transport() {
+        assert_bidi_interaction_unsupported("fill").await;
+    }
+
+    #[tokio::test]
+    async fn bidi_type_is_unsupported_without_script_transport() {
+        assert_bidi_interaction_unsupported("type").await;
+    }
+
+    #[tokio::test]
+    async fn bidi_press_is_unsupported_without_script_transport() {
+        assert_bidi_interaction_unsupported("press").await;
     }
 }
