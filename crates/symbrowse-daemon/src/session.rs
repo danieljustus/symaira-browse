@@ -72,17 +72,38 @@ struct Session {
     refs: BTreeMap<String, String>,
 }
 
-#[derive(Debug)]
 pub struct SessionRegistry {
     user_data_root: PathBuf,
     pid: u32,
     scope: String,
     origin_path: String,
     sessions: RwLock<BTreeMap<String, Session>>,
+    now: Box<dyn Fn() -> time::OffsetDateTime + Send + Sync>,
+}
+
+impl std::fmt::Debug for SessionRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SessionRegistry")
+            .field("user_data_root", &self.user_data_root)
+            .field("pid", &self.pid)
+            .field("scope", &self.scope)
+            .field("origin_path", &self.origin_path)
+            .field("sessions", &self.sessions)
+            .finish_non_exhaustive()
+    }
 }
 
 impl SessionRegistry {
     pub fn new(options: SessionRegistryOptions) -> Self {
+        Self::with_clock(options, time::OffsetDateTime::now_utc)
+    }
+
+    /// Inject a clock as in Go's SessionRegistryOptions.Now. The clock is read
+    /// only when creating a session or touching an existing one.
+    pub fn with_clock(
+        options: SessionRegistryOptions,
+        now: impl Fn() -> time::OffsetDateTime + Send + Sync + 'static,
+    ) -> Self {
         Self {
             user_data_root: options.user_data_root,
             pid: if options.pid == 0 {
@@ -93,6 +114,7 @@ impl SessionRegistry {
             scope: options.scope,
             origin_path: options.origin_path,
             sessions: RwLock::new(BTreeMap::new()),
+            now: Box::new(now),
         }
     }
 
@@ -116,12 +138,12 @@ impl SessionRegistry {
         if let Some(session) = sessions.get(name) {
             return Ok(session.info.clone());
         }
+        let now = timestamp((self.now)());
         let user_data_dir = self.user_data_root.join(name);
         fs::create_dir_all(&user_data_dir)
             .map_err(|error| SessionError::Io(format!("create user data directory: {error}")))?;
         secure_directory(&user_data_dir)
             .map_err(|error| SessionError::Io(format!("secure user data directory: {error}")))?;
-        let now = timestamp_now();
         let info = SessionInfo {
             name: name.to_owned(),
             pid: self.pid,
@@ -174,7 +196,7 @@ impl SessionRegistry {
         let session = sessions
             .get_mut(name)
             .ok_or_else(|| SessionError::NotFound(name.to_owned()))?;
-        session.info.last_activity = timestamp_now();
+        session.info.last_activity = timestamp((self.now)());
         Ok(())
     }
 
@@ -257,8 +279,8 @@ fn secure_directory(_path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-fn timestamp_now() -> String {
-    time::OffsetDateTime::now_utc()
+fn timestamp(now: time::OffsetDateTime) -> String {
+    now.to_offset(time::UtcOffset::UTC)
         .format(&time::format_description::well_known::Rfc3339)
         .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into())
 }
