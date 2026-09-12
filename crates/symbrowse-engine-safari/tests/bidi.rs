@@ -46,24 +46,43 @@ impl BidiTransport for FakeTransport {
 }
 
 #[test]
-fn bidi_capabilities_partition_excludes_unsupported_interactions() {
+fn bidi_capabilities_match_go_oracle_without_transport() {
     let fake = FakeTransport::default();
     let engine = BidiEngine::from_transport(Box::new(fake.clone()), "page-1");
-    let caps = engine.capabilities();
+    let caps = BidiEngine::planned_capabilities();
+    assert_eq!(engine.capabilities(), caps);
     assert_eq!(caps.kind, BIDI_ENGINE_KIND);
     assert_eq!(caps.launch_mode, "launch");
+    // internal/engine/safaribidi/safaribidi.go: Engine.Capabilities(),
+    // origin/main at e86c1db46ad758d89372640473a5311525e3edf1.
     assert_eq!(
         caps.interfaces,
         [
-            "CookieEngine",
+            "FrameManager",
             "InspectionEngine",
-            "NavigationStateProvider"
+            "NavigationStateProvider",
+            "NetworkPolicyReporter",
+            "TabManager",
         ]
     );
-    assert!(
-        caps.unsupported
-            .iter()
-            .any(|name| name == "InteractionEngine")
+    assert_eq!(
+        caps.unsupported,
+        [
+            "A11yAuditor",
+            "AXSelectorResolver",
+            "ClickDiagnosticEngine",
+            "CookieEngine",
+            "DialogController",
+            "FileTransfer",
+            "InteractionEngine",
+            "NetworkEvents",
+            "OverlayHost",
+            "RuntimeEvents",
+            "ScreenshotEngine",
+            "ScreenshotOptionsEngine",
+            "ScriptDisabler",
+            "SettingsEngine",
+        ]
     );
     for name in OPTIONAL_INTERFACE_NAMES {
         assert_eq!(
@@ -80,6 +99,7 @@ fn bidi_capabilities_partition_excludes_unsupported_interactions() {
         fake.calls().is_empty(),
         "capabilities must not call the transport"
     );
+    assert_eq!(*fake.close_count.lock().expect("close lock"), 0);
 }
 
 #[test]
@@ -176,7 +196,7 @@ async fn bidi_navigation_evaluation_and_cleanup_use_injected_transport() {
     assert!(
         engine
             .capabilities()
-            .interfaces
+            .unsupported
             .iter()
             .any(|name| name == "CookieEngine")
     );
@@ -185,7 +205,7 @@ async fn bidi_navigation_evaluation_and_cleanup_use_injected_transport() {
             .capabilities()
             .unsupported
             .iter()
-            .any(|name| name == "FrameManager" || name == "TabManager" || name == "NetworkEvents")
+            .any(|name| name == "NetworkEvents")
     );
     assert!(engine.screenshot().is_err());
     engine.close().await.expect("close");

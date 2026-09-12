@@ -685,14 +685,16 @@ impl BidiEngine {
 
     #[must_use]
     pub fn planned_capabilities() -> Capabilities {
-        // Safari BiDi has no supported input module. JavaScript emulation does
-        // not provide InteractionEngine's native hit-testing semantics.
+        // Match the Go Safari BiDi oracle: Safari 27 storage commands fail,
+        // and input, network interception, and event delivery are unavailable.
         let mut caps = capabilities_for(
             ENGINE_KIND,
             [
-                "CookieEngine",
+                "FrameManager",
                 "InspectionEngine",
                 "NavigationStateProvider",
+                "NetworkPolicyReporter",
+                "TabManager",
             ],
         );
         caps.launch_mode = "launch".to_owned();
