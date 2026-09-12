@@ -200,16 +200,16 @@ fn attach_prerequisites_are_distinct_and_never_enable_permissions() {
 }
 
 #[test]
-fn attach_accepts_a_stable_redirect_url_and_times_out_unsettled_navigation() {
+fn attach_times_out_stable_redirects_and_unsettled_navigation() {
     let redirect = FakeRunner::with_answer("\"https://example.test/final\"");
     let engine = AttachEngine::new(redirect)
         .with_navigation_timeout(Duration::from_millis(50))
         .with_poll_interval(Duration::from_millis(1));
     let page = engine.new_page(&engine.new_context().unwrap()).unwrap();
-    let result = engine
-        .navigate(&page, "https://example.test/start")
-        .unwrap();
-    assert_eq!(result.url, "https://example.test/final");
+    assert!(matches!(
+        engine.navigate(&page, "https://example.test/start"),
+        Err(AttachError::NavigationDidNotSettle { .. })
+    ));
 
     let hanging = FakeRunner::default();
     let engine = AttachEngine::new(hanging)

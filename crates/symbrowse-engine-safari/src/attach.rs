@@ -499,30 +499,20 @@ impl<R: ScriptRunner> AttachEngine<R> {
         self.runner.run(&set_url, self.command_timeout)?;
 
         let started = std::time::Instant::now();
-        let mut previous = None;
-        let mut stable_reads = 0_u8;
         while started.elapsed() < self.navigation_timeout {
             let remaining = self.navigation_timeout.saturating_sub(started.elapsed());
             let command_timeout = self.command_timeout.min(remaining);
             if let Ok(current) = self.current_url_with_timeout(command_timeout)
-                && Url::parse(&current).ok().is_some_and(|url| {
-                    matches!(url.scheme(), "http" | "https") && url.host_str().is_some()
-                })
+                && current == target
             {
-                if previous.as_deref() == Some(current.as_str()) {
-                    stable_reads = stable_reads.saturating_add(1);
-                } else {
-                    stable_reads = 0;
-                }
-                previous = Some(current.clone());
-                if stable_reads >= 1 {
-                    return Ok(NavigationResult {
-                        frame_id: "safari-live".to_owned(),
-                        loader_id: "safari-live".to_owned(),
-                        url: current,
-                        error_text: String::new(),
-                    });
-                }
+                // Match Go's target check: repeated reads can still describe
+                // the old page, and a redirect alone does not settle navigation.
+                return Ok(NavigationResult {
+                    frame_id: "safari-live".to_owned(),
+                    loader_id: "safari-live".to_owned(),
+                    url: current,
+                    error_text: String::new(),
+                });
             }
             let sleep_for = self.poll_interval.min(remaining);
             if !sleep_for.is_zero() {
