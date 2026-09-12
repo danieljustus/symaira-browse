@@ -14,6 +14,9 @@ use symbrowse_daemon::{Frame, Server, ServerOptions, SessionSpec, Warning};
 pub const CREDENTIAL_URL: &str = "https://private-user:private-password@blocked.example/path?token=private-token&password=query-password&view=public";
 pub const SAFE_URL: &str = "https://example.com/path?view=public";
 pub const BLOCKED_URL: &str = "https://blocked.example/path?view=public";
+pub const APOSTROPHE_URL: &str = "https://user:p'private-password@blocked.example/reader's?token=prefix'private-token&view=reader's#section";
+pub const APOSTROPHE_REDACTED: &str =
+    "https://[REDACTED]@blocked.example/reader's?token=[REDACTED]&view=reader's#section";
 pub fn fixture() -> Value {
     serde_json::from_str(include_str!(
         "../../../../testdata/port/daemon/navigation-security.json"
@@ -41,13 +44,17 @@ pub struct Harness {
 impl Harness {
     #[allow(clippy::result_large_err)] // The existing DaemonHandler ABI returns DaemonError by value.
     pub fn new(label: &str) -> Self {
+        Self::with_domains(label, vec!["example.com".into()])
+    }
+    #[allow(clippy::result_large_err)] // Existing DaemonHandler ABI.
+    pub fn with_domains(label: &str, domains: Vec<String>) -> Self {
         let root = std::env::temp_dir().join(format!("browse-442-{label}-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
         let mut spec = SessionSpec::for_session("boundary");
         spec.socket_path = root.join("daemon.sock");
         spec.state_dir = root.join("state");
         spec.cache_dir = root.join("cache");
-        spec.allowed_domains = vec!["example.com".into()];
+        spec.allowed_domains = domains;
         let calls = Arc::new(AtomicUsize::new(0));
         let count = calls.clone();
         let history = Arc::new(std::sync::Mutex::new(vec![Warning {
@@ -63,7 +70,7 @@ impl Harness {
                 handler: Some(Arc::new(move |frame, _| {
                     // Existing injectable engine/transport boundary: reaching this
                     // handler with an admission-denied target is itself a failure.
-                    if matches!(frame.cmd.as_str(), "open" | "goto") {
+                    if matches!(frame.cmd.as_str(), "open" | "goto" | "tab.new") {
                         count.fetch_add(1, Ordering::SeqCst);
                         assert_eq!(frame.args.as_ref().unwrap()["url"], SAFE_URL);
                     }
@@ -115,6 +122,16 @@ impl Harness {
             fixture()["GO_KNOWN_DEFECT_442_CREDENTIAL_POLICY_WARNING"].clone(),
         )
         .unwrap();
+    }
+    pub fn seed_boundary_warnings(&self) {
+        // Synthetic redaction inputs, separate from the frozen Go observations.
+        *self.history.lock().unwrap() = vec![Warning {
+            kind: "network_policy.blocked".into(),
+            severity: "warning".into(),
+            message: APOSTROPHE_URL.into(),
+            r#ref: "password=prefix#private-secret".into(),
+            excerpt: "reader's note: password=prefix'private-secret".into(),
+        }];
     }
 }
 impl Drop for Harness {

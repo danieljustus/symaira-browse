@@ -7,6 +7,52 @@ use std::sync::atomic::Ordering;
 use support::*;
 
 #[test]
+fn daemon_apostrophe_and_generic_secret_boundaries_are_scrubbed() {
+    let harness = Harness::new("daemon-apostrophe");
+    for command in ["open", "goto", "tab.new"] {
+        let denied = harness.request(command, APOSTROPHE_URL);
+        assert_eq!(denied["success"], false);
+        assert_scrubbed(&denied.to_string());
+        assert!(
+            denied["error"]["message"]
+                .as_str()
+                .unwrap()
+                .contains(APOSTROPHE_REDACTED)
+        );
+    }
+    assert_eq!(harness.calls.load(Ordering::SeqCst), 0);
+    harness.seed_boundary_warnings();
+    let response = harness.request("get.title", "");
+    assert_eq!(response["success"], true);
+    assert_eq!(response["warnings"][0]["message"], APOSTROPHE_REDACTED);
+    assert_eq!(response["warnings"][0]["ref"], "password=[REDACTED]");
+    assert_eq!(
+        response["warnings"][0]["excerpt"],
+        "reader's note: password=[REDACTED]"
+    );
+}
+
+#[test]
+fn daemon_non_http_navigation_has_zero_handler_dispatches() {
+    for (index, domains) in [vec![], vec!["example.com".into()]].into_iter().enumerate() {
+        let harness = Harness::with_domains(&format!("daemon-scheme-{index}"), domains);
+        for command in ["open", "goto", "tab.new"] {
+            for url in ["ws://example.com/", "wss://example.com/"] {
+                let response = harness.request(command, url);
+                assert_eq!(response["success"], false);
+                assert!(
+                    response["error"]["message"]
+                        .as_str()
+                        .unwrap()
+                        .contains("http/https URL required")
+                );
+                assert_eq!(harness.calls.load(Ordering::SeqCst), 0);
+            }
+        }
+    }
+}
+
+#[test]
 fn daemon_admission_sequence_matches_go_and_redacts_later_warnings() {
     let harness = Harness::new("daemon");
     let mut steps = Vec::new();

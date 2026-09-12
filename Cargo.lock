@@ -1929,6 +1929,7 @@ dependencies = [
  "symbrowse-fetch",
  "time",
  "tokio",
+ "url",
  "widestring",
  "windows-sys 0.61.2",
 ]

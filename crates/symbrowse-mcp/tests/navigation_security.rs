@@ -8,6 +8,55 @@ use support::*;
 use symbrowse_mcp::{ServeOptions, serve_stdio};
 
 #[test]
+fn mcp_apostrophe_boundaries_and_non_http_navigation_frames_are_clean() {
+    let harness = Harness::new("mcp-apostrophe");
+    let options = ServeOptions {
+        session: "boundary".into(),
+        profiles: "all".into(),
+        endpoint: Some(harness.socket.to_string_lossy().into_owned()),
+        ..Default::default()
+    };
+    for (id, url) in [APOSTROPHE_URL, "ws://example.com/", "wss://example.com/"]
+        .into_iter()
+        .enumerate()
+    {
+        for command in ["open", "goto"] {
+            let input = json!({"jsonrpc":"2.0", "id":id, "method":"tools/call", "params":{"name":command, "arguments":{"url":url}}}).to_string() + "\n";
+            let mut output = Vec::new();
+            serve_stdio(Cursor::new(input), &mut output, options.clone()).unwrap();
+            let text = String::from_utf8(output).unwrap();
+            assert_scrubbed(&text);
+            let frame: Value = serde_json::from_str(text.trim()).unwrap();
+            assert_eq!(frame["id"], id);
+            assert_eq!(frame["result"]["isError"], true);
+            assert!(
+                text.contains(if id == 0 {
+                    APOSTROPHE_REDACTED
+                } else {
+                    "http/https URL required"
+                }),
+                "{text}"
+            );
+        }
+    }
+    assert_eq!(harness.calls.load(Ordering::SeqCst), 0);
+    harness.seed_boundary_warnings();
+    let input = json!({"jsonrpc":"2.0", "id":4, "method":"tools/call", "params":{"name":"get", "arguments":{"kind":"title"}}}).to_string() + "\n";
+    let mut output = Vec::new();
+    serve_stdio(Cursor::new(input), &mut output, options).unwrap();
+    let frame: Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(frame["id"], 4);
+    let body: Value =
+        serde_json::from_str(frame["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!(body["warnings"][0]["message"], APOSTROPHE_REDACTED);
+    assert_eq!(body["warnings"][0]["ref"], "password=[REDACTED]");
+    assert_eq!(
+        body["warnings"][0]["excerpt"],
+        "reader's note: password=[REDACTED]"
+    );
+}
+
+#[test]
 fn mcp_admission_and_later_warning_frames_are_clean() {
     let harness = Harness::new("mcp");
     // Exercise the raw daemon path first, then the real MCP socket proxy.

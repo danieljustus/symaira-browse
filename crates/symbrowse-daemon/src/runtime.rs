@@ -28,22 +28,46 @@ use crate::{
     DaemonError, Frame, HandlerResult, OperationContext, SessionSpec, Warning, codes, redact_str,
 };
 
-// Go's navigationGuard rejects explicit open/goto targets before engine
+// Go's navigationGuard rejects explicit navigation targets before engine
 // acquisition. Keep admission denials out of engine request history.
 pub(crate) fn check_navigation_allowlist(
     frame: &Frame,
     domains: &[String],
 ) -> Result<(), DaemonError> {
-    if !matches!(frame.cmd.as_str(), "open" | "goto") {
+    if !matches!(frame.cmd.as_str(), "open" | "goto" | "tab.new") {
         return Ok(());
+    }
+    if frame.cmd == "tab.new" && frame.args.is_none() {
+        return Ok(());
+    }
+    let args = object_args(frame)?;
+    if frame.cmd == "tab.new"
+        && args.get("url").is_none_or(|value| {
+            value
+                .as_str()
+                .is_some_and(|target| target.trim().is_empty())
+        })
+    {
+        return Ok(()); // The browser owns the implicit about:blank target.
+    }
+    let target = required_string(args, "url")?;
+    // The general request allowlist also permits ws/wss for subresources.
+    // Navigation must reject those even when no domain allowlist is active.
+    let parsed = url::Url::parse(target.trim()).map_err(|error| {
+        runtime_error(format!(
+            "navigation URL policy: invalid URL {target:?}: {error}"
+        ))
+    })?;
+    if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+        return Err(runtime_error(format!(
+            "navigation URL policy: unsupported target {target:?} (http/https URL required)"
+        )));
     }
     let allowlist = Allowlist::parse(domains)
         .map_err(|error| runtime_error(format!("navigation URL policy is invalid: {error}")))?;
     if !allowlist.active() {
         return Ok(());
     }
-    let args = object_args(frame)?;
-    let target = required_string(args, "url")?;
     if !allowlist.allows_url(target.trim()) {
         return Err(runtime_error(format!(
             "navigation URL policy: target {target:?} is blocked by the domain allowlist"
@@ -1899,6 +1923,128 @@ mod tests {
         net::TcpListener,
         thread,
     };
+
+    #[test]
+    fn navigation_schemes_preserve_http_policy_and_implicit_blank_tabs() {
+        for domains in [vec![], vec!["example.com".into()]] {
+            for command in ["open", "goto", "tab.new"] {
+                for target in [
+                    "http://example.com/path?view=public",
+                    "HTTPS://example.com/path?view=public",
+                ] {
+                    let frame = Frame {
+                        cmd: command.into(),
+                        args: Some(json!({"url":target})),
+                        ..Default::default()
+                    };
+                    assert!(check_navigation_allowlist(&frame, &domains).is_ok());
+                }
+                for target in [
+                    "ws://example.com/",
+                    "wss://example.com/",
+                    "ftp://example.com/",
+                    "file:///tmp/page",
+                    "about:blank",
+                    "javascript:alert(1)",
+                ] {
+                    let frame = Frame {
+                        cmd: command.into(),
+                        args: Some(json!({"url":target})),
+                        ..Default::default()
+                    };
+                    let error = check_navigation_allowlist(&frame, &domains).unwrap_err();
+                    assert!(error.message.contains("http/https URL required"), "{error}");
+                }
+                let blocked = Frame {
+                    cmd: command.into(),
+                    args: Some(json!({"url":"https://blocked.example/path?view=public"})),
+                    ..Default::default()
+                };
+                assert_eq!(
+                    check_navigation_allowlist(&blocked, &domains).is_ok(),
+                    domains.is_empty()
+                );
+            }
+            for args in [None, Some(json!({})), Some(json!({"url":" "}))] {
+                assert!(
+                    check_navigation_allowlist(
+                        &Frame {
+                            cmd: "tab.new".into(),
+                            args,
+                            ..Default::default()
+                        },
+                        &domains
+                    )
+                    .is_ok()
+                );
+            }
+        }
+        // The shared subresource policy must continue to allow WebSockets.
+        let allowlist = Allowlist::parse(&["example.com".into()]).unwrap();
+        assert!(allowlist.allows_url("ws://example.com/"));
+        assert!(allowlist.allows_url("wss://example.com/"));
+    }
+
+    #[test]
+    fn non_http_navigation_and_flow_steps_never_initialize_engines() {
+        for engine in [
+            "chrome",
+            "firefox",
+            "safari-attach",
+            "safari-bidi",
+            "static",
+        ] {
+            for domains in [vec![], vec!["example.com".into()]] {
+                let mut spec = temp_spec(&format!("scheme-{engine}-{}", domains.len()));
+                spec.engine = engine.into();
+                spec.allowed_domains = domains;
+                let runtime = DispatchRuntime::new(spec).unwrap();
+                for command in ["open", "goto", "tab.new"] {
+                    for target in ["ws://example.com/", "wss://example.com/"] {
+                        let frame = Frame {
+                            cmd: command.into(),
+                            args: Some(json!({"url":target})),
+                            ..Default::default()
+                        };
+                        let error = runtime
+                            .handle(frame, OperationContext::for_test())
+                            .unwrap_err();
+                        assert_eq!(error.code, codes::OPERATION_FAILED);
+                        assert!(
+                            error.message.contains("http/https URL required"),
+                            "{engine}/{command}: {error}"
+                        );
+                        if command != "tab.new" {
+                            let yaml = format!(
+                                "name: scheme\nversion: 1\ndomains: [example.com]\nsteps:\n  - open: {{url: '{target}'}}\noutputs:\n  - {{name: page, from: html}}\n"
+                            );
+                            let frame = Frame {
+                                cmd: "flow.run".into(),
+                                args: Some(json!({"yaml":yaml})),
+                                ..Default::default()
+                            };
+                            let error = runtime
+                                .handle(frame, OperationContext::for_test())
+                                .unwrap_err();
+                            assert_eq!(
+                                error.code, "flow_failed",
+                                "{engine}/{command} flow error: {error:?}"
+                            );
+                            assert!(
+                                error.message.contains("http/https URL required"),
+                                "{engine}/{command} flow: {error}"
+                            );
+                        }
+                        assert!(runtime.browser.lock().unwrap().is_none());
+                        assert!(runtime.firefox.try_lock().unwrap().is_none());
+                        assert!(runtime.compat.try_lock().unwrap().is_none());
+                        #[cfg(target_os = "macos")]
+                        assert!(runtime.safari.try_lock().unwrap().is_none());
+                    }
+                }
+            }
+        }
+    }
 
     fn temp_spec(name: &str) -> SessionSpec {
         let root =

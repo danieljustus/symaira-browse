@@ -1064,6 +1064,40 @@ fn read_limited_line<R: BufRead>(
 mod tests {
     use super::*;
 
+    #[test]
+    fn raw_daemon_warnings_are_scrubbed_at_mcp_conversion() {
+        // Deliberately bypass daemon success_response: this proves the MCP
+        // scrubber independently of the daemon/MCP socket integration tests.
+        let response: DaemonResponse = serde_json::from_value(json!({
+            "success": true,
+            "data": {"url":"https://example.com/reader's?view=public"},
+            "warnings": [{
+                "kind":"network_policy.blocked",
+                "severity":"warning",
+                "message":"https://user:p'private-password@blocked.example/reader's?token=prefix'private-token&view=public",
+                "ref":"password=prefix#private-secret",
+                "excerpt":"reader's note: password=prefix'private-secret"
+            }]
+        })).unwrap();
+        let result = response.into_result().unwrap();
+        assert_eq!(
+            result["data"]["url"],
+            "https://example.com/reader's?view=public"
+        );
+        assert_eq!(result["warnings"].as_array().unwrap().len(), 1);
+        assert_eq!(result["warnings"][0]["kind"], "network_policy.blocked");
+        assert_eq!(result["warnings"][0]["severity"], "warning");
+        assert_eq!(
+            result["warnings"][0]["message"],
+            "https://[REDACTED]@blocked.example/reader's?token=[REDACTED]&view=public"
+        );
+        assert_eq!(result["warnings"][0]["ref"], "password=[REDACTED]");
+        assert_eq!(
+            result["warnings"][0]["excerpt"],
+            "reader's note: password=[REDACTED]"
+        );
+    }
+
     #[cfg(unix)]
     #[test]
     fn runtime_proxy_sends_daemon_frame_and_preserves_warnings() {
