@@ -1,0 +1,63 @@
+{
+  "GO_KNOWN_DEFECT_442_CREDENTIAL_POLICY_WARNING": [
+    {
+      "kind": "network_policy",
+      "severity": "warning",
+      "message": "domain allowlist blocked 2 request(s)"
+    },
+    {
+      "kind": "network_policy.blocked",
+      "severity": "warning",
+      "message": "blocked Document https://private-user:private-password@blocked.example/path?token=private-token\u0026password=query-password\u0026view=public (2 requests)"
+    },
+    {
+      "kind": "network_policy.limitation",
+      "severity": "warning",
+      "message": "fixture enforcement limitation"
+    }
+  ],
+  "oracle": {
+    "commit": "e86c1db46ad758d89372640473a5311525e3edf1",
+    "source_sha256": {
+      "internal/daemon/inspect_frames.go": "cc3c8f73657d6f70bc27e09f4d7a8d1ec89520763e5af327a74b619c80900e89",
+      "internal/daemon/navigation.go": "bf55d50696308d1dd6ddfa8a5d36f94e6f047838b8d535e70d84acdb7c22ce9d",
+      "internal/daemon/navigation_frames.go": "e6ab04da8d6a4f07a0bc2366466f44a56dbeeb75e3a589cb4e5426149cd07d79",
+      "internal/daemon/protocol.go": "18baed0904f0be6f34bef196fbdfcbd6c9c9545ad478bc112241b6c58a80dc58",
+      "internal/engine/navigation.go": "52f1694435872c268527645b5895904439bafd49ca0725ba7e648eced02c49f8",
+      "internal/policy/allowlist.go": "02820b1b80a6f671dd5039368465a8d5b3e11262cf22e5e99b7ac08f1ccf84c7"
+    }
+  },
+  "safe_sequence": [
+    {
+      "command": "open",
+      "engine_calls": 1,
+      "success": true,
+      "warnings": [
+        {
+          "kind": "network_policy.limitation",
+          "severity": "warning",
+          "message": "fixture enforcement limitation"
+        }
+      ]
+    },
+    {
+      "command": "goto",
+      "engine_calls": 1,
+      "error": "navigation URL policy: target \"https://blocked.example/path?view=public\" is blocked by the domain allowlist",
+      "success": false,
+      "warnings": null
+    },
+    {
+      "command": "get.title",
+      "engine_calls": 1,
+      "success": true,
+      "warnings": [
+        {
+          "kind": "network_policy.limitation",
+          "severity": "warning",
+          "message": "fixture enforcement limitation"
+        }
+      ]
+    }
+  ]
+}

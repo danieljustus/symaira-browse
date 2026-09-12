@@ -921,6 +921,17 @@ fn serve_connection_parts<S>(
             }
             continue;
         }
+        // Apply the same admission boundary to injected handlers and the
+        // production runtime before any engine/transport work is dispatched.
+        if let Err(error) =
+            crate::runtime::check_navigation_allowlist(&frame, &options.policy.allowed_domains)
+        {
+            if write_response(reader.get_mut(), error_response(error.code, error.message)).is_err()
+            {
+                return;
+            }
+            continue;
+        }
         drop(_dispatch);
         let (tx, rx) = std::sync::mpsc::sync_channel(1);
         let handler_clone = handler.clone();

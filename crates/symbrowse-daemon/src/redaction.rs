@@ -47,7 +47,7 @@ impl Redactor {
 
 #[must_use]
 pub fn redact_str(input: &str) -> String {
-    let mut output = input.to_owned();
+    let mut output = redact_url_credentials(input);
     for key in SECRET_KEYS {
         for separator in ["=", ":", " "] {
             let mut cursor = 0;
@@ -64,7 +64,12 @@ pub fn redact_str(input: &str) -> String {
                 {
                     value_start += 1;
                 }
-                let end = value_end(&output, value_start);
+                let end = if output[value_start..].starts_with(REDACTED) {
+                    // Preserve an existing marker, but scrub any appended value.
+                    value_end(&output, value_start + REDACTED.len())
+                } else {
+                    value_end(&output, value_start)
+                };
                 if end <= value_start {
                     cursor = value_start;
                     continue;
@@ -74,7 +79,7 @@ pub fn redact_str(input: &str) -> String {
             }
         }
     }
-    redact_url_credentials(&output)
+    output
 }
 
 fn value_end(text: &str, start: usize) -> usize {
@@ -96,7 +101,17 @@ fn value_end(text: &str, start: usize) -> usize {
         if !quoted
             && matches!(
                 byte,
-                b' ' | b'\t' | b'\r' | b'\n' | b',' | b'}' | b']' | b';'
+                b' ' | b'\t'
+                    | b'\r'
+                    | b'\n'
+                    | b','
+                    | b'}'
+                    | b']'
+                    | b';'
+                    | b'&'
+                    | b'#'
+                    | b'\"'
+                    | b'\''
             )
         {
             break;
@@ -113,16 +128,13 @@ fn redact_url_credentials(input: &str) -> String {
         let scheme_end = cursor + relative;
         let authority_start = scheme_end + 3;
         let authority_end = output[authority_start..]
-            .find(['/', ' ', '\n', '\r', '"', '\''])
+            .find(['/', '?', '#', ' ', '\n', '\r', '"', '\''])
             .map_or(output.len(), |offset| authority_start + offset);
-        if let Some(at) = output[authority_start..authority_end].find('@') {
+        if let Some(at) = output[authority_start..authority_end].rfind('@') {
             let userinfo_end = authority_start + at;
-            if let Some(colon) = output[authority_start..userinfo_end].find(':') {
-                let secret_start = authority_start + colon + 1;
-                output.replace_range(secret_start..userinfo_end, REDACTED);
-                cursor = secret_start + REDACTED.len();
-                continue;
-            }
+            output.replace_range(authority_start..userinfo_end, REDACTED);
+            cursor = authority_start + REDACTED.len() + 1;
+            continue;
         }
         cursor = authority_end;
     }
@@ -212,6 +224,27 @@ pub(crate) fn redact_error(mut error: crate::DaemonError) -> crate::DaemonError 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn url_warning_redaction_preserves_public_data_and_is_idempotent() {
+        for input in [
+            "https://private-user:private-password@blocked.example?token=private-token&view=public",
+            "https://private-user@blocked.example?token=private-token&view=public",
+            "https://blocked.example?token=[REDACTED]private-token&view=public",
+        ] {
+            let output = Redactor.redact_str(input);
+            for secret in ["private-user", "private-password", "private-token"] {
+                assert!(!output.contains(secret), "{output}");
+            }
+            assert!(
+                output.contains("blocked.example?token=[REDACTED]&view=public"),
+                "{output}"
+            );
+            assert_eq!(Redactor.redact_str(&output), output);
+        }
+        let safe = "blocked Document https://blocked.example/path?view=public (2 requests)";
+        assert_eq!(Redactor.redact_str(safe), safe);
+    }
+
     #[test]
     fn corpus_secrets_do_not_survive_any_surface() {
         let text = "password=topsecret token: bearer-secret https://user:pw@example.com/x";

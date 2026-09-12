@@ -28,6 +28,30 @@ use crate::{
     DaemonError, Frame, HandlerResult, OperationContext, SessionSpec, Warning, codes, redact_str,
 };
 
+// Go's navigationGuard rejects explicit open/goto targets before engine
+// acquisition. Keep admission denials out of engine request history.
+pub(crate) fn check_navigation_allowlist(
+    frame: &Frame,
+    domains: &[String],
+) -> Result<(), DaemonError> {
+    if !matches!(frame.cmd.as_str(), "open" | "goto") {
+        return Ok(());
+    }
+    let allowlist = Allowlist::parse(domains)
+        .map_err(|error| runtime_error(format!("navigation URL policy is invalid: {error}")))?;
+    if !allowlist.active() {
+        return Ok(());
+    }
+    let args = object_args(frame)?;
+    let target = required_string(args, "url")?;
+    if !allowlist.allows_url(target.trim()) {
+        return Err(runtime_error(format!(
+            "navigation URL policy: target {target:?} is blocked by the domain allowlist"
+        )));
+    }
+    Ok(())
+}
+
 /// The daemon-owned typed runtime. It is deliberately composed from the Rust
 /// engine, fetch, and core crates; it never shells back into the CLI binary.
 pub struct DispatchRuntime {
@@ -570,6 +594,7 @@ impl DispatchRuntime {
     }
 
     async fn browser_command(&self, frame: &Frame) -> HandlerResult {
+        check_navigation_allowlist(frame, &self.spec.allowed_domains)?;
         if self.spec.mode == "browser" && self.spec.engine == "firefox" {
             return self.firefox_command(frame).await;
         }

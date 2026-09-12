@@ -672,7 +672,9 @@ impl DaemonResponse {
         if self.warnings.is_empty() {
             Ok(data)
         } else {
-            Ok(json!({"data": data, "warnings": self.warnings}))
+            Ok(
+                json!({"data": data, "warnings": self.warnings.iter().map(symbrowse_daemon::redact_json).collect::<Vec<_>>()}),
+            )
         }
     }
 }
