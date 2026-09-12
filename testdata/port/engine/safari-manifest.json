@@ -1,6 +1,6 @@
 {
   "fixture": "testdata/port/engine/safari.json",
-  "fixture_sha256": "21b7d217d69afd71ae91040cd37b892fd610e9b7b6fd9bda2405f941a2b57776",
+  "fixture_sha256": "e37ec84092aec919573a3b466f005b9160a3558ae6eb41350babfe5dbf663af6",
   "generator_sha256": "dff4d88184d5e1b0e04bfff692bf05a02047560fba1171286327668b96a966fa",
   "native_gate": {
     "reason": "isolated safaridriver execution is a native CI/manual gate; the neutral suite never launches or quits Safari",

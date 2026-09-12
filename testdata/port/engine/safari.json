@@ -34,6 +34,36 @@
       "close_quits_safari": false,
       "launch_starts_safari": false
     },
+    "navigation": [
+      {
+        "name": "immediate_target",
+        "observed_urls": [
+          "\"https://allowed.example/target\""
+        ],
+        "result": {
+          "ErrorText": "",
+          "FrameID": "safari-live",
+          "LoaderID": "safari-live"
+        },
+        "target": "https://allowed.example/target",
+        "url_reads": 1
+      },
+      {
+        "name": "stable_old_url_before_target",
+        "observed_urls": [
+          "\"https://allowed.example/old\"",
+          "\"https://allowed.example/old\"",
+          "\"https://allowed.example/target\""
+        ],
+        "result": {
+          "ErrorText": "",
+          "FrameID": "safari-live",
+          "LoaderID": "safari-live"
+        },
+        "target": "https://allowed.example/target",
+        "url_reads": 3
+      }
+    ],
     "policy": {
       "allowlist_denial_before_runner": true,
       "invalid_target_before_runner": true,

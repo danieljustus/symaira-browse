@@ -3,21 +3,75 @@ package safari
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/danieljustus/symaira-browse/internal/engine"
 )
 
 type rustSafariAttachFixture struct {
-	SchemaVersion int            `json:"schema_version"`
-	EngineKind    string         `json:"engine_kind"`
-	LaunchMode    string         `json:"launch_mode"`
-	Script        string         `json:"script_shape"`
-	Capabilities  interface{}    `json:"capabilities"`
-	Policy        map[string]any `json:"policy"`
-	Unsupported   []string       `json:"unsupported"`
-	Lifecycle     map[string]any `json:"lifecycle"`
+	SchemaVersion int                           `json:"schema_version"`
+	EngineKind    string                        `json:"engine_kind"`
+	LaunchMode    string                        `json:"launch_mode"`
+	Script        string                        `json:"script_shape"`
+	Capabilities  interface{}                   `json:"capabilities"`
+	Policy        map[string]any                `json:"policy"`
+	Unsupported   []string                      `json:"unsupported"`
+	Lifecycle     map[string]any                `json:"lifecycle"`
+	Navigation    []rustSafariNavigationFixture `json:"navigation"`
+}
+
+type rustSafariNavigationFixture struct {
+	Name         string                  `json:"name"`
+	Target       string                  `json:"target"`
+	ObservedURLs []string                `json:"observed_urls"`
+	URLReads     int                     `json:"url_reads"`
+	Result       engine.NavigationResult `json:"result"`
+}
+
+type navigationFixtureRunner struct {
+	urls  []string
+	reads int
+}
+
+func (r *navigationFixtureRunner) Run(_ context.Context, script string) (string, error) {
+	if strings.Contains(script, "set URL of its document") {
+		return "", nil
+	}
+	if r.reads >= len(r.urls) {
+		return "", fmt.Errorf("navigation fixture exhausted after %d reads", r.reads)
+	}
+	value := r.urls[r.reads]
+	r.reads++
+	return value, nil
+}
+
+func navigationFixtures(t *testing.T) []rustSafariNavigationFixture {
+	t.Helper()
+	cases := []rustSafariNavigationFixture{
+		{Name: "immediate_target", Target: "https://allowed.example/target", ObservedURLs: []string{`"https://allowed.example/target"`}},
+		{Name: "stable_old_url_before_target", Target: "https://allowed.example/target", ObservedURLs: []string{`"https://allowed.example/old"`, `"https://allowed.example/old"`, `"https://allowed.example/target"`}},
+	}
+	for i := range cases {
+		c := &cases[i]
+		runner := &navigationFixtureRunner{urls: c.ObservedURLs}
+		e := NewWithRunner(runner)
+		e.PollInterval = time.Millisecond
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		result, err := e.Navigate(ctx, engine.Page{ID: "safari-live"}, c.Target)
+		cancel()
+		if err != nil {
+			t.Fatalf("%s: %v", c.Name, err)
+		}
+		c.Result = result
+		c.URLReads = runner.reads
+	}
+	return cases
 }
 
 type fixtureRunner struct {
@@ -64,6 +118,7 @@ func TestGenerateRustPortSafariAttachFixture(t *testing.T) {
 	}
 	caps := e.Capabilities()
 	fixture := rustSafariAttachFixture{
+		Navigation:    navigationFixtures(t),
 		SchemaVersion: 1,
 		EngineKind:    EngineKind,
 		LaunchMode:    "attach",
