@@ -7,13 +7,13 @@
 use std::time::Duration;
 
 use serde_json::{Value, json};
-use symbrowse_core::state::OriginState;
+use symbrowse_core::{policy::SsrfGuard, state::OriginState};
 use symbrowse_engine::{Page, capabilities::Capabilities};
 use symbrowse_engine_safari::{
     AttachEngine, BidiEngine, BidiError, DriverOptions, NavigationPolicy, OsascriptRunner,
 };
 
-use crate::{DaemonError, Frame, HandlerResult, SessionSpec, codes};
+use crate::{DaemonError, Frame, HandlerResult, SessionSpec, Warning, codes};
 
 const MAX_SCRIPT_BYTES: usize = 1024 * 1024;
 
@@ -55,7 +55,7 @@ impl SafariRuntime {
             request_timeout: spec.operation_timeout,
             ready_timeout: spec.operation_timeout,
             session_timeout: spec.operation_timeout.max(Duration::from_secs(60)),
-            navigation_policy: policy,
+            navigation_policy: bidi_navigation_policy(spec),
             ..DriverOptions::default()
         };
         let engine = BidiEngine::launch(options).await.map_err(runtime_error)?;
@@ -78,7 +78,7 @@ impl SafariRuntime {
     }
 
     #[must_use]
-    pub fn unsupported_interaction(operation: &str) -> DaemonError {
+    pub fn unsupported_operation(operation: &str) -> DaemonError {
         DaemonError {
             code: "unsupported".into(),
             message: BidiError::Unsupported {
@@ -90,7 +90,80 @@ impl SafariRuntime {
         }
     }
 
+    /// Reject absent adapters before initialization as well as on live sessions.
+    #[must_use]
+    pub fn bidi_command_unsupported(command: &str) -> bool {
+        matches!(
+            command,
+            "click"
+                | "fill"
+                | "type"
+                | "press"
+                | "tabs.list"
+                | "tab.list"
+                | "tab.new"
+                | "tab.switch"
+                | "tab.close"
+                | "window.new"
+                | "frames.list"
+                | "frame.tree"
+                | "frame.select"
+                | "frame.main"
+        )
+    }
+
     pub async fn command(&mut self, frame: &Frame, timeout: Duration) -> HandlerResult {
+        if matches!(self.session, SafariSession::Bidi { .. })
+            && Self::bidi_command_unsupported(&frame.cmd)
+        {
+            return Err(Self::unsupported_operation(&frame.cmd));
+        }
+        // Go NavigationRuntime.Handle emits history and limitations only on
+        // successful responses, before any command-specific warnings.
+        let (data, warnings) = self.command_inner(frame, timeout).await?;
+        let mut policy_warnings = self.policy_warnings();
+        policy_warnings.extend(warnings);
+        Ok((data, policy_warnings))
+    }
+
+    fn policy_warnings(&self) -> Vec<Warning> {
+        let SafariSession::Bidi { engine, .. } = &self.session else {
+            return Vec::new();
+        };
+        let blocked = engine.blocked_requests();
+        let mut warnings = Vec::new();
+        if !blocked.is_empty() {
+            let total: u64 = blocked.iter().map(|entry| entry.count).sum();
+            warnings.push(policy_warning(
+                "network_policy",
+                format!("domain allowlist blocked {total} request(s)"),
+            ));
+            for entry in blocked.iter().take(10) {
+                warnings.push(policy_warning(
+                    "network_policy.blocked",
+                    format!(
+                        "blocked {} {} ({} requests)",
+                        entry.resource_type, entry.url, entry.count
+                    ),
+                ));
+            }
+            if blocked.len() > 10 {
+                warnings.push(policy_warning(
+                    "network_policy.blocked",
+                    format!("and {} more blocked URL(s)", blocked.len() - 10),
+                ));
+            }
+        }
+        for limitation in engine.limitations() {
+            warnings.push(policy_warning(
+                "network_policy.limitation",
+                limitation.to_owned(),
+            ));
+        }
+        warnings
+    }
+
+    async fn command_inner(&mut self, frame: &Frame, timeout: Duration) -> HandlerResult {
         let args = frame
             .args
             .as_ref()
@@ -125,7 +198,7 @@ impl SafariRuntime {
             }
             "click" | "fill" | "type" | "press" => {
                 if matches!(self.session, SafariSession::Bidi { .. }) {
-                    return Err(Self::unsupported_interaction(&frame.cmd));
+                    return Err(Self::unsupported_operation(&frame.cmd));
                 }
                 let selector = args
                     .get("selector")
@@ -383,6 +456,20 @@ impl SafariRuntime {
     }
 }
 
+fn bidi_navigation_policy(spec: &SessionSpec) -> NavigationPolicy {
+    NavigationPolicy::from_allowlist(&spec.allowed_domains)
+        .with_ssrf_guard(SsrfGuard::new(spec.allow_private))
+}
+
+fn policy_warning(kind: &str, message: String) -> Warning {
+    Warning {
+        kind: kind.to_owned(),
+        severity: "warning".to_owned(),
+        message,
+        ..Warning::default()
+    }
+}
+
 fn selector_json(selector: &str) -> Result<String, String> {
     let selector = if let Some(reference) = selector.strip_prefix('@') {
         format!(
@@ -453,9 +540,9 @@ mod tests {
         assert_eq!(
             capabilities.interfaces,
             [
-                "CookieEngine",
                 "InspectionEngine",
-                "NavigationStateProvider"
+                "NavigationStateProvider",
+                "NetworkPolicyReporter",
             ]
         );
         assert!(
@@ -526,5 +613,234 @@ mod tests {
     #[tokio::test]
     async fn bidi_press_is_unsupported_without_script_transport() {
         assert_bidi_interaction_unsupported("press").await;
+    }
+    fn policy_runtime() -> (SafariRuntime, FakeTransport) {
+        let fake = FakeTransport::default();
+        let engine = BidiEngine::from_transport(Box::new(fake.clone()), "page-1")
+            .with_navigation_policy(NavigationPolicy::from_allowlist(
+                &["allowed.example".into()],
+            ));
+        let page = engine.new_page().expect("page");
+        (
+            SafariRuntime {
+                session: SafariSession::Bidi { engine, page },
+            },
+            fake,
+        )
+    }
+
+    #[tokio::test]
+    async fn bidi_tab_and_frame_commands_are_unsupported_without_transport() {
+        let (mut runtime, fake) = policy_runtime();
+        for command in [
+            "tabs.list",
+            "tab.list",
+            "tab.new",
+            "tab.switch",
+            "tab.close",
+            "window.new",
+            "frames.list",
+            "frame.tree",
+            "frame.select",
+            "frame.main",
+        ] {
+            let error = runtime
+                .command(
+                    &Frame {
+                        cmd: command.into(),
+                        ..Default::default()
+                    },
+                    Duration::from_secs(1),
+                )
+                .await
+                .expect_err("unsupported");
+            assert_eq!(error.code, "unsupported");
+            assert_eq!(
+                error.message,
+                format!("safari-bidi engine: unsupported operation: {command}")
+            );
+        }
+        assert!(fake.calls.lock().expect("calls").is_empty());
+    }
+
+    #[tokio::test]
+    async fn bidi_policy_warnings_reach_each_successful_navigation_and_read_response() {
+        let (mut runtime, fake) = policy_runtime();
+        for command in ["open", "goto", "read"] {
+            let frame = Frame {
+                cmd: command.into(),
+                args: Some(json!({"url":"https://blocked.example/"})),
+                ..Default::default()
+            };
+            let error = runtime
+                .command(&frame, Duration::from_secs(1))
+                .await
+                .expect_err("denied");
+            assert_eq!(error.code, codes::OPERATION_FAILED);
+        }
+        assert!(fake.calls.lock().expect("calls").is_empty());
+        for command in ["open", "goto", "read", "get.title"] {
+            let frame = Frame {
+                cmd: command.into(),
+                args: Some(json!({"url":"https://allowed.example/"})),
+                ..Default::default()
+            };
+            let (_, warnings) = runtime
+                .command(&frame, Duration::from_secs(1))
+                .await
+                .expect("success");
+            assert_eq!(warnings.len(), 3);
+            assert_eq!(
+                serde_json::to_value(&warnings[..2]).expect("JSON"),
+                json!([
+                    {"kind":"network_policy", "severity":"warning", "message":"domain allowlist blocked 3 request(s)"},
+                    {"kind":"network_policy.blocked", "severity":"warning", "message":"blocked document https://blocked.example/ (3 requests)"}
+                ])
+            );
+            assert_eq!(warnings[2].kind, "network_policy.limitation");
+            assert_eq!(warnings[2].severity, "warning");
+            assert!(warnings[2].message.contains("script-initiated navigations"));
+        }
+        assert_eq!(
+            *fake.calls.lock().expect("calls"),
+            [
+                "browsingContext.navigate",
+                "browsingContext.navigate",
+                "browsingContext.navigate",
+                "script.evaluate",
+                "script.evaluate"
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn bidi_policy_warnings_include_startup_limitation_and_cap_sorted_url_details() {
+        let (mut runtime, fake) = policy_runtime();
+        let frame = Frame {
+            cmd: "get.title".into(),
+            args: Some(json!({})),
+            ..Default::default()
+        };
+        let (_, warnings) = runtime
+            .command(&frame, Duration::from_secs(1))
+            .await
+            .expect("title");
+        assert_eq!(warnings.len(), 1);
+        assert_eq!(warnings[0].kind, "network_policy.limitation");
+        fake.calls.lock().expect("calls").clear();
+        for count in [10, 11, 15] {
+            let (mut runtime, fake) = policy_runtime();
+            for index in (0..count).rev() {
+                assert!(
+                    runtime
+                        .navigate(&format!("https://blocked.example/{index:02}"))
+                        .await
+                        .is_err()
+                );
+            }
+            let warnings = runtime.policy_warnings();
+            assert_eq!(warnings.len(), if count == 10 { 12 } else { 13 });
+            assert_eq!(
+                warnings[0].message,
+                format!("domain allowlist blocked {count} request(s)")
+            );
+            for (index, warning) in warnings[1..11].iter().enumerate() {
+                assert_eq!(
+                    warning.message,
+                    format!("blocked document https://blocked.example/{index:02} (1 requests)")
+                );
+            }
+            if count > 10 {
+                assert_eq!(
+                    warnings[11].message,
+                    format!("and {} more blocked URL(s)", count - 10)
+                );
+            }
+            assert_eq!(
+                warnings.last().expect("limitation").kind,
+                "network_policy.limitation"
+            );
+            assert!(fake.calls.lock().expect("calls").is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn bidi_policy_errors_do_not_turn_into_successful_warning_responses() {
+        let (mut runtime, fake) = policy_runtime();
+        let bad = Frame {
+            cmd: "open".into(),
+            args: Some(json!({})),
+            ..Default::default()
+        };
+        assert_eq!(
+            runtime
+                .command(&bad, Duration::from_secs(1))
+                .await
+                .expect_err("missing URL")
+                .code,
+            codes::MALFORMED_REQUEST
+        );
+        assert!(fake.calls.lock().expect("calls").is_empty());
+        if let SafariSession::Bidi { engine, .. } = &mut runtime.session {
+            engine.close().await.expect("close");
+        }
+        let read = Frame {
+            cmd: "read".into(),
+            args: Some(json!({})),
+            ..Default::default()
+        };
+        assert_eq!(
+            runtime
+                .command(&read, Duration::from_secs(1))
+                .await
+                .expect_err("closed")
+                .code,
+            codes::OPERATION_FAILED
+        );
+        assert!(fake.calls.lock().expect("calls").is_empty());
+    }
+
+    #[tokio::test]
+    async fn bidi_launch_policy_reports_ssrf_denials_and_respects_allow_private() {
+        for allow_private in [false, true] {
+            let fake = FakeTransport::default();
+            let spec = SessionSpec {
+                allow_private,
+                ..SessionSpec::for_session("policy-test")
+            };
+            let engine = BidiEngine::from_transport(Box::new(fake.clone()), "page-1")
+                .with_navigation_policy(bidi_navigation_policy(&spec));
+            let page = engine.new_page().expect("page");
+            let mut runtime = SafariRuntime {
+                session: SafariSession::Bidi { engine, page },
+            };
+            let frame = Frame {
+                cmd: "open".into(),
+                args: Some(json!({"url":"http://127.0.0.1/"})),
+                ..Default::default()
+            };
+            let result = runtime.command(&frame, Duration::from_secs(1)).await;
+            if allow_private {
+                assert_eq!(result.expect("private explicitly allowed").1.len(), 1);
+                assert_eq!(
+                    *fake.calls.lock().expect("calls"),
+                    ["browsingContext.navigate"]
+                );
+            } else {
+                assert_eq!(
+                    result.expect_err("SSRF denied").code,
+                    codes::OPERATION_FAILED
+                );
+                assert!(fake.calls.lock().expect("calls").is_empty());
+                let SafariSession::Bidi { engine, .. } = &runtime.session else {
+                    unreachable!()
+                };
+                assert_eq!(engine.blocked_requests()[0].reason, "ssrf guard");
+                assert_eq!(
+                    runtime.policy_warnings()[1].message,
+                    "blocked document http://127.0.0.1/ (1 requests)"
+                );
+            }
+        }
     }
 }

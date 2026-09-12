@@ -305,6 +305,33 @@ pub struct NavigationPolicy {
     configuration_error: Option<String>,
 }
 
+/// Preserve the denying policy independently of its diagnostic text.
+pub(crate) enum PolicyRejection {
+    Configuration(String),
+    Allowlist,
+    Ssrf(String),
+}
+
+impl PolicyRejection {
+    pub(crate) fn blocked_reason(&self) -> Option<&'static str> {
+        match self {
+            Self::Configuration(_) => None,
+            Self::Allowlist => Some("domain allowlist"),
+            Self::Ssrf(_) => Some("ssrf guard"),
+        }
+    }
+}
+
+impl std::fmt::Display for PolicyRejection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Configuration(error) => write!(f, "URL policy is invalid: {error}"),
+            Self::Allowlist => f.write_str("blocked by the domain allowlist"),
+            Self::Ssrf(error) => write!(f, "blocked by the SSRF guard: {error}"),
+        }
+    }
+}
+
 impl NavigationPolicy {
     #[must_use]
     pub fn new() -> Self {
@@ -346,20 +373,25 @@ impl NavigationPolicy {
     }
 
     pub(crate) fn check(&self, target: &str) -> Result<(), String> {
+        self.check_reported(target)
+            .map_err(|error| error.to_string())
+    }
+
+    pub(crate) fn check_reported(&self, target: &str) -> Result<(), PolicyRejection> {
         if let Some(error) = &self.configuration_error {
-            return Err(format!("URL policy is invalid: {error}"));
+            return Err(PolicyRejection::Configuration(error.clone()));
         }
         if self
             .allowlist
             .as_ref()
             .is_some_and(|allowlist| !allowlist.allows_url(target))
         {
-            return Err("blocked by the domain allowlist".to_owned());
+            return Err(PolicyRejection::Allowlist);
         }
         if let Some(guard) = &self.ssrf_guard {
             guard
                 .allows_url(target)
-                .map_err(|error| format!("blocked by the SSRF guard: {error}"))?;
+                .map_err(|error| PolicyRejection::Ssrf(error.to_string()))?;
         }
         Ok(())
     }

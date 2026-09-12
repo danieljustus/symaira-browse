@@ -183,10 +183,9 @@ impl DispatchRuntime {
             });
         }
         #[cfg(target_os = "macos")]
-        if self.spec.engine == "safari-bidi"
-            && matches!(frame.cmd.as_str(), "click" | "fill" | "type" | "press")
+        if self.spec.engine == "safari-bidi" && SafariRuntime::bidi_command_unsupported(&frame.cmd)
         {
-            return Err(SafariRuntime::unsupported_interaction(&frame.cmd));
+            return Err(SafariRuntime::unsupported_operation(&frame.cmd));
         }
         match frame.cmd.as_str() {
             "fetch.url" => self.fetch_url(&frame).await,
@@ -1908,9 +1907,9 @@ mod tests {
         assert_eq!(
             data["interfaces"],
             json!([
-                "CookieEngine",
                 "InspectionEngine",
-                "NavigationStateProvider"
+                "NavigationStateProvider",
+                "NetworkPolicyReporter",
             ])
         );
         assert!(
@@ -1945,6 +1944,43 @@ mod tests {
                 error.message,
                 format!("safari-bidi engine: unsupported operation: {command}")
             );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn safari_bidi_tabs_and_frames_are_rejected_before_initialization() {
+        let mut spec = temp_spec("safari-tabs-frames-unsupported");
+        spec.engine = "safari-bidi".into();
+        let runtime = DispatchRuntime::new(spec).expect("runtime");
+        for command in [
+            "tabs.list",
+            "tab.list",
+            "tab.new",
+            "tab.switch",
+            "tab.close",
+            "window.new",
+            "frames.list",
+            "frame.tree",
+            "frame.select",
+            "frame.main",
+        ] {
+            let error = runtime
+                .runtime
+                .block_on(runtime.dispatch(
+                    Frame {
+                        cmd: command.into(),
+                        ..Frame::default()
+                    },
+                    OperationContext::for_test(),
+                ))
+                .expect_err("unsupported");
+            assert_eq!(error.code, "unsupported");
+            assert_eq!(
+                error.message,
+                format!("safari-bidi engine: unsupported operation: {command}")
+            );
+            assert!(runtime.runtime.block_on(runtime.safari.lock()).is_none());
         }
     }
 

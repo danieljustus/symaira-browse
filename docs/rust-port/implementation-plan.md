@@ -380,6 +380,26 @@ Chrome fallback. A real Safari attach session, Go-generated frame fixtures, and
 native amd64 macOS execution remain, so ENG-008 stays `todo` and this item is
 not complete.
 
+The Rust BiDi policy reporter records navigation denials by URL, retains the
+first denying policy, and returns sorted snapshots with repeated-denial counts.
+Successful daemon responses include Go's summary, at most ten URL details, a
+remainder count, and the navigation-only enforcement limitation; errors remain
+errors. BiDi launch installs the session's SSRF guard and honors `allow_private`.
+These paths are tested with injected transports, not claimed as native parity.
+
+Go's `TabList`, `TabNew`, `TabClose`, `FrameTree`, and `SetActiveFrame` remain the
+oracle in `internal/engine/safaribidi/tabs.go`. Rust still needs the tab lifecycle,
+per-tab service/selection state, and active-frame adapter plus daemon dispatch.
+`TabManager` and `FrameManager` are therefore explicitly unsupported in Rust;
+tab/frame commands reject before launch and before transport on a live session.
+Restore those capability names only with executable adapter and dispatch cases.
+The policy reporter follows `state.go`, `guardTarget`/`recordBlocked` in
+`safaribidi.go`, and `networkPolicyWarnings`/`Handle` in `internal/daemon/navigation.go`.
+The current Go sources are unchanged; this repair does not regenerate the older
+pinned fixture corpus or complete RUST-013/ENG-008. Native Safari attach/BiDi on
+both macOS architectures, full Go/Rust differential fixtures, and release,
+installation, rollback, and cutover gates remain outstanding.
+
 **Files:**
 
 - Create: `crates/symbrowse-engine-safari/src/{lib,attach,bidi}.rs`

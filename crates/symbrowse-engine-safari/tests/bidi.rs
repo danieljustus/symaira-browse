@@ -46,24 +46,43 @@ impl BidiTransport for FakeTransport {
 }
 
 #[test]
-fn bidi_capabilities_partition_excludes_unsupported_interactions() {
+fn bidi_capabilities_report_only_implemented_go_interfaces_without_transport() {
     let fake = FakeTransport::default();
     let engine = BidiEngine::from_transport(Box::new(fake.clone()), "page-1");
-    let caps = engine.capabilities();
+    let caps = BidiEngine::planned_capabilities();
+    assert_eq!(engine.capabilities(), caps);
     assert_eq!(caps.kind, BIDI_ENGINE_KIND);
     assert_eq!(caps.launch_mode, "launch");
+    // Go also has tabs/frames (internal/engine/safaribidi/tabs.go).
+    // They remain unsupported in this Rust slice; never invent Go parity.
     assert_eq!(
         caps.interfaces,
         [
-            "CookieEngine",
             "InspectionEngine",
-            "NavigationStateProvider"
+            "NavigationStateProvider",
+            "NetworkPolicyReporter",
         ]
     );
-    assert!(
-        caps.unsupported
-            .iter()
-            .any(|name| name == "InteractionEngine")
+    assert_eq!(
+        caps.unsupported,
+        [
+            "A11yAuditor",
+            "AXSelectorResolver",
+            "ClickDiagnosticEngine",
+            "CookieEngine",
+            "DialogController",
+            "FileTransfer",
+            "FrameManager",
+            "InteractionEngine",
+            "NetworkEvents",
+            "OverlayHost",
+            "RuntimeEvents",
+            "ScreenshotEngine",
+            "ScreenshotOptionsEngine",
+            "ScriptDisabler",
+            "SettingsEngine",
+            "TabManager",
+        ]
     );
     for name in OPTIONAL_INTERFACE_NAMES {
         assert_eq!(
@@ -80,6 +99,7 @@ fn bidi_capabilities_partition_excludes_unsupported_interactions() {
         fake.calls().is_empty(),
         "capabilities must not call the transport"
     );
+    assert_eq!(*fake.close_count.lock().expect("close lock"), 0);
 }
 
 #[test]
@@ -176,7 +196,7 @@ async fn bidi_navigation_evaluation_and_cleanup_use_injected_transport() {
     assert!(
         engine
             .capabilities()
-            .interfaces
+            .unsupported
             .iter()
             .any(|name| name == "CookieEngine")
     );
@@ -185,7 +205,7 @@ async fn bidi_navigation_evaluation_and_cleanup_use_injected_transport() {
             .capabilities()
             .unsupported
             .iter()
-            .any(|name| name == "FrameManager" || name == "TabManager" || name == "NetworkEvents")
+            .any(|name| name == "NetworkEvents")
     );
     assert!(engine.screenshot().is_err());
     engine.close().await.expect("close");
@@ -364,4 +384,129 @@ async fn real_safari_bidi_launch_is_opt_in_or_reports_typed_blocked_gate() {
             "native gate must be typed, not skipped"
         );
     }
+}
+
+// Go oracle: safaribidi_test.go policy and aggregation cases; state.go sorting.
+#[tokio::test]
+async fn policy_reports_sorted_owned_history_and_preserves_first_reason() {
+    let fake = FakeTransport::default();
+    let mut engine = BidiEngine::from_transport(Box::new(fake.clone()), "page-1")
+        .with_navigation_policy(NavigationPolicy::from_allowlist(
+            &["allowed.example".into()],
+        ));
+    let page = engine.new_page().expect("page");
+    assert!(engine.blocked_requests().is_empty());
+    for url in [
+        "https://z.example/",
+        " https://a.example/ ",
+        "https://a.example/",
+    ] {
+        assert!(engine.navigate(&page, url).await.is_err());
+    }
+    let mut snapshot = engine.blocked_requests();
+    assert_eq!(
+        serde_json::to_value(&snapshot).expect("JSON"),
+        json!([
+            {"url":"https://a.example/", "resource_type":"document", "count":2, "reason":"domain allowlist"},
+            {"url":"https://z.example/", "resource_type":"document", "count":1, "reason":"domain allowlist"}
+        ])
+    );
+    snapshot[0].count = 99;
+    engine.set_navigation_policy(
+        NavigationPolicy::new().with_ssrf_guard(SsrfGuard::with_lookup(false, |_| {
+            Ok(vec!["127.0.0.1".into()])
+        })),
+    );
+    assert!(engine.navigate(&page, "https://a.example/").await.is_err());
+    assert!(engine.navigate(&page, "https://b.example/").await.is_err());
+    let entries = engine.blocked_requests();
+    assert_eq!(entries[0].count, 3);
+    assert_eq!(entries[0].reason, "domain allowlist");
+    assert_eq!(entries[1].reason, "ssrf guard");
+    assert_eq!(entries[2].url, "https://z.example/");
+    assert_eq!(
+        engine.blocked_requests(),
+        entries,
+        "reporting must not drain"
+    );
+    assert!(fake.calls().is_empty());
+}
+
+#[tokio::test]
+async fn policy_does_not_record_invalid_targets_configuration_or_closed_engine() {
+    let fake = FakeTransport::default();
+    let mut engine = BidiEngine::from_transport(Box::new(fake.clone()), "page-1")
+        .with_navigation_policy(NavigationPolicy::from_allowlist(&[
+            "https://invalid.example".into(),
+        ]));
+    let page = engine.new_page().expect("page");
+    for url in [
+        "",
+        "not a URL",
+        "about:blank",
+        "file:///tmp/test",
+        "https://example.test/",
+    ] {
+        assert!(matches!(
+            engine.navigate(&page, url).await,
+            Err(BidiError::InvalidTarget { .. })
+        ));
+    }
+    assert!(engine.blocked_requests().is_empty());
+    engine.close().await.expect("close");
+    assert_eq!(
+        engine.navigate(&page, "https://example.test/").await,
+        Err(BidiError::Closed)
+    );
+    assert!(engine.blocked_requests().is_empty());
+    assert!(fake.calls().is_empty());
+}
+
+#[tokio::test]
+async fn policy_does_not_record_allowed_navigation_or_transport_failure() {
+    struct FailedNavigation;
+    impl BidiTransport for FailedNavigation {
+        fn command<'a>(&'a mut self, method: &'a str, params: Value) -> BoxFuture<'a, Value> {
+            assert_eq!(method, "browsingContext.navigate");
+            assert_eq!(
+                params,
+                json!({"context":"page-1", "url":"https://allowed.example/", "wait":"complete"})
+            );
+            Box::pin(async {
+                Err(BidiError::Protocol {
+                    method: "browsingContext.navigate".into(),
+                    code: "unknown error".into(),
+                    message: "fixture failure".into(),
+                })
+            })
+        }
+        fn close<'a>(&'a mut self) -> BoxFuture<'a, ()> {
+            Box::pin(async { Ok(()) })
+        }
+    }
+    let mut failed = BidiEngine::from_transport(Box::new(FailedNavigation), "page-1");
+    let page = failed.new_page().expect("page");
+    assert!(matches!(
+        failed.navigate(&page, "https://allowed.example/").await,
+        Err(BidiError::Protocol { .. })
+    ));
+    assert!(failed.blocked_requests().is_empty());
+    let fake = FakeTransport::default();
+    let mut allowed = BidiEngine::from_transport(Box::new(fake.clone()), "page-1");
+    allowed
+        .navigate(&page, "https://allowed.example/")
+        .await
+        .expect("navigate");
+    assert!(allowed.blocked_requests().is_empty());
+    assert_eq!(fake.calls(), ["browsingContext.navigate"]);
+}
+
+#[test]
+fn policy_limitation_matches_current_go_oracle_without_transport() {
+    let fake = FakeTransport::default();
+    let engine = BidiEngine::from_transport(Box::new(fake.clone()), "page-1");
+    let oracle = include_str!("../../../internal/engine/safaribidi/state.go");
+    assert_eq!(engine.limitations().len(), 1);
+    assert!(oracle.contains(&format!("\"{}\"", engine.limitations()[0])));
+    assert!(fake.calls().is_empty());
 }
