@@ -453,9 +453,11 @@ mod tests {
         assert_eq!(
             capabilities.interfaces,
             [
-                "CookieEngine",
+                "FrameManager",
                 "InspectionEngine",
-                "NavigationStateProvider"
+                "NavigationStateProvider",
+                "NetworkPolicyReporter",
+                "TabManager"
             ]
         );
         assert!(

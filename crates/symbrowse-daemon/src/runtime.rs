@@ -1908,9 +1908,11 @@ mod tests {
         assert_eq!(
             data["interfaces"],
             json!([
-                "CookieEngine",
+                "FrameManager",
                 "InspectionEngine",
-                "NavigationStateProvider"
+                "NavigationStateProvider",
+                "NetworkPolicyReporter",
+                "TabManager"
             ])
         );
         assert!(
