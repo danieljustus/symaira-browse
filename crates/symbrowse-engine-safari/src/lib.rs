@@ -18,7 +18,7 @@ pub use attach::{
     SafariPrerequisite, ScriptRunner,
 };
 pub use bidi::{
-    BidiEngine, BidiError, BidiTransport, BoxFuture, DRIVER_PATH, DriverOptions,
+    BidiEngine, BidiError, BidiTransport, BlockedRequest, BoxFuture, DRIVER_PATH, DriverOptions,
     ENGINE_KIND as BIDI_ENGINE_KIND, ProcessAdapter, ProcessHandle, SessionCapabilities,
     SystemProcessAdapter, TransportConnector, WebSocketConnector, parse_session_response,
     require_loopback, session_request,

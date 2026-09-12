@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fmt,
     future::Future,
     path::{Path, PathBuf},
@@ -418,12 +419,23 @@ impl Drop for DriverSession {
     }
 }
 
+/// One navigation target denied since engine startup, matching Go BlockedRequest.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct BlockedRequest {
+    pub url: String,
+    pub resource_type: String,
+    pub count: u64,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub reason: String,
+}
+
 /// An isolated Safari BiDi engine. It owns its driver session after launch.
 pub struct BidiEngine {
     session: Option<DriverSession>,
     context: String,
     navigation_policy: NavigationPolicy,
     closed: bool,
+    blocked: BTreeMap<String, BlockedRequest>,
 }
 impl BidiEngine {
     /// Construct an engine around a fake or otherwise injected transport.
@@ -455,6 +467,7 @@ impl BidiEngine {
             context: context.into(),
             navigation_policy: NavigationPolicy::default(),
             closed: false,
+            blocked: BTreeMap::new(),
         }
     }
 
@@ -517,6 +530,7 @@ impl BidiEngine {
                         context,
                         navigation_policy: options.navigation_policy.clone(),
                         closed: false,
+                        blocked: BTreeMap::new(),
                     });
                 }
                 Err(error) if retryable_socket_error(&error) => last_error = Some(error),
@@ -553,8 +567,23 @@ impl BidiEngine {
     ) -> Result<NavigationResult, BidiError> {
         self.ensure_open()?;
         let target = validate_target(target)?;
-        if let Err(reason) = self.navigation_policy.check(&target) {
-            return Err(BidiError::InvalidTarget { target, reason });
+        if let Err(rejection) = self.navigation_policy.check_reported(&target) {
+            if let Some(reason) = rejection.blocked_reason() {
+                let entry = self
+                    .blocked
+                    .entry(target.clone())
+                    .or_insert_with(|| BlockedRequest {
+                        url: target.clone(),
+                        resource_type: "document".to_owned(),
+                        count: 0,
+                        reason: reason.to_owned(),
+                    });
+                entry.count += 1;
+            }
+            return Err(BidiError::InvalidTarget {
+                target,
+                reason: rejection.to_string(),
+            });
         }
         let context = if page.id.is_empty() {
             self.context.clone()
@@ -685,16 +714,15 @@ impl BidiEngine {
 
     #[must_use]
     pub fn planned_capabilities() -> Capabilities {
-        // Match the Go Safari BiDi oracle: Safari 27 storage commands fail,
-        // and input, network interception, and event delivery are unavailable.
+        // Go also implements TabManager and FrameManager. Keep those explicitly
+        // unsupported until the Rust adapter AND daemon session dispatch exist.
+        // Safari 27 storage, input, network interception and events are unavailable.
         let mut caps = capabilities_for(
             ENGINE_KIND,
             [
-                "FrameManager",
                 "InspectionEngine",
                 "NavigationStateProvider",
                 "NetworkPolicyReporter",
-                "TabManager",
             ],
         );
         caps.launch_mode = "launch".to_owned();
@@ -706,12 +734,18 @@ impl BidiEngine {
         Self::planned_capabilities()
     }
 
+    /// Sorted, owned snapshots; reporting never calls the transport or drains history.
+    #[must_use]
+    pub fn blocked_requests(&self) -> Vec<BlockedRequest> {
+        self.blocked.values().cloned().collect()
+    }
+
     /// Safari's measured BiDi surface has no network module, so policy reaches
     /// direct navigation targets only.
     #[must_use]
     pub fn limitations(&self) -> [&'static str; 1] {
         [
-            "safari-bidi enforces URL policy on navigation targets only: Safari has no WebDriver BiDi network module, so redirects and subresource requests are not intercepted",
+            "safari-bidi enforces the domain allowlist and SSRF guard on navigation targets only, specifically URLs passed directly to navigate: Safari 27.0 implements no WebDriver BiDi network module, so redirects, script-initiated navigations, and subresource requests (fetch, XHR, images, scripts) are not intercepted and not policed",
         ]
     }
 
