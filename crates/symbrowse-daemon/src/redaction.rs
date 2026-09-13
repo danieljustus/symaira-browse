@@ -117,20 +117,55 @@ fn value_end(text: &str, start: usize) -> usize {
 // URL query delimiters must not truncate generic password/token values.
 // Apostrophes are legal URL data, including in userinfo and query values.
 fn query_value_end(text: &str, start: usize) -> Option<usize> {
-    // Keep the outer URL's query context when a public parameter contains a
-    // nested URL. Whitespace/angle brackets separate it from surrounding prose.
-    let token_start = text[..start]
-        .rfind(|ch: char| ch.is_ascii_whitespace() || matches!(ch, '<' | '>'))
-        .map_or(0, |offset| offset + 1);
-    let scheme_end = token_start + text[token_start..start].find("://")?;
-    let authority_start = scheme_end + 3;
-    let prefix = &text[authority_start..start];
-    if prefix.contains('#') || !prefix.contains('?') {
-        return None;
+    // Walk each candidate URL forward. Earlier quoted public values can contain
+    // whitespace; searching backward from the secret loses that URL context.
+    for (scheme_end, _) in text[..start].match_indices("://") {
+        let scheme_start = url_scheme_start(text, scheme_end);
+        let authority_start = scheme_end + 3;
+        let prefix = &text[authority_start..start];
+        let Some(query) = prefix.find(|ch: char| {
+            ch == '?' || ch == '#' || ch.is_ascii_whitespace() || matches!(ch, '<' | '>')
+        }) else {
+            continue;
+        };
+        if prefix.as_bytes()[query] != b'?' {
+            continue;
+        }
+        let mut parameter = authority_start + query + 1;
+        loop {
+            let value_start = text[parameter..]
+                .find(|ch: char| ch == '=' || ch == '&' || ch == '#' || ch.is_ascii_whitespace())
+                .filter(|offset| text.as_bytes()[parameter + offset] == b'=')
+                .map_or(parameter, |offset| parameter + offset + 1);
+            let end = url_query_value_end(text, value_start, scheme_start);
+            if value_start <= start && start <= end {
+                return Some(url_query_value_end(text, start, scheme_start));
+            }
+            if end >= start || text.as_bytes().get(end) != Some(&b'&') {
+                break;
+            }
+            parameter = end + 1;
+        }
     }
-    let scheme_start = text[..scheme_end]
+    None
+}
+
+fn url_scheme_start(text: &str, scheme_end: usize) -> usize {
+    text[..scheme_end]
         .rfind(|ch: char| !ch.is_ascii_alphanumeric() && !matches!(ch, '+' | '-' | '.'))
-        .map_or(0, |offset| offset + 1);
+        .map_or(0, |offset| offset + 1)
+}
+
+fn closes_url_quote(text: &str, index: usize, escapes: usize) -> bool {
+    text.as_bytes()[index] == b'"'
+        && escapes.is_multiple_of(2)
+        && text[index + 1..]
+            .chars()
+            .take_while(|next| !next.is_ascii_whitespace() && !matches!(next, '<' | '>'))
+            .all(|next| matches!(next, ',' | ';' | ')' | '}' | ']'))
+}
+
+fn url_query_value_end(text: &str, start: usize, scheme_start: usize) -> usize {
     let double_quoted_url = scheme_start > 0 && text.as_bytes()[scheme_start - 1] == b'"';
     // Track query quote segments separately from an optional URL wrapper.
     // Single quotes only open at the value start: mid-value apostrophes are data.
@@ -152,12 +187,7 @@ fn query_value_end(text: &str, start: usize) -> Option<usize> {
         // Only punctuation may follow the closing quote before a prose boundary.
         let closing_quote = double_quoted_url
             && (!at_value_start || text[..start].ends_with(REDACTED))
-            && ch == '"'
-            && escapes % 2 == 0
-            && text[index + 1..]
-                .chars()
-                .take_while(|next| !next.is_ascii_whitespace() && !matches!(next, '<' | '>'))
-                .all(|next| matches!(next, ',' | ';' | ')' | '}' | ']'));
+            && closes_url_quote(text, index, escapes);
         if closing_quote
             || (value_quote.is_none() && ch.is_ascii_whitespace())
             || matches!(ch, '&' | '#' | '<' | '>')
@@ -170,7 +200,7 @@ fn query_value_end(text: &str, start: usize) -> Option<usize> {
             // but leaves single quotes unchanged. Remove that outer layer before
             // deciding whether a quote is escaped within the query value.
             let debug_quote = double_quoted_url
-                && ((ch == '\'' && escapes % 2 == 0) || (ch == '"' && escapes % 2 == 1));
+                && ((ch == '\'' && escapes.is_multiple_of(2)) || (ch == '"' && escapes % 2 == 1));
             let value_escapes = if debug_quote { escapes / 2 } else { escapes };
             let escaped = value_escapes % 2 == 1;
             match value_quote {
@@ -191,7 +221,7 @@ fn query_value_end(text: &str, start: usize) -> Option<usize> {
     {
         end -= 1;
     }
-    Some(end)
+    end
 }
 
 fn redact_url_credentials(input: &str) -> String {
@@ -200,11 +230,21 @@ fn redact_url_credentials(input: &str) -> String {
     while let Some(relative) = output[cursor..].find("://") {
         let scheme_end = cursor + relative;
         let authority_start = scheme_end + 3;
+        let scheme_start = url_scheme_start(&output, scheme_end);
+        let wrapped = scheme_start > 0 && output.as_bytes()[scheme_start - 1] == b'"';
+        let mut backslashes = 0;
         let authority_end = output[authority_start..]
-            .find(|ch: char| {
-                ch.is_ascii_whitespace() || matches!(ch, '/' | '?' | '#' | '"' | '<' | '>')
+            .char_indices()
+            .find_map(|(offset, ch)| {
+                let index = authority_start + offset;
+                let escapes = backslashes;
+                backslashes = if ch == '\\' { backslashes + 1 } else { 0 };
+                (ch.is_ascii_whitespace()
+                    || matches!(ch, '/' | '?' | '#' | '<' | '>')
+                    || (wrapped && closes_url_quote(&output, index, escapes)))
+                .then_some(index)
             })
-            .map_or(output.len(), |offset| authority_start + offset);
+            .unwrap_or(output.len());
         if let Some(at) = output[authority_start..authority_end].rfind('@') {
             let userinfo_end = authority_start + at;
             output.replace_range(authority_start..userinfo_end, REDACTED);
@@ -303,6 +343,14 @@ mod tests {
     fn quoted_query_whitespace_never_exposes_secret_suffixes() {
         for (url, expected) in [
             (
+                r#"https://blocked.example/?view="public data"&token=prefix" private-token"&view=public"#,
+                r#"https://blocked.example/?view="public data"&token=[REDACTED]&view=public"#,
+            ),
+            (
+                r#"https://private-user:p"private-password@blocked.example/?view=public"#,
+                "https://[REDACTED]@blocked.example/?view=public",
+            ),
+            (
                 r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
                 "https://blocked.example/?token=[REDACTED]&view=public",
             ),
@@ -369,6 +417,69 @@ mod tests {
             let expected = "https://blocked.example/?token=[REDACTED]";
             assert_eq!(redact_str(input), expected);
             assert_eq!(redact_str(expected), expected);
+        }
+    }
+
+    #[test]
+    fn earlier_public_quotes_preserve_query_and_prose_boundaries() {
+        for (url, expected) in [
+            (
+                r##"https://blocked.example/?view='public data'&flag&next=https://public.example/path&token=prefix" private-token"&view=public#section"##,
+                r##"https://blocked.example/?view='public data'&flag&next=https://public.example/path&token=[REDACTED]&view=public#section"##,
+            ),
+            (
+                r##"https://blocked.example/?view="public data"&token=prefix" private-token"#section"##,
+                r##"https://blocked.example/?view="public data"&token=[REDACTED]#section"##,
+            ),
+            (
+                r##"https://blocked.example/?view="public data"&token=prefix" private-token""##,
+                r##"https://blocked.example/?view="public data"&token=[REDACTED]"##,
+            ),
+            (
+                r##"https://private-user:p"private-password@blocked.example"##,
+                "https://[REDACTED]@blocked.example",
+            ),
+        ] {
+            for (input, expected) in [
+                (
+                    format!("{url} reader's note"),
+                    format!("{expected} reader's note"),
+                ),
+                (
+                    format!("target {url:?}, reader's note"),
+                    format!("target {expected:?}, reader's note"),
+                ),
+            ] {
+                let mut output = input.clone();
+                for _ in 0..3 {
+                    output = redact_str(&output);
+                    assert_eq!(output, expected, "{input}");
+                }
+            }
+        }
+        for (input, expected) in [
+            (
+                r##"https://public.example/?view="public data" password=prefix#private-secret public note"##,
+                r##"https://public.example/?view="public data" password=[REDACTED] public note"##,
+            ),
+            (
+                r##"https://public.example/?view="public data"#section token=prefix&private-tail public note"##,
+                r##"https://public.example/?view="public data"#section token=[REDACTED] public note"##,
+            ),
+            (
+                r##""https://public.example", @public.example reader's note"##,
+                r##""https://public.example", @public.example reader's note"##,
+            ),
+            (
+                r##"<https://private-user:p"private-password@blocked.example> public note"##,
+                "<https://[REDACTED]@blocked.example> public note",
+            ),
+        ] {
+            let mut output = input.to_owned();
+            for _ in 0..3 {
+                output = redact_str(&output);
+                assert_eq!(output, expected, "{input}");
+            }
         }
     }
 

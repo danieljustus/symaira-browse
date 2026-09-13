@@ -25,7 +25,11 @@ Query delimiters apply only inside URL queries: a generic
 in safe prose, paths and public query values are retained. Double quotes inside
 a query value, including escaped quotes in debug-formatted denial messages,
 are scrubbed with that value; surrounding URL quotes remain intact. Nested URLs
-in public query values do not reset the outer query boundary.
+in public query values do not reset the outer query boundary. Query context is
+tracked forward across earlier quoted public values, including their whitespace.
+Embedded double quotes in URL userinfo (raw or debug-escaped) do not end authority
+scanning before the credential separator; surrounding URL delimiters still end
+the scan.
 MCP also scrubs received warning objects, including warnings from the Go daemon.
 No stdout diagnostics are introduced; the MCP test parses every output line as
 an identified JSON-RPC response.
@@ -63,6 +67,27 @@ The double-quote regressions also exercise `dispatch_once` denial messages and
 `success_response` warning serialization directly, without requiring sockets.
 The socket/stdio integration tests receive daemon-redacted warnings and do not
 establish MCP-only redaction or process-wide stdout cleanliness.
+
+The remaining review regressions extend the existing raw redactor, daemon
+`dispatch_once` denial, `success_response` warning, socket denial/warning, and
+independent MCP success/error conversion tests. They assert exact output and
+repeated redaction for the earlier quoted public value and quoted userinfo cases.
+Additional raw cases protect nested URLs, query/fragment boundaries, bare query
+flags, wrappers and unrelated trailing prose. Existing assertions remain in place.
+
+`crates/symbrowse-daemon/tests/chrome_native.rs` serves its initial page and six
+additional successful navigation fixtures over an ephemeral loopback HTTP server.
+All seven HTML payloads are the decoded original `data:` payloads from
+`912d063a4ee70cae975167371111378b09da684c`; only test transport changes. The existing
+network-capture HTTP fixture, browser actions and assertions remain. The native
+suite additionally requires `data:` denial for `open`, `goto` and `tab.new`
+before successful HTTP navigation. Neither production HTTP(S)-only admission nor
+the Go oracle, frozen fixtures, source hashes or provenance is changed.
+
+The enabled native suite and socket suites require direct host execution. A
+sandbox socket-bind denial does not establish browser failure, native acceptance
+or a passing host gate. Chrome being installed is insufficient evidence if the
+daemon cannot bind its socket.
 
 **Blocked engine-history differential gate:** issue #442 refers to denial
 history in PR #441's `a96c3ab5df26f0794aa3122367b4d5c4911b344f`. The required base
@@ -110,7 +135,9 @@ cargo test --manifest-path "$manifest" -p symbrowse-daemon --test navigation_sec
 cargo test --manifest-path "$manifest" -p symbrowse-daemon --test navigation_security runtime_rejects_navigation_before_browser_initialization --locked -- --exact
 cargo test --manifest-path "$manifest" -p symbrowse-mcp --test navigation_security mcp_admission_and_later_warning_frames_are_clean --locked -- --exact
 cargo fmt --manifest-path "$manifest" --all -- --check
-cargo clippy --manifest-path "$manifest" -p symbrowse-daemon -p symbrowse-mcp --all-targets --all-features --locked -- -D warnings
+cargo clippy --manifest-path "$manifest" --workspace --all-targets --all-features --locked -- -D warnings
+cargo test --manifest-path "$manifest" -p symbrowse-daemon -p symbrowse-mcp --lib --test navigation_security --all-features --locked --no-fail-fast
+SYMBROWSE_E2E=1 cargo test --manifest-path "$manifest" -p symbrowse-daemon --test chrome_native --locked -- --nocapture
 ```
 
 Each exact Rust invocation must report `1 passed`; zero matching tests fail the

@@ -10,6 +10,14 @@ use support::*;
 fn runtime_double_quote_denials_are_scrubbed() {
     for (url, redacted) in [
         (
+            r#"https://blocked.example/?view="public data"&token=prefix" private-token"&view=public"#,
+            r#"https://blocked.example/?view="public data"&token=[REDACTED]&view=public"#,
+        ),
+        (
+            r#"https://private-user:p"private-password@blocked.example/?view=public"#,
+            "https://[REDACTED]@blocked.example/?view=public",
+        ),
+        (
             r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
             "https://blocked.example/?token=[REDACTED]&view=public",
         ),
@@ -288,11 +296,24 @@ fn runtime_rejects_navigation_before_browser_initialization() {
 #[test]
 fn daemon_quote_segment_denials_and_success_warnings_are_scrubbed() {
     let harness = Harness::new("segments");
-    for url in [
-        r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
-        r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+    for (url, redacted) in [
+        (
+            r#"https://blocked.example/?view="public data"&token=prefix" private-token"&view=public"#,
+            r#"https://blocked.example/?view="public data"&token=[REDACTED]&view=public"#,
+        ),
+        (
+            r#"https://private-user:p"private-password@blocked.example/?view=public"#,
+            "https://[REDACTED]@blocked.example/?view=public",
+        ),
+        (
+            r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+            "https://blocked.example/?token=[REDACTED]&view=public",
+        ),
+        (
+            r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+            "https://blocked.example/?token=[REDACTED]&view=public",
+        ),
     ] {
-        let redacted = "https://blocked.example/?token=[REDACTED]&view=public";
         for command in ["open", "goto", "tab.new"] {
             let denied = harness.request(command, url);
             assert_eq!(denied["success"], false);
@@ -332,11 +353,24 @@ fn daemon_quote_segment_denials_and_success_warnings_are_scrubbed() {
 
 #[test]
 fn daemon_success_response_quote_segment_warnings_are_scrubbed() {
-    for url in [
-        r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
-        r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+    for (url, redacted) in [
+        (
+            r#"https://blocked.example/?view="public data"&token=prefix" private-token"&view=public"#,
+            r#"https://blocked.example/?view="public data"&token=[REDACTED]&view=public"#,
+        ),
+        (
+            r#"https://private-user:p"private-password@blocked.example/?view=public"#,
+            "https://[REDACTED]@blocked.example/?view=public",
+        ),
+        (
+            r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+            "https://blocked.example/?token=[REDACTED]&view=public",
+        ),
+        (
+            r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+            "https://blocked.example/?token=[REDACTED]&view=public",
+        ),
     ] {
-        let redacted = "https://blocked.example/?token=[REDACTED]&view=public";
         let mut response = symbrowse_daemon::success_response(
             Some(json!({"title":"public"})),
             vec![symbrowse_daemon::Warning {

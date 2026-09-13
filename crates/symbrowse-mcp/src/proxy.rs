@@ -1067,11 +1067,24 @@ mod tests {
     #[test]
     fn raw_quote_segment_warnings_and_denials_are_scrubbed_at_mcp_conversion() {
         // Both conversion paths receive raw text, independently of the daemon.
-        for url in [
-            r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
-            r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+        for (url, redacted) in [
+            (
+                r#"https://blocked.example/?view="public data"&token=prefix" private-token"&view=public"#,
+                r#"https://blocked.example/?view="public data"&token=[REDACTED]&view=public"#,
+            ),
+            (
+                r#"https://private-user:p"private-password@blocked.example/?view=public"#,
+                "https://[REDACTED]@blocked.example/?view=public",
+            ),
+            (
+                r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
         ] {
-            let redacted = "https://blocked.example/?token=[REDACTED]&view=public";
             let mut wire = json!({
                 "success":true, "data":{"title":"public"}, "warnings":[{
                     "kind":"network_policy.blocked", "severity":"warning",
