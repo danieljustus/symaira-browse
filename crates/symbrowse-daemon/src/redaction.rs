@@ -165,6 +165,13 @@ fn closes_url_quote(text: &str, index: usize, escapes: usize) -> bool {
             .all(|next| matches!(next, ',' | ';' | ')' | '}' | ']'))
 }
 
+fn authority_has_userinfo_after_quote(text: &str, index: usize) -> bool {
+    text[index..].find(['/', '?', '#', '<', '>']).map_or_else(
+        || text[index..].contains('@'),
+        |limit| text[index..index + limit].contains('@'),
+    )
+}
+
 fn url_query_value_end(text: &str, start: usize, scheme_start: usize) -> usize {
     let double_quoted_url = scheme_start > 0 && text.as_bytes()[scheme_start - 1] == b'"';
     // Track query quote segments separately from an optional URL wrapper.
@@ -246,7 +253,9 @@ fn redact_url_credentials(input: &str) -> String {
                         |limit| output[index..index + limit].contains('@'),
                     );
                 (authority_delimiter
-                    || (wrapped && closes_url_quote(&output, index, escapes))
+                    || (wrapped
+                        && closes_url_quote(&output, index, escapes)
+                        && !authority_has_userinfo_after_quote(&output, index))
                     || (ch.is_ascii_whitespace() && !credential_space))
                     .then_some(index)
             })

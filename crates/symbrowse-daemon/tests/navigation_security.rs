@@ -18,6 +18,10 @@ fn runtime_double_quote_denials_are_scrubbed() {
             "https://[REDACTED]@blocked.example/?view=public",
         ),
         (
+            r#"https://alice:p" s3cr3t@blocked.example/?view=public"#,
+            "https://[REDACTED]@blocked.example/?view=public",
+        ),
+        (
             r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
             "https://blocked.example/?token=[REDACTED]&view=public",
         ),
@@ -84,7 +88,7 @@ fn runtime_double_quote_denials_are_scrubbed() {
 fn daemon_success_response_double_quote_warnings_are_scrubbed() {
     let response = symbrowse_daemon::success_response(Some(json!({"title":"public"})), vec![symbrowse_daemon::Warning {
         kind: "network_policy.blocked".into(), severity: "warning".into(),
-        message: r#"https://blocked.example/?token="private-token"&view=public"#.into(),
+        message: r#"blocked Document "https://alice:p" s3cr3t@blocked.example/?view=public" (2 requests)"#.into(),
         r#ref: r#"https://blocked.example/?token=prefix"private-token"#.into(),
         excerpt: "https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section".into(),
     }]);
@@ -93,7 +97,7 @@ fn daemon_success_response_double_quote_warnings_are_scrubbed() {
         wire,
         json!({"success":true, "data":{"title":"public"}, "warnings":[{
             "kind":"network_policy.blocked", "severity":"warning",
-            "message":"https://blocked.example/?token=[REDACTED]&view=public",
+            "message":r#"blocked Document "https://[REDACTED]@blocked.example/?view=public" (2 requests)"#,
             "ref":"https://blocked.example/?token=[REDACTED]",
             "excerpt":"https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section"
         }]})

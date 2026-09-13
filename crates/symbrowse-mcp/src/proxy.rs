@@ -1077,6 +1077,10 @@ mod tests {
                 "https://[REDACTED]@blocked.example/?view=public",
             ),
             (
+                r#"https://alice:p" s3cr3t@blocked.example/?view=public"#,
+                "https://[REDACTED]@blocked.example/?view=public",
+            ),
+            (
                 r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
                 "https://blocked.example/?token=[REDACTED]&view=public",
             ),
