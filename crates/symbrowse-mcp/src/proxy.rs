@@ -1092,6 +1092,40 @@ mod tests {
     }
 
     #[test]
+    fn raw_quoted_whitespace_warnings_are_scrubbed_at_mcp_conversion() {
+        // Feed raw warnings directly to MCP, without daemon-side redaction.
+        let mut wire = json!({
+            "success": true, "data": {"title":"public"},
+            "warnings": [{
+                "kind":"network_policy.blocked", "severity":"warning",
+                "message":r#"blocked Document https://blocked.example/?token="prefix private-token"&view=public (2 requests)"#,
+                "ref":format!("target {:?} denied", r#"https://blocked.example/?token="prefix private-token""#),
+                "excerpt":"https://blocked.example/?next=https://public.example/path&token='prefix private-token'&view=public#section"
+            }]
+        });
+        let expected = json!({
+            "data": {"title":"public"},
+            "warnings": [{
+                "kind":"network_policy.blocked", "severity":"warning",
+                "message":"blocked Document https://blocked.example/?token=[REDACTED]&view=public (2 requests)",
+                "ref":r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+                "excerpt":"https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section"
+            }]
+        });
+        for _ in 0..3 {
+            let response: DaemonResponse = serde_json::from_value(wire).unwrap();
+            let result = response.into_result().unwrap();
+            let serialized = serde_json::to_string(&result).unwrap();
+            assert_eq!(
+                serde_json::from_str::<Value>(&serialized).unwrap(),
+                expected
+            );
+            wire = result;
+            wire["success"] = json!(true);
+        }
+    }
+
+    #[test]
     fn raw_daemon_warnings_are_scrubbed_at_mcp_conversion() {
         // Deliberately bypass daemon success_response: this proves the MCP
         // scrubber independently of the daemon/MCP socket integration tests.

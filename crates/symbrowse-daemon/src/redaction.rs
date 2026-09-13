@@ -132,37 +132,61 @@ fn query_value_end(text: &str, start: usize) -> Option<usize> {
         .rfind(|ch: char| !ch.is_ascii_alphanumeric() && !matches!(ch, '+' | '-' | '.'))
         .map_or(0, |offset| offset + 1);
     let double_quoted_url = scheme_start > 0 && text.as_bytes()[scheme_start - 1] == b'"';
+    // A leading value quote owns whitespace until its matching close. Debug
+    // formatting adds an escape layer: \" closes a debug-quoted value, while
+    // \\\" represents an escaped quote inside it and must not end that value.
+    let quote_offset = text[start..].bytes().take_while(|b| *b == b'\\').count();
+    let mut value_quote = text
+        .as_bytes()
+        .get(start + quote_offset)
+        .copied()
+        .filter(|b| matches!(b, b'"' | b'\''));
     let mut end = text.len();
     for (offset, ch) in text[start..].char_indices() {
         let index = start + offset;
+        let escapes = if matches!(ch, '"' | '\'') {
+            text[..index]
+                .bytes()
+                .rev()
+                .take_while(|b| *b == b'\\')
+                .count()
+        } else {
+            0
+        };
         // A quote is URL data unless it closes a surrounding double quote.
         // Debug-formatted targets escape embedded quotes; count backslashes so
         // those quotes cannot expose a secret suffix as ordinary message text.
         // Only punctuation may follow the closing quote before a prose boundary.
         let closing_quote = double_quoted_url
+            && (offset > quote_offset || text[..start].ends_with(REDACTED))
             && ch == '"'
-            && text[..index]
-                .bytes()
-                .rev()
-                .take_while(|b| *b == b'\\')
-                .count()
-                % 2
-                == 0
+            && escapes % 2 == 0
             && text[index + 1..]
                 .chars()
                 .take_while(|next| !next.is_ascii_whitespace() && !matches!(next, '<' | '>'))
                 .all(|next| matches!(next, ',' | ';' | ')' | '}' | ']'));
-        if closing_quote || ch.is_ascii_whitespace() || matches!(ch, '&' | '#' | '<' | '>') {
+        if closing_quote
+            || (value_quote.is_none() && ch.is_ascii_whitespace())
+            || matches!(ch, '&' | '#' | '<' | '>')
+        {
             end = index;
             break;
         }
+        if offset > quote_offset
+            && value_quote.is_some_and(|quote| ch == char::from(quote))
+            && escapes % (2 * (quote_offset + 1)) == quote_offset
+        {
+            value_quote = None;
+        }
     }
     // Preserve a surrounding single quote, but never stop at an apostrophe
-    // inside a value. Unquoted URL values may themselves end in apostrophes.
+    // inside a value or just before a query delimiter. Unquoted URL values may
+    // themselves end in apostrophes.
     if scheme_start > 0
         && text.as_bytes()[scheme_start - 1] == b'\''
         && end > start
         && text.as_bytes()[end - 1] == b'\''
+        && !matches!(text.as_bytes().get(end), Some(b'&' | b'#'))
     {
         end -= 1;
     }
@@ -274,6 +298,71 @@ pub(crate) fn redact_error(mut error: crate::DaemonError) -> crate::DaemonError 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn quoted_query_whitespace_never_exposes_secret_suffixes() {
+        for (url, expected) in [
+            (
+                r#"https://blocked.example/?token="prefix private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token=" private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token=[REDACTED]"prefix private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                "https://blocked.example/?token='prefix private-token'&view=public#section",
+                "https://blocked.example/?token=[REDACTED]&view=public#section",
+            ),
+            (
+                r#"https://blocked.example/?token="prefix ' private-token""#,
+                "https://blocked.example/?token=[REDACTED]",
+            ),
+            (
+                r#"https://blocked.example/?token="prefix\" private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                "https://blocked.example/?token=\"prefix\t\nprivate-token\"&view=public",
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?next=https://public.example/path?view=public&token="prefix private-token"&mode=public#section"#,
+                "https://blocked.example/?next=https://public.example/path?view=public&token=[REDACTED]&mode=public#section",
+            ),
+        ] {
+            for (input, expected) in [
+                (url.to_owned(), expected.to_owned()),
+                (
+                    format!("blocked Document {url} (2 requests)"),
+                    format!("blocked Document {expected} (2 requests)"),
+                ),
+                (
+                    format!("target {url:?} denied"),
+                    format!("target {expected:?} denied"),
+                ),
+                (format!("'{url}'"), format!("'{expected}'")),
+            ] {
+                let mut output = input.clone();
+                for pass in 1..=3 {
+                    output = redact_str(&output);
+                    assert_eq!(output, expected, "pass {pass}: {input}");
+                }
+            }
+        }
+        for input in [
+            r#"https://blocked.example/?token="prefix private-token"#,
+            r#"https://blocked.example/?token=\"prefix private-token"#,
+        ] {
+            let expected = "https://blocked.example/?token=[REDACTED]";
+            assert_eq!(redact_str(input), expected);
+            assert_eq!(redact_str(expected), expected);
+        }
+    }
+
     #[test]
     fn double_quotes_are_redacted_in_their_url_value_context() {
         for (input, expected) in [

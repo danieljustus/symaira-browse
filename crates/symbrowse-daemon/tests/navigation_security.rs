@@ -21,6 +21,18 @@ fn runtime_double_quote_denials_are_scrubbed() {
             "https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section",
             "https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section",
         ),
+        (
+            r#"https://blocked.example/?token="prefix private-token"&view=public"#,
+            "https://blocked.example/?token=[REDACTED]&view=public",
+        ),
+        (
+            r#"https://blocked.example/?token="prefix\" private-token""#,
+            "https://blocked.example/?token=[REDACTED]",
+        ),
+        (
+            "https://blocked.example/?token='prefix private-token'&view=public",
+            "https://blocked.example/?token=[REDACTED]&view=public",
+        ),
     ] {
         for engine in ["chrome", "firefox", "safari-attach", "safari-bidi"] {
             for command in ["open", "goto", "tab.new"] {
@@ -36,6 +48,9 @@ fn runtime_double_quote_denials_are_scrubbed() {
                     },
                 );
                 assert!(!response.success);
+                let wire = serde_json::to_value(&response).unwrap();
+                assert_eq!(symbrowse_daemon::redact_json(&wire), wire);
+                assert!(!wire.to_string().contains("private-token"));
                 let error = response.error.unwrap();
                 assert_eq!(error.code, "operation_failed");
                 assert_eq!(
@@ -75,6 +90,30 @@ fn daemon_success_response_double_quote_warnings_are_scrubbed() {
         .unwrap(),
         wire
     );
+}
+
+#[test]
+fn daemon_success_response_quoted_whitespace_warnings_are_scrubbed() {
+    let mut response = symbrowse_daemon::success_response(Some(json!({"title":"public"})), vec![symbrowse_daemon::Warning {
+        kind: "network_policy.blocked".into(), severity: "warning".into(),
+        message: r#"blocked Document https://blocked.example/?token="prefix private-token"&view=public (2 requests)"#.into(),
+        r#ref: format!("target {:?} denied", r#"https://blocked.example/?token="prefix private-token""#),
+        excerpt: "https://blocked.example/?next=https://public.example/path&token='prefix private-token'&view=public#section".into(),
+    }]);
+    let expected = json!({"success":true, "data":{"title":"public"}, "warnings":[{
+        "kind":"network_policy.blocked", "severity":"warning",
+        "message":"blocked Document https://blocked.example/?token=[REDACTED]&view=public (2 requests)",
+        "ref":r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+        "excerpt":"https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section"
+    }]});
+    for _ in 0..3 {
+        let serialized = serde_json::to_string(&response).unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&serialized).unwrap(),
+            expected
+        );
+        response = symbrowse_daemon::success_response(response.data, response.warnings);
+    }
 }
 
 #[test]
