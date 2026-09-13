@@ -57,6 +57,46 @@ fn mcp_apostrophe_boundaries_and_non_http_navigation_frames_are_clean() {
 }
 
 #[test]
+fn mcp_multiple_whitespace_warning_frames_are_scrubbed() {
+    for (id, whitespace) in ["  ", "\t"].into_iter().enumerate() {
+        let harness = Harness::new(&format!("mcp-whitespace-{id}"));
+        *harness.history.lock().unwrap() = vec![symbrowse_daemon::Warning {
+            kind: "network_policy.blocked".into(),
+            severity: "warning".into(),
+            message: format!(
+                "blocked Document https://alice:p\"{whitespace}s3cr3t@blocked.example/?view=public\" (2 requests)"
+            ),
+            r#ref: "warning".into(),
+            excerpt: "public excerpt".into(),
+        }];
+        let options = ServeOptions {
+            session: "boundary".into(),
+            profiles: "all".into(),
+            endpoint: Some(harness.socket.to_string_lossy().into_owned()),
+            ..Default::default()
+        };
+        let input = json!({
+            "jsonrpc":"2.0",
+            "id":id,
+            "method":"tools/call",
+            "params":{"name":"get", "arguments":{"kind":"title"}}
+        })
+        .to_string()
+            + "\n";
+        let mut output = Vec::new();
+        serve_stdio(Cursor::new(input), &mut output, options).unwrap();
+        let frame: Value = serde_json::from_slice(&output).unwrap();
+        let body: Value =
+            serde_json::from_str(frame["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            body["warnings"][0]["message"],
+            "blocked Document https://[REDACTED]@blocked.example/?view=public\" (2 requests)"
+        );
+        assert_scrubbed(&output.iter().map(|byte| *byte as char).collect::<String>());
+    }
+}
+
+#[test]
 fn mcp_admission_and_later_warning_frames_are_clean() {
     let harness = Harness::new("mcp");
     // Exercise the raw daemon path first, then the real MCP socket proxy.

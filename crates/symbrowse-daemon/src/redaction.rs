@@ -176,13 +176,22 @@ fn authority_has_userinfo_after_quote(text: &str, index: usize) -> bool {
             if saw_punctuation {
                 return false;
             }
-            let token = &text[absolute + ch.len_utf8()..];
+            let mut token_start = absolute + ch.len_utf8();
+            while text[token_start..]
+                .chars()
+                .next()
+                .is_some_and(|next| next.is_ascii_whitespace())
+            {
+                token_start += text[token_start..].chars().next().unwrap().len_utf8();
+            }
+            let token = &text[token_start..];
             let token_end = token
                 .find(|next: char| {
                     next.is_ascii_whitespace() || matches!(next, '/' | '?' | '#' | '<' | '>')
                 })
                 .unwrap_or(token.len());
-            return token[..token_end].contains('@');
+            let has_userinfo = token[..token_end].contains('@');
+            return has_userinfo;
         }
         if matches!(ch, ',' | ';' | ')' | '}' | ']') {
             saw_punctuation = true;
@@ -383,6 +392,14 @@ mod tests {
     #[test]
     fn quoted_query_whitespace_never_exposes_secret_suffixes() {
         for (url, expected) in [
+            (
+                "https://alice:p\"  s3cr3t@blocked.example/?view=public\"",
+                "https://[REDACTED]@blocked.example/?view=public\"",
+            ),
+            (
+                "https://alice:p\"\ts3cr3t@blocked.example/?view=public\"",
+                "https://[REDACTED]@blocked.example/?view=public\"",
+            ),
             (
                 r#"https://blocked.example/?view="public data"&token=prefix" private-token"&view=public"#,
                 r#"https://blocked.example/?view="public data"&token=[REDACTED]&view=public"#,

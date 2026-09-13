@@ -137,6 +137,30 @@ fn daemon_success_response_quoted_whitespace_warnings_are_scrubbed() {
 }
 
 #[test]
+fn daemon_success_response_multiple_whitespace_warnings_are_scrubbed() {
+    for (index, whitespace) in ["  ", "\t"].into_iter().enumerate() {
+        let message = format!(
+            "blocked Document https://alice:p\"{whitespace}s3cr3t@blocked.example/?view=public\" (2 requests)"
+        );
+        let response = symbrowse_daemon::success_response(
+            Some(json!({"title":"public"})),
+            vec![symbrowse_daemon::Warning {
+                kind: "network_policy.blocked".into(),
+                severity: "warning".into(),
+                message,
+                r#ref: format!("warning-{index}"),
+                excerpt: "public excerpt".into(),
+            }],
+        );
+        let wire = serde_json::to_value(response).unwrap();
+        assert_eq!(
+            wire["warnings"][0]["message"],
+            "blocked Document https://[REDACTED]@blocked.example/?view=public\" (2 requests)"
+        );
+    }
+}
+
+#[test]
 fn daemon_double_quote_denials_are_scrubbed() {
     let harness = Harness::new("quote-err");
     for url in [
