@@ -3,15 +3,127 @@
 use std::{
     fs,
     io::{BufRead, BufReader, Read, Write},
-    net::TcpListener,
+    net::{SocketAddr, TcpListener},
     os::unix::net::UnixStream,
     path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
     thread,
     time::Duration,
 };
 
 use serde_json::{Value, json};
 use symbrowse_daemon::{Frame, Server, ServerOptions, SessionSpec};
+
+// The initial page and six additional data: payloads are unchanged; only their
+// transport becomes loopback HTTP to exercise production navigation admission.
+struct FixtureServer {
+    address: SocketAddr,
+    stop: Arc<AtomicBool>,
+    worker: Option<thread::JoinHandle<()>>,
+}
+
+impl FixtureServer {
+    fn start() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind HTTP fixture");
+        let address = listener.local_addr().expect("HTTP fixture address");
+        listener.set_nonblocking(true).expect("nonblocking fixture");
+        let stop = Arc::new(AtomicBool::new(false));
+        let stopped = Arc::clone(&stop);
+        let worker = thread::spawn(move || {
+            while !stopped.load(Ordering::SeqCst) {
+                let mut stream = match listener.accept() {
+                    Ok((stream, _)) => stream,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => panic!("accept HTTP fixture: {error}"),
+                };
+                stream
+                    .set_read_timeout(Some(Duration::from_secs(2)))
+                    .unwrap();
+                stream
+                    .set_write_timeout(Some(Duration::from_secs(2)))
+                    .unwrap();
+                let mut reader = BufReader::new(&stream);
+                let mut line = String::new();
+                // Chrome may close a speculative connection without a request.
+                match reader.read_line(&mut line) {
+                    Ok(0) => continue,
+                    Ok(_) => {}
+                    Err(error)
+                        if matches!(
+                            error.kind(),
+                            std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                        ) =>
+                    {
+                        continue;
+                    }
+                    Err(error) => panic!("read fixture request: {error}"),
+                }
+                let path = line.split_whitespace().nth(1).unwrap_or("").to_owned();
+                loop {
+                    line.clear();
+                    if reader.read_line(&mut line).expect("read fixture headers") == 0
+                        || line == "\r\n"
+                    {
+                        break;
+                    }
+                }
+                let (status, body) = match path.as_str() {
+                    "/native" => ("200 OK", r##"<title>daemon</title><h1>native</h1>"##),
+                    "/second" => ("200 OK", r##"<h1>second</h1>"##),
+                    "/frames" => (
+                        "200 OK",
+                        r##"<iframe id='outer' srcdoc="<iframe id='inner' srcdoc='nested'></iframe>"></iframe>"##,
+                    ),
+                    "/interactions" => (
+                        "200 OK",
+                        r##"<input id='text' onfocus="this.dataset.focused='yes'"><select id='choice'><option value='one'>One</option><option value='two'>Two</option></select><input id='check' type='checkbox'><div id='dbl' ondblclick="this.dataset.doubled='yes'">Double</div><div id='hover' onmouseenter="this.dataset.hovered='yes'">Hover</div>"##,
+                    ),
+                    "/prompt" => (
+                        "200 OK",
+                        r##"<script>setTimeout(()=>prompt('native prompt','seed'),100)</script>"##,
+                    ),
+                    "/alert" => (
+                        "200 OK",
+                        r##"<script>setTimeout(()=>alert('native alert'),100)</script>"##,
+                    ),
+                    "/auto-alert" => (
+                        "200 OK",
+                        r##"<script>setTimeout(()=>alert('auto dismiss'),100)</script>"##,
+                    ),
+                    _ => ("404 Not Found", "unknown fixture"),
+                };
+                write!(stream, "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())
+                    .expect("write HTTP fixture");
+            }
+        });
+        Self {
+            address,
+            stop,
+            worker: Some(worker),
+        }
+    }
+
+    fn url(&self, path: &str) -> String {
+        format!("http://{}{path}", self.address)
+    }
+}
+
+impl Drop for FixtureServer {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::SeqCst);
+        self.worker
+            .take()
+            .expect("fixture worker")
+            .join()
+            .expect("HTTP fixture thread");
+    }
+}
 
 fn enabled() -> bool {
     std::env::var_os("SYMBROWSE_E2E").as_deref() == Some(std::ffi::OsStr::new("1"))
@@ -37,6 +149,7 @@ fn request(socket: &PathBuf, command: &str, args: Value) -> Value {
 #[test]
 fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     if !enabled() {
+        eprintln!("native Chrome test not enabled; run with SYMBROWSE_E2E=1");
         return;
     }
     let root = std::env::temp_dir().join(format!("symbrowse-daemon-chrome-{}", std::process::id()));
@@ -70,13 +183,23 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     }
     assert!(socket.exists(), "daemon socket did not appear");
 
+    let fixture = FixtureServer::start();
     let capabilities = request(&socket, "capabilities", json!({}));
     assert_eq!(capabilities["success"], true);
-    let opened = request(
-        &socket,
-        "open",
-        json!({"url": "data:text/html,<title>daemon</title><h1>native</h1>"}),
-    );
+    for command in ["open", "goto", "tab.new"] {
+        let denied = request(
+            &socket,
+            command,
+            json!({"url":"data:text/html,<h1>denied</h1>"}),
+        );
+        assert_eq!(denied["success"], false, "{command}: {denied}");
+        assert_eq!(denied["error"]["code"], "operation_failed");
+        assert_eq!(
+            denied["error"]["message"],
+            "navigation URL policy: unsupported target \"data:text/html,<h1>denied</h1>\" (http/https URL required)"
+        );
+    }
+    let opened = request(&socket, "open", json!({"url": fixture.url("/native")}));
     assert_eq!(opened["success"], true, "open response: {opened}");
     let script = request(&socket, "read", json!({}));
     assert!(
@@ -98,11 +221,18 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     let created = request(
         &socket,
         "tab.new",
-        json!({"label":"second","url":"data:text/html,<h1>second</h1>"}),
+        json!({"label":"second","url":fixture.url("/second")}),
     );
     assert_eq!(created["success"], true, "tab.new response: {created}");
     assert_eq!(created["data"]["tab"], "t2");
     assert_eq!(created["data"]["label"], "second");
+    let second = request(&socket, "read", json!({}));
+    assert!(
+        second["data"]
+            .as_str()
+            .is_some_and(|text| text.contains("second")),
+        "HTTP second-tab read: {second}"
+    );
     let listed_tabs = request(&socket, "tab.list", json!({}));
     assert_eq!(
         listed_tabs["success"], true,
@@ -138,7 +268,7 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     );
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture server");
     let address = listener.local_addr().expect("fixture address");
-    let fixture = thread::spawn(move || {
+    let network_fixture = thread::spawn(move || {
         let (mut stream, _) = listener.accept().expect("accept fixture request");
         let mut request = [0_u8; 1024];
         let _ = stream.read(&mut request).expect("read fixture request");
@@ -161,7 +291,7 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
         network_page["success"], true,
         "network page: {network_page}"
     );
-    fixture.join().expect("fixture thread");
+    network_fixture.join().expect("fixture thread");
     let captured = request(&socket, "network.requests", json!({}));
     assert_eq!(captured["success"], true, "network capture: {captured}");
     assert!(
@@ -175,11 +305,7 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
             .is_some_and(|events| events.iter().any(|event| event["status"] == 200)),
         "network capture: {captured}"
     );
-    let framed = request(
-        &socket,
-        "open",
-        json!({"url": "data:text/html,<iframe id='outer' srcdoc=\"<iframe id='inner' srcdoc='nested'></iframe>\"></iframe>"}),
-    );
+    let framed = request(&socket, "open", json!({"url": fixture.url("/frames")}));
     assert_eq!(framed["success"], true, "frame page: {framed}");
     let frames = request(&socket, "frame.tree", json!({}));
     assert_eq!(frames["success"], true, "frame response: {frames}");
@@ -195,7 +321,7 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     let interactions = request(
         &socket,
         "open",
-        json!({"url": "data:text/html,%3Cinput%20id%3D%27text%27%20onfocus%3D%22this.dataset.focused%3D%27yes%27%22%3E%3Cselect%20id%3D%27choice%27%3E%3Coption%20value%3D%27one%27%3EOne%3C%2Foption%3E%3Coption%20value%3D%27two%27%3ETwo%3C%2Foption%3E%3C%2Fselect%3E%3Cinput%20id%3D%27check%27%20type%3D%27checkbox%27%3E%3Cdiv%20id%3D%27dbl%27%20ondblclick%3D%22this.dataset.doubled%3D%27yes%27%22%3EDouble%3C%2Fdiv%3E%3Cdiv%20id%3D%27hover%27%20onmouseenter%3D%22this.dataset.hovered%3D%27yes%27%22%3EHover%3C%2Fdiv%3E"}),
+        json!({"url": fixture.url("/interactions")}),
     );
     assert_eq!(
         interactions["success"], true,
@@ -248,11 +374,7 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
         "empty dialog status: {no_dialog}"
     );
     assert_eq!(no_dialog["data"]["handled"], true);
-    let prompt_page = request(
-        &socket,
-        "open",
-        json!({"url":"data:text/html,%3Cscript%3EsetTimeout(()%3D%3Eprompt('native%20prompt'%2C'seed')%2C100)%3C%2Fscript%3E"}),
-    );
+    let prompt_page = request(&socket, "open", json!({"url":fixture.url("/prompt")}));
     assert_eq!(prompt_page["success"], true, "prompt page: {prompt_page}");
     thread::sleep(Duration::from_millis(250));
     let prompt_status = request(&socket, "dialog.status", json!({}));
@@ -273,11 +395,7 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
         "handled status: {handled}"
     );
 
-    let alert_page = request(
-        &socket,
-        "open",
-        json!({"url":"data:text/html,%3Cscript%3EsetTimeout(()%3D%3Ealert('native%20alert')%2C100)%3C%2Fscript%3E"}),
-    );
+    let alert_page = request(&socket, "open", json!({"url":fixture.url("/alert")}));
     assert_eq!(alert_page["success"], true, "alert page: {alert_page}");
     thread::sleep(Duration::from_millis(250));
     let dismissed = request(&socket, "dialog.dismiss", json!({}));
@@ -295,11 +413,7 @@ fn production_daemon_path_runs_chrome_and_reaps_owned_profile() {
     let auto = request(&socket, "dialog.auto", json!({"mode":"dismiss"}));
     assert_eq!(auto["success"], true, "dialog auto: {auto}");
     assert_eq!(auto["data"], json!({"auto_mode":"dismiss"}));
-    let auto_alert = request(
-        &socket,
-        "open",
-        json!({"url":"data:text/html,%3Cscript%3EsetTimeout(()%3D%3Ealert('auto%20dismiss')%2C100)%3C%2Fscript%3E"}),
-    );
+    let auto_alert = request(&socket, "open", json!({"url":fixture.url("/auto-alert")}));
     assert_eq!(auto_alert["success"], true, "auto alert page: {auto_alert}");
     thread::sleep(Duration::from_millis(250));
     let auto_status = request(&socket, "dialog.status", json!({}));

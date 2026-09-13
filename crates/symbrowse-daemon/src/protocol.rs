@@ -120,7 +120,13 @@ pub fn error_response(code: impl Into<String>, message: impl Into<String>) -> Re
     }
 }
 
-pub fn success_response(data: Option<Value>, warnings: Vec<Warning>) -> Response {
+pub fn success_response(data: Option<Value>, mut warnings: Vec<Warning>) -> Response {
+    let redactor = crate::Redactor;
+    for warning in &mut warnings {
+        warning.message = redactor.redact_str(&warning.message);
+        warning.r#ref = redactor.redact_str(&warning.r#ref);
+        warning.excerpt = redactor.redact_str(&warning.excerpt);
+    }
     Response {
         success: true,
         data,

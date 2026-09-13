@@ -19,6 +19,7 @@ symbrowse-engine-firefox = { path = "../symbrowse-engine-firefox", version = "=0
 symbrowse-fetch = { path = "../symbrowse-fetch", version = "=0.0.0" }
 time.workspace = true
 tokio.workspace = true
+url.workspace = true
 widestring.workspace = true
 
 [target.'cfg(unix)'.dependencies]

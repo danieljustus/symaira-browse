@@ -47,7 +47,7 @@ impl Redactor {
 
 #[must_use]
 pub fn redact_str(input: &str) -> String {
-    let mut output = input.to_owned();
+    let mut output = redact_url_credentials(input);
     for key in SECRET_KEYS {
         for separator in ["=", ":", " "] {
             let mut cursor = 0;
@@ -64,7 +64,12 @@ pub fn redact_str(input: &str) -> String {
                 {
                     value_start += 1;
                 }
-                let end = value_end(&output, value_start);
+                let end = if output[value_start..].starts_with(REDACTED) {
+                    // Preserve an existing marker, but scrub any appended value.
+                    value_end(&output, value_start + REDACTED.len())
+                } else {
+                    value_end(&output, value_start)
+                };
                 if end <= value_start {
                     cursor = value_start;
                     continue;
@@ -74,10 +79,13 @@ pub fn redact_str(input: &str) -> String {
             }
         }
     }
-    redact_url_credentials(&output)
+    output
 }
 
 fn value_end(text: &str, start: usize) -> usize {
+    if let Some(end) = query_value_end(text, start) {
+        return end;
+    }
     let bytes = text.as_bytes();
     let mut end = start;
     let quoted = bytes
@@ -106,23 +114,192 @@ fn value_end(text: &str, start: usize) -> usize {
     end
 }
 
+// URL query delimiters must not truncate generic password/token values.
+// Apostrophes are legal URL data, including in userinfo and query values.
+fn query_value_end(text: &str, start: usize) -> Option<usize> {
+    // Walk each candidate URL forward. Earlier quoted public values can contain
+    // whitespace; searching backward from the secret loses that URL context.
+    for (scheme_end, _) in text[..start].match_indices("://") {
+        let scheme_start = url_scheme_start(text, scheme_end);
+        let authority_start = scheme_end + 3;
+        let prefix = &text[authority_start..start];
+        let Some(query) = prefix.find(|ch: char| {
+            ch == '?' || ch == '#' || ch.is_ascii_whitespace() || matches!(ch, '<' | '>')
+        }) else {
+            continue;
+        };
+        if prefix.as_bytes()[query] != b'?' {
+            continue;
+        }
+        let mut parameter = authority_start + query + 1;
+        loop {
+            let value_start = text[parameter..]
+                .find(|ch: char| ch == '=' || ch == '&' || ch == '#' || ch.is_ascii_whitespace())
+                .filter(|offset| text.as_bytes()[parameter + offset] == b'=')
+                .map_or(parameter, |offset| parameter + offset + 1);
+            let end = url_query_value_end(text, value_start, scheme_start);
+            if value_start <= start && start <= end {
+                return Some(url_query_value_end(text, start, scheme_start));
+            }
+            if end >= start || text.as_bytes().get(end) != Some(&b'&') {
+                break;
+            }
+            parameter = end + 1;
+        }
+    }
+    None
+}
+
+fn url_scheme_start(text: &str, scheme_end: usize) -> usize {
+    text[..scheme_end]
+        .rfind(|ch: char| !ch.is_ascii_alphanumeric() && !matches!(ch, '+' | '-' | '.'))
+        .map_or(0, |offset| offset + 1)
+}
+
+fn closes_url_quote(text: &str, index: usize, escapes: usize) -> bool {
+    text.as_bytes()[index] == b'"'
+        && escapes.is_multiple_of(2)
+        && text[index + 1..]
+            .chars()
+            .take_while(|next| !next.is_ascii_whitespace() && !matches!(next, '<' | '>'))
+            .all(|next| matches!(next, ',' | ';' | ')' | '}' | ']'))
+}
+
+fn authority_has_userinfo_after_quote(text: &str, index: usize) -> bool {
+    // A closing quote followed by punctuation and prose ends a wrapped URL.
+    // Quoted userinfo may instead continue after whitespace, so retain that
+    // case until the first token boundary and look for its `@` separator.
+    let mut saw_punctuation = false;
+    for (offset, ch) in text[index + 1..].char_indices() {
+        let absolute = index + 1 + offset;
+        if ch.is_ascii_whitespace() {
+            if saw_punctuation {
+                return false;
+            }
+            let mut token_start = absolute + ch.len_utf8();
+            while text[token_start..]
+                .chars()
+                .next()
+                .is_some_and(|next| next.is_ascii_whitespace())
+            {
+                token_start += text[token_start..].chars().next().unwrap().len_utf8();
+            }
+            let token = &text[token_start..];
+            let token_end = token
+                .find(|next: char| {
+                    next.is_ascii_whitespace() || matches!(next, '/' | '?' | '#' | '<' | '>')
+                })
+                .unwrap_or(token.len());
+            let has_userinfo = token[..token_end].contains('@');
+            return has_userinfo;
+        }
+        if matches!(ch, ',' | ';' | ')' | '}' | ']') {
+            saw_punctuation = true;
+            continue;
+        }
+        if matches!(ch, '/' | '?' | '#' | '<' | '>') {
+            return false;
+        }
+        if ch == '@' {
+            return true;
+        }
+    }
+    false
+}
+
+fn url_query_value_end(text: &str, start: usize, scheme_start: usize) -> usize {
+    let double_quoted_url = scheme_start > 0 && text.as_bytes()[scheme_start - 1] == b'"';
+    // Track query quote segments separately from an optional URL wrapper.
+    // Single quotes only open at the value start: mid-value apostrophes are data.
+    let mut value_quote = None;
+    let mut backslashes = 0;
+    let mut end = text.len();
+    for (offset, ch) in text[start..].char_indices() {
+        let index = start + offset;
+        if ch == '\\' {
+            backslashes += 1;
+            continue;
+        }
+        let escapes = backslashes;
+        backslashes = 0;
+        let at_value_start = offset == escapes;
+        // A quote is URL data unless it closes a surrounding double quote.
+        // Debug-formatted targets escape embedded quotes; count backslashes so
+        // those quotes cannot expose a secret suffix as ordinary message text.
+        // Only punctuation may follow the closing quote before a prose boundary.
+        let closing_quote = double_quoted_url
+            && (!at_value_start || text[..start].ends_with(REDACTED))
+            && closes_url_quote(text, index, escapes);
+        if closing_quote
+            || (value_quote.is_none() && ch.is_ascii_whitespace())
+            || matches!(ch, '&' | '#' | '<' | '>')
+        {
+            end = index;
+            break;
+        }
+        if matches!(ch, '"' | '\'') {
+            // Debug formatting doubles backslashes and escapes double quotes,
+            // but leaves single quotes unchanged. Remove that outer layer before
+            // deciding whether a quote is escaped within the query value.
+            let debug_quote = double_quoted_url
+                && ((ch == '\'' && escapes.is_multiple_of(2)) || (ch == '"' && escapes % 2 == 1));
+            let value_escapes = if debug_quote { escapes / 2 } else { escapes };
+            let escaped = value_escapes % 2 == 1;
+            match value_quote {
+                Some(quote) if ch == quote && !escaped => value_quote = None,
+                None if at_value_start || (ch == '"' && !escaped) => value_quote = Some(ch),
+                _ => {}
+            }
+        }
+    }
+    // Preserve a surrounding single quote, but never stop at an apostrophe
+    // inside a value or just before a query delimiter. Unquoted URL values may
+    // themselves end in apostrophes.
+    if scheme_start > 0
+        && text.as_bytes()[scheme_start - 1] == b'\''
+        && end > start
+        && text.as_bytes()[end - 1] == b'\''
+        && !matches!(text.as_bytes().get(end), Some(b'&' | b'#'))
+    {
+        end -= 1;
+    }
+    end
+}
+
 fn redact_url_credentials(input: &str) -> String {
     let mut output = input.to_owned();
     let mut cursor = 0;
     while let Some(relative) = output[cursor..].find("://") {
         let scheme_end = cursor + relative;
         let authority_start = scheme_end + 3;
+        let scheme_start = url_scheme_start(&output, scheme_end);
+        let wrapped = scheme_start > 0 && output.as_bytes()[scheme_start - 1] == b'"';
+        let mut backslashes = 0;
         let authority_end = output[authority_start..]
-            .find(['/', ' ', '\n', '\r', '"', '\''])
-            .map_or(output.len(), |offset| authority_start + offset);
-        if let Some(at) = output[authority_start..authority_end].find('@') {
+            .char_indices()
+            .find_map(|(offset, ch)| {
+                let index = authority_start + offset;
+                let escapes = backslashes;
+                backslashes = if ch == '\\' { backslashes + 1 } else { 0 };
+                let authority_delimiter = matches!(ch, '/' | '?' | '#' | '<' | '>');
+                let credential_space = ch.is_ascii_whitespace()
+                    && output[index..].find(['/', '?', '#', '<', '>']).map_or_else(
+                        || output[index..].contains('@'),
+                        |limit| output[index..index + limit].contains('@'),
+                    );
+                (authority_delimiter
+                    || (wrapped
+                        && closes_url_quote(&output, index, escapes)
+                        && !authority_has_userinfo_after_quote(&output, index))
+                    || (ch.is_ascii_whitespace() && !credential_space))
+                    .then_some(index)
+            })
+            .unwrap_or(output.len());
+        if let Some(at) = output[authority_start..authority_end].rfind('@') {
             let userinfo_end = authority_start + at;
-            if let Some(colon) = output[authority_start..userinfo_end].find(':') {
-                let secret_start = authority_start + colon + 1;
-                output.replace_range(secret_start..userinfo_end, REDACTED);
-                cursor = secret_start + REDACTED.len();
-                continue;
-            }
+            output.replace_range(authority_start..userinfo_end, REDACTED);
+            cursor = authority_start + REDACTED.len() + 1;
+            continue;
         }
         cursor = authority_end;
     }
@@ -212,6 +389,344 @@ pub(crate) fn redact_error(mut error: crate::DaemonError) -> crate::DaemonError 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn quoted_query_whitespace_never_exposes_secret_suffixes() {
+        for (url, expected) in [
+            (
+                "https://alice:p\"  s3cr3t@blocked.example/?view=public\"",
+                "https://[REDACTED]@blocked.example/?view=public\"",
+            ),
+            (
+                "https://alice:p\"\ts3cr3t@blocked.example/?view=public\"",
+                "https://[REDACTED]@blocked.example/?view=public\"",
+            ),
+            (
+                r#"https://blocked.example/?view="public data"&token=prefix" private-token"&view=public"#,
+                r#"https://blocked.example/?view="public data"&token=[REDACTED]&view=public"#,
+            ),
+            (
+                r#"https://alice:p" s3cr3t@blocked.example/?view=public"#,
+                "https://[REDACTED]@blocked.example/?view=public",
+            ),
+            (
+                r#"https://private-user:p"private-password@blocked.example/?view=public"#,
+                "https://[REDACTED]@blocked.example/?view=public",
+            ),
+            (
+                r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token="prefix private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token=" private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token=[REDACTED]"prefix private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                "https://blocked.example/?token='prefix private-token'&view=public#section",
+                "https://blocked.example/?token=[REDACTED]&view=public#section",
+            ),
+            (
+                r#"https://blocked.example/?token="prefix ' private-token""#,
+                "https://blocked.example/?token=[REDACTED]",
+            ),
+            (
+                r#"https://blocked.example/?token="prefix\" private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                "https://blocked.example/?token=\"prefix\t\nprivate-token\"&view=public",
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?next=https://public.example/path?view=public&token="prefix private-token"&mode=public#section"#,
+                "https://blocked.example/?next=https://public.example/path?view=public&token=[REDACTED]&mode=public#section",
+            ),
+        ] {
+            for (input, expected) in [
+                (url.to_owned(), expected.to_owned()),
+                (
+                    format!("blocked Document {url} (2 requests)"),
+                    format!("blocked Document {expected} (2 requests)"),
+                ),
+                (
+                    format!("target {url:?} denied"),
+                    format!("target {expected:?} denied"),
+                ),
+                (format!("'{url}'"), format!("'{expected}'")),
+            ] {
+                let mut output = input.clone();
+                for pass in 1..=3 {
+                    output = redact_str(&output);
+                    assert_eq!(output, expected, "pass {pass}: {input}");
+                }
+            }
+        }
+        for input in [
+            r#"https://blocked.example/?token="prefix private-token"#,
+            r#"https://blocked.example/?token=\"prefix private-token"#,
+        ] {
+            let expected = "https://blocked.example/?token=[REDACTED]";
+            assert_eq!(redact_str(input), expected);
+            assert_eq!(redact_str(expected), expected);
+        }
+    }
+
+    #[test]
+    fn earlier_public_quotes_preserve_query_and_prose_boundaries() {
+        for (url, expected) in [
+            (
+                r##"https://blocked.example/?view='public data'&flag&next=https://public.example/path&token=prefix" private-token"&view=public#section"##,
+                r##"https://blocked.example/?view='public data'&flag&next=https://public.example/path&token=[REDACTED]&view=public#section"##,
+            ),
+            (
+                r##"https://blocked.example/?view="public data"&token=prefix" private-token"#section"##,
+                r##"https://blocked.example/?view="public data"&token=[REDACTED]#section"##,
+            ),
+            (
+                r##"https://blocked.example/?view="public data"&token=prefix" private-token""##,
+                r##"https://blocked.example/?view="public data"&token=[REDACTED]"##,
+            ),
+            (
+                r##"https://private-user:p"private-password@blocked.example"##,
+                "https://[REDACTED]@blocked.example",
+            ),
+        ] {
+            for (input, expected) in [
+                (
+                    format!("{url} reader's note"),
+                    format!("{expected} reader's note"),
+                ),
+                (
+                    format!("target {url:?}, reader's note"),
+                    format!("target {expected:?}, reader's note"),
+                ),
+            ] {
+                let mut output = input.clone();
+                for _ in 0..3 {
+                    output = redact_str(&output);
+                    assert_eq!(output, expected, "{input}");
+                }
+            }
+        }
+        for (input, expected) in [
+            (
+                r##"https://public.example/?view="public data" password=prefix#private-secret public note"##,
+                r##"https://public.example/?view="public data" password=[REDACTED] public note"##,
+            ),
+            (
+                r##"https://public.example/?view="public data"#section token=prefix&private-tail public note"##,
+                r##"https://public.example/?view="public data"#section token=[REDACTED] public note"##,
+            ),
+            (
+                r##""https://public.example", @public.example reader's note"##,
+                r##""https://public.example", @public.example reader's note"##,
+            ),
+            (
+                r##"<https://private-user:p"private-password@blocked.example> public note"##,
+                "<https://[REDACTED]@blocked.example> public note",
+            ),
+        ] {
+            let mut output = input.to_owned();
+            for _ in 0..3 {
+                output = redact_str(&output);
+                assert_eq!(output, expected, "{input}");
+            }
+        }
+    }
+
+    #[test]
+    fn query_quote_parity_preserves_trailing_prose() {
+        for quote in ['"', '\''] {
+            for backslashes in 0..=5 {
+                let slashes = "\\".repeat(backslashes);
+                let value = if backslashes % 2 == 0 {
+                    format!("{quote}prefix{slashes}{quote}")
+                } else {
+                    format!("{quote}prefix{slashes}{quote} private-token{quote}")
+                };
+                let url = format!("https://blocked.example/?token={value}");
+                let redacted = "https://blocked.example/?token=[REDACTED]";
+                for (input, expected) in [
+                    (
+                        format!("{url} reader's note"),
+                        format!("{redacted} reader's note"),
+                    ),
+                    (
+                        format!("target {url:?}, reader's note"),
+                        format!("target {redacted:?}, reader's note"),
+                    ),
+                ] {
+                    let mut output = input.clone();
+                    for _ in 0..3 {
+                        output = redact_str(&output);
+                        assert_eq!(output, expected, "{input}");
+                    }
+                }
+            }
+        }
+        for (input, expected) in [
+            (
+                r#"https://blocked.example/?token=prefix" private-token" reader's note"#,
+                "https://blocked.example/?token=[REDACTED] reader's note",
+            ),
+            (
+                r#"https://blocked.example/?token=prefix" private-token"suffix" more-secret"&view=public#section"#,
+                "https://blocked.example/?token=[REDACTED]&view=public#section",
+            ),
+            (
+                "https://blocked.example/?token=reader's public note",
+                "https://blocked.example/?token=[REDACTED] public note",
+            ),
+            (
+                r#"https://blocked.example/?token=prefix"private-token&view=public#section"#,
+                "https://blocked.example/?token=[REDACTED]&view=public#section",
+            ),
+        ] {
+            assert_eq!(redact_str(input), expected);
+            assert_eq!(redact_str(expected), expected);
+        }
+    }
+
+    #[test]
+    fn double_quotes_are_redacted_in_their_url_value_context() {
+        for (input, expected) in [
+            (
+                r#"target "https://blocked.example/?token='prefix\\' private-token'&view=public" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]&view=public" denied"#,
+            ),
+            (
+                r#"target "https://blocked.example/?token='prefix\' private-token'&view=public" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]&view=public" denied"#,
+            ),
+            (
+                r#"https://blocked.example/?token="private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token=prefix"private-token"#,
+                "https://blocked.example/?token=[REDACTED]",
+            ),
+            (
+                r#"target "https://blocked.example/?token=prefix\"private-token" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+            ),
+            (
+                r#"target "https://blocked.example/?token=\"private-token\"&view=public#section" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]&view=public#section" denied"#,
+            ),
+            (
+                r#"target "https://blocked.example/?token=prefix",private-token" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+            ),
+            (
+                r#"target "https://blocked.example/?token=prefix\\" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+            ),
+            (
+                r#""https://blocked.example/?token=private-token", reader's note"#,
+                r#""https://blocked.example/?token=[REDACTED]", reader's note"#,
+            ),
+            (
+                r#"https://blocked.example/reader"s?view="public"&token="private-token"&mode=public#section"#,
+                r#"https://blocked.example/reader"s?view="public"&token=[REDACTED]&mode=public#section"#,
+            ),
+        ] {
+            assert_eq!(redact_str(input), expected, "{input}");
+            assert_eq!(redact_str(expected), expected, "idempotence: {input}");
+        }
+        for safe in [
+            r##"reader's "public" note: https://example.com/reader"s?view="public"#section"##,
+            r#""https://example.com/?view=public" password=prefix#private-secret"#,
+        ] {
+            let expected = safe.replace("prefix#private-secret", REDACTED);
+            assert_eq!(redact_str(safe), expected);
+        }
+    }
+
+    #[test]
+    fn nested_url_queries_preserve_public_data_and_are_idempotent() {
+        for (input, expected) in [
+            (
+                "https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section",
+                "https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section",
+            ),
+            (
+                r#"target "https://blocked.example/?next=https://public.example/path?view=public&token=private-token&mode=public#section" denied"#,
+                r#"target "https://blocked.example/?next=https://public.example/path?view=public&token=[REDACTED]&mode=public#section" denied"#,
+            ),
+        ] {
+            assert_eq!(redact_str(input), expected, "{input}");
+            assert_eq!(redact_str(expected), expected, "idempotence: {input}");
+        }
+    }
+
+    #[test]
+    fn apostrophes_and_hashes_are_redacted_in_their_value_context() {
+        for (input, expected) in [
+            (
+                "https://user:p'private-password@blocked.example/path?view=public",
+                "https://[REDACTED]@blocked.example/path?view=public",
+            ),
+            (
+                "https://blocked.example/path?token=prefix'private-token&view=public#section",
+                "https://blocked.example/path?token=[REDACTED]&view=public#section",
+            ),
+            (
+                "'https://blocked.example/path?token=prefix'private-token'",
+                "'https://blocked.example/path?token=[REDACTED]'",
+            ),
+            (
+                "https://blocked.example/path?token='private-token'&view=public",
+                "https://blocked.example/path?token=[REDACTED]&view=public",
+            ),
+            ("password=prefix#private-secret", "password=[REDACTED]"),
+            ("password=prefix'private-secret", "password=[REDACTED]"),
+            ("password=prefix&private-secret", "password=[REDACTED]"),
+            ("password=[REDACTED]#private-secret", "password=[REDACTED]"),
+            (
+                "password='prefix#private-secret' reader's note",
+                "password=[REDACTED] reader's note",
+            ),
+        ] {
+            assert_eq!(redact_str(input), expected, "{input}");
+            assert_eq!(redact_str(expected), expected, "idempotence: {input}");
+        }
+        let safe = "reader's note: https://example.com/reader's?view=reader's#section";
+        assert_eq!(redact_str(safe), safe);
+    }
+
+    #[test]
+    fn url_warning_redaction_preserves_public_data_and_is_idempotent() {
+        for input in [
+            "https://private-user:private-password@blocked.example?token=private-token&view=public",
+            "https://private-user@blocked.example?token=private-token&view=public",
+            "https://blocked.example?token=[REDACTED]private-token&view=public",
+        ] {
+            let output = Redactor.redact_str(input);
+            for secret in ["private-user", "private-password", "private-token"] {
+                assert!(!output.contains(secret), "{output}");
+            }
+            assert!(
+                output.contains("blocked.example?token=[REDACTED]&view=public"),
+                "{output}"
+            );
+            assert_eq!(Redactor.redact_str(&output), output);
+        }
+        let safe = "blocked Document https://blocked.example/path?view=public (2 requests)";
+        assert_eq!(Redactor.redact_str(safe), safe);
+    }
+
     #[test]
     fn corpus_secrets_do_not_survive_any_surface() {
         let text = "password=topsecret token: bearer-secret https://user:pw@example.com/x";

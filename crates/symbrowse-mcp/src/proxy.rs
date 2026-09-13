@@ -672,7 +672,9 @@ impl DaemonResponse {
         if self.warnings.is_empty() {
             Ok(data)
         } else {
-            Ok(json!({"data": data, "warnings": self.warnings}))
+            Ok(
+                json!({"data": data, "warnings": self.warnings.iter().map(symbrowse_daemon::redact_json).collect::<Vec<_>>()}),
+            )
         }
     }
 }
@@ -1061,6 +1063,175 @@ fn read_limited_line<R: BufRead>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn raw_quote_segment_warnings_and_denials_are_scrubbed_at_mcp_conversion() {
+        // Both conversion paths receive raw text, independently of the daemon.
+        for (url, redacted) in [
+            (
+                r#"https://blocked.example/?view="public data"&token=prefix" private-token"&view=public"#,
+                r#"https://blocked.example/?view="public data"&token=[REDACTED]&view=public"#,
+            ),
+            (
+                r#"https://private-user:p"private-password@blocked.example/?view=public"#,
+                "https://[REDACTED]@blocked.example/?view=public",
+            ),
+            (
+                r#"https://alice:p" s3cr3t@blocked.example/?view=public"#,
+                "https://[REDACTED]@blocked.example/?view=public",
+            ),
+            (
+                r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+        ] {
+            let mut wire = json!({
+                "success":true, "data":{"title":"public"}, "warnings":[{
+                    "kind":"network_policy.blocked", "severity":"warning",
+                    "message":format!("blocked Document {url} (2 requests)"),
+                    "ref":format!("target {url:?} denied"), "excerpt":url
+                }]
+            });
+            let expected = json!({
+                "data":{"title":"public"}, "warnings":[{
+                    "kind":"network_policy.blocked", "severity":"warning",
+                    "message":format!("blocked Document {redacted} (2 requests)"),
+                    "ref":format!("target {redacted:?} denied"), "excerpt":redacted
+                }]
+            });
+            for _ in 0..3 {
+                let response: DaemonResponse = serde_json::from_value(wire).unwrap();
+                let result = response.into_result().unwrap();
+                assert_eq!(result, expected);
+                wire = result;
+                wire["success"] = json!(true);
+            }
+            let mut error = json!({
+                "code":"operation_failed", "message":format!("target {url:?} denied"),
+                "hint":url, "resume_hint":format!("blocked Document {url} (2 requests)"),
+                "details":{"url":url}, "requires_user_confirmation":false
+            });
+            let expected = json!({
+                "code":"operation_failed", "message":format!("target {redacted:?} denied"),
+                "hint":redacted, "resume_hint":format!("blocked Document {redacted} (2 requests)"),
+                "details":{"url":redacted}, "requires_user_confirmation":false
+            });
+            for _ in 0..3 {
+                let response: DaemonResponse = serde_json::from_value(json!({
+                    "success":false, "error":error
+                }))
+                .unwrap();
+                let converted = response.into_result().unwrap_err();
+                assert_eq!(converted.retryable, None);
+                error = json!({
+                    "code":converted.code, "message":converted.message,
+                    "hint":converted.hint, "resume_hint":converted.resume_hint,
+                    "details":converted.details,
+                    "requires_user_confirmation":converted.requires_user_confirmation
+                });
+                assert_eq!(error, expected);
+            }
+        }
+    }
+
+    #[test]
+    fn raw_double_quote_warnings_are_scrubbed_at_mcp_conversion() {
+        // Raw wire warnings bypass the daemon scrubber entirely.
+        let response: DaemonResponse = serde_json::from_value(json!({
+            "success": true, "data": {"title":"public"},
+            "warnings": [{
+                "kind":"network_policy.blocked", "severity":"warning",
+                "message":r#"https://blocked.example/?token="private-token"&view=public"#,
+                "ref":r#"target "https://blocked.example/?token=prefix\"private-token" denied"#,
+                "excerpt":"https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section"
+            }]
+        })).unwrap();
+        let result = response.into_result().unwrap();
+        assert_eq!(
+            result,
+            json!({
+                "data": {"title":"public"},
+                "warnings": [{
+                    "kind":"network_policy.blocked", "severity":"warning",
+                    "message":"https://blocked.example/?token=[REDACTED]&view=public",
+                    "ref":r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+                    "excerpt":"https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section"
+                }]
+            })
+        );
+    }
+
+    #[test]
+    fn raw_quoted_whitespace_warnings_are_scrubbed_at_mcp_conversion() {
+        // Feed raw warnings directly to MCP, without daemon-side redaction.
+        let mut wire = json!({
+            "success": true, "data": {"title":"public"},
+            "warnings": [{
+                "kind":"network_policy.blocked", "severity":"warning",
+                "message":r#"blocked Document https://blocked.example/?token="prefix private-token"&view=public (2 requests)"#,
+                "ref":format!("target {:?} denied", r#"https://blocked.example/?token="prefix private-token""#),
+                "excerpt":"https://blocked.example/?next=https://public.example/path&token='prefix private-token'&view=public#section"
+            }]
+        });
+        let expected = json!({
+            "data": {"title":"public"},
+            "warnings": [{
+                "kind":"network_policy.blocked", "severity":"warning",
+                "message":"blocked Document https://blocked.example/?token=[REDACTED]&view=public (2 requests)",
+                "ref":r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+                "excerpt":"https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section"
+            }]
+        });
+        for _ in 0..3 {
+            let response: DaemonResponse = serde_json::from_value(wire).unwrap();
+            let result = response.into_result().unwrap();
+            let serialized = serde_json::to_string(&result).unwrap();
+            assert_eq!(
+                serde_json::from_str::<Value>(&serialized).unwrap(),
+                expected
+            );
+            wire = result;
+            wire["success"] = json!(true);
+        }
+    }
+
+    #[test]
+    fn raw_daemon_warnings_are_scrubbed_at_mcp_conversion() {
+        // Deliberately bypass daemon success_response: this proves the MCP
+        // scrubber independently of the daemon/MCP socket integration tests.
+        let response: DaemonResponse = serde_json::from_value(json!({
+            "success": true,
+            "data": {"url":"https://example.com/reader's?view=public"},
+            "warnings": [{
+                "kind":"network_policy.blocked",
+                "severity":"warning",
+                "message":"https://user:p'private-password@blocked.example/reader's?token=prefix'private-token&view=public",
+                "ref":"password=prefix#private-secret",
+                "excerpt":"reader's note: password=prefix'private-secret"
+            }]
+        })).unwrap();
+        let result = response.into_result().unwrap();
+        assert_eq!(
+            result["data"]["url"],
+            "https://example.com/reader's?view=public"
+        );
+        assert_eq!(result["warnings"].as_array().unwrap().len(), 1);
+        assert_eq!(result["warnings"][0]["kind"], "network_policy.blocked");
+        assert_eq!(result["warnings"][0]["severity"], "warning");
+        assert_eq!(
+            result["warnings"][0]["message"],
+            "https://[REDACTED]@blocked.example/reader's?token=[REDACTED]&view=public"
+        );
+        assert_eq!(result["warnings"][0]["ref"], "password=[REDACTED]");
+        assert_eq!(
+            result["warnings"][0]["excerpt"],
+            "reader's note: password=[REDACTED]"
+        );
+    }
 
     #[cfg(unix)]
     #[test]
