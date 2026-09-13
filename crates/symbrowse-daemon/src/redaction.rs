@@ -239,10 +239,16 @@ fn redact_url_credentials(input: &str) -> String {
                 let index = authority_start + offset;
                 let escapes = backslashes;
                 backslashes = if ch == '\\' { backslashes + 1 } else { 0 };
-                (ch.is_ascii_whitespace()
-                    || matches!(ch, '/' | '?' | '#' | '<' | '>')
-                    || (wrapped && closes_url_quote(&output, index, escapes)))
-                .then_some(index)
+                let authority_delimiter = matches!(ch, '/' | '?' | '#' | '<' | '>');
+                let credential_space = ch.is_ascii_whitespace()
+                    && output[index..].find(['/', '?', '#', '<', '>']).map_or_else(
+                        || output[index..].contains('@'),
+                        |limit| output[index..index + limit].contains('@'),
+                    );
+                (authority_delimiter
+                    || (wrapped && closes_url_quote(&output, index, escapes))
+                    || (ch.is_ascii_whitespace() && !credential_space))
+                    .then_some(index)
             })
             .unwrap_or(output.len());
         if let Some(at) = output[authority_start..authority_end].rfind('@') {
@@ -345,6 +351,10 @@ mod tests {
             (
                 r#"https://blocked.example/?view="public data"&token=prefix" private-token"&view=public"#,
                 r#"https://blocked.example/?view="public data"&token=[REDACTED]&view=public"#,
+            ),
+            (
+                r#"https://alice:p" s3cr3t@blocked.example/?view=public"#,
+                "https://[REDACTED]@blocked.example/?view=public",
             ),
             (
                 r#"https://private-user:p"private-password@blocked.example/?view=public"#,
