@@ -161,8 +161,7 @@ def run_once(binary: Path, probe: Probe, env: dict[str, str], cwd: Path) -> dict
             [str(binary), *probe.argv],
             cwd=cwd,
             env=env,
-            input=probe.stdin,
-            text=True,
+            input=probe.stdin.encode("utf-8"),
             capture_output=True,
             timeout=15,
             check=False,
@@ -182,7 +181,7 @@ def run_once(binary: Path, probe: Probe, env: dict[str, str], cwd: Path) -> dict
     if len(result.stdout) > MAX_OUTPUT or len(result.stderr) > MAX_OUTPUT:
         return {"status": "error", "reason": "output limit exceeded", "duration_ns": duration, "peak_rss_bytes": peak_rss}
     lowered = (stdout + stderr).lower()
-    if b"password=" in lowered.encode() or b"token=" in lowered.encode():
+    if b"password=" in lowered or b"token=" in lowered:
         return {"status": "error", "reason": "secret-like output", "duration_ns": duration, "peak_rss_bytes": peak_rss}
     if result.returncode == 0 and not stdout and not stderr:
         return {
@@ -193,12 +192,12 @@ def run_once(binary: Path, probe: Probe, env: dict[str, str], cwd: Path) -> dict
         }
     if result.returncode != 0:
         return {
-            "status": "unsupported" if "unknown command" in stderr.lower() or "not implemented" in stderr.lower() else "error",
+            "status": "unsupported" if b"unknown command" in stderr.lower() or b"not implemented" in stderr.lower() else "error",
             "reason": f"exit {result.returncode}",
             "duration_ns": duration,
             "peak_rss_bytes": peak_rss,
-            "stdout_sha256": __import__("hashlib").sha256(stdout.encode()).hexdigest(),
-            "stderr_sha256": __import__("hashlib").sha256(stderr.encode()).hexdigest(),
+            "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
+            "stderr_sha256": hashlib.sha256(stderr).hexdigest(),
         }
     return {
         "status": "pass",
