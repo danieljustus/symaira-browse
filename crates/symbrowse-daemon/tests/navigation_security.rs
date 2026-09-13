@@ -10,6 +10,14 @@ use support::*;
 fn runtime_double_quote_denials_are_scrubbed() {
     for (url, redacted) in [
         (
+            r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+            "https://blocked.example/?token=[REDACTED]&view=public",
+        ),
+        (
+            r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+            "https://blocked.example/?token=[REDACTED]&view=public",
+        ),
+        (
             r#"https://blocked.example/?token="private-token"&view=public"#,
             "https://blocked.example/?token=[REDACTED]&view=public",
         ),
@@ -273,6 +281,80 @@ fn runtime_rejects_navigation_before_browser_initialization() {
                 "{engine}: {error}"
             );
             assert_scrubbed(&error.message);
+        }
+    }
+}
+
+#[test]
+fn daemon_quote_segment_denials_and_success_warnings_are_scrubbed() {
+    let harness = Harness::new("segments");
+    for url in [
+        r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+        r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+    ] {
+        let redacted = "https://blocked.example/?token=[REDACTED]&view=public";
+        for command in ["open", "goto", "tab.new"] {
+            let denied = harness.request(command, url);
+            assert_eq!(denied["success"], false);
+            assert_eq!(denied["error"]["code"], "operation_failed");
+            assert_eq!(
+                denied["error"]["message"],
+                format!(
+                    "navigation URL policy: target {redacted:?} is blocked by the domain allowlist"
+                )
+            );
+            let mut repeated = denied.clone();
+            for _ in 0..3 {
+                repeated = symbrowse_daemon::redact_json(&repeated);
+                assert_eq!(repeated, denied);
+            }
+        }
+        let warnings = vec![symbrowse_daemon::Warning {
+            kind: "network_policy.blocked".into(),
+            severity: "warning".into(),
+            message: format!("blocked Document {url} (2 requests)"),
+            r#ref: format!("target {url:?} denied"),
+            excerpt: url.into(),
+        }];
+        let expected = json!([{
+            "kind":"network_policy.blocked", "severity":"warning",
+            "message":format!("blocked Document {redacted} (2 requests)"),
+            "ref":format!("target {redacted:?} denied"),
+            "excerpt":redacted
+        }]);
+        *harness.history.lock().unwrap() = warnings;
+        let response = harness.request("get.title", "");
+        assert_eq!(response["success"], true);
+        assert_eq!(response["warnings"], expected);
+    }
+    assert_eq!(harness.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn daemon_success_response_quote_segment_warnings_are_scrubbed() {
+    for url in [
+        r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+        r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+    ] {
+        let redacted = "https://blocked.example/?token=[REDACTED]&view=public";
+        let mut response = symbrowse_daemon::success_response(
+            Some(json!({"title":"public"})),
+            vec![symbrowse_daemon::Warning {
+                kind: "network_policy.blocked".into(),
+                severity: "warning".into(),
+                message: format!("blocked Document {url} (2 requests)"),
+                r#ref: format!("target {url:?} denied"),
+                excerpt: url.into(),
+            }],
+        );
+        let expected = json!({"success":true, "data":{"title":"public"}, "warnings":[{
+            "kind":"network_policy.blocked", "severity":"warning",
+            "message":format!("blocked Document {redacted} (2 requests)"),
+            "ref":format!("target {redacted:?} denied"), "excerpt":redacted
+        }]});
+        for _ in 0..3 {
+            assert_eq!(serde_json::to_value(&response).unwrap(), expected);
+            response = symbrowse_daemon::success_response(response.data, response.warnings);
         }
     }
 }

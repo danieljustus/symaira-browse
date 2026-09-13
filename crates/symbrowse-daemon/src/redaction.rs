@@ -132,33 +132,26 @@ fn query_value_end(text: &str, start: usize) -> Option<usize> {
         .rfind(|ch: char| !ch.is_ascii_alphanumeric() && !matches!(ch, '+' | '-' | '.'))
         .map_or(0, |offset| offset + 1);
     let double_quoted_url = scheme_start > 0 && text.as_bytes()[scheme_start - 1] == b'"';
-    // A leading value quote owns whitespace until its matching close. Debug
-    // formatting adds an escape layer: \" closes a debug-quoted value, while
-    // \\\" represents an escaped quote inside it and must not end that value.
-    let quote_offset = text[start..].bytes().take_while(|b| *b == b'\\').count();
-    let mut value_quote = text
-        .as_bytes()
-        .get(start + quote_offset)
-        .copied()
-        .filter(|b| matches!(b, b'"' | b'\''));
+    // Track query quote segments separately from an optional URL wrapper.
+    // Single quotes only open at the value start: mid-value apostrophes are data.
+    let mut value_quote = None;
+    let mut backslashes = 0;
     let mut end = text.len();
     for (offset, ch) in text[start..].char_indices() {
         let index = start + offset;
-        let escapes = if matches!(ch, '"' | '\'') {
-            text[..index]
-                .bytes()
-                .rev()
-                .take_while(|b| *b == b'\\')
-                .count()
-        } else {
-            0
-        };
+        if ch == '\\' {
+            backslashes += 1;
+            continue;
+        }
+        let escapes = backslashes;
+        backslashes = 0;
+        let at_value_start = offset == escapes;
         // A quote is URL data unless it closes a surrounding double quote.
         // Debug-formatted targets escape embedded quotes; count backslashes so
         // those quotes cannot expose a secret suffix as ordinary message text.
         // Only punctuation may follow the closing quote before a prose boundary.
         let closing_quote = double_quoted_url
-            && (offset > quote_offset || text[..start].ends_with(REDACTED))
+            && (!at_value_start || text[..start].ends_with(REDACTED))
             && ch == '"'
             && escapes % 2 == 0
             && text[index + 1..]
@@ -172,11 +165,19 @@ fn query_value_end(text: &str, start: usize) -> Option<usize> {
             end = index;
             break;
         }
-        if offset > quote_offset
-            && value_quote.is_some_and(|quote| ch == char::from(quote))
-            && escapes % (2 * (quote_offset + 1)) == quote_offset
-        {
-            value_quote = None;
+        if matches!(ch, '"' | '\'') {
+            // Debug formatting doubles backslashes and escapes double quotes,
+            // but leaves single quotes unchanged. Remove that outer layer before
+            // deciding whether a quote is escaped within the query value.
+            let debug_quote = double_quoted_url
+                && ((ch == '\'' && escapes % 2 == 0) || (ch == '"' && escapes % 2 == 1));
+            let value_escapes = if debug_quote { escapes / 2 } else { escapes };
+            let escaped = value_escapes % 2 == 1;
+            match value_quote {
+                Some(quote) if ch == quote && !escaped => value_quote = None,
+                None if at_value_start || (ch == '"' && !escaped) => value_quote = Some(ch),
+                _ => {}
+            }
         }
     }
     // Preserve a surrounding single quote, but never stop at an apostrophe
@@ -302,6 +303,14 @@ mod tests {
     fn quoted_query_whitespace_never_exposes_secret_suffixes() {
         for (url, expected) in [
             (
+                r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
                 r#"https://blocked.example/?token="prefix private-token"&view=public"#,
                 "https://blocked.example/?token=[REDACTED]&view=public",
             ),
@@ -364,8 +373,69 @@ mod tests {
     }
 
     #[test]
+    fn query_quote_parity_preserves_trailing_prose() {
+        for quote in ['"', '\''] {
+            for backslashes in 0..=5 {
+                let slashes = "\\".repeat(backslashes);
+                let value = if backslashes % 2 == 0 {
+                    format!("{quote}prefix{slashes}{quote}")
+                } else {
+                    format!("{quote}prefix{slashes}{quote} private-token{quote}")
+                };
+                let url = format!("https://blocked.example/?token={value}");
+                let redacted = "https://blocked.example/?token=[REDACTED]";
+                for (input, expected) in [
+                    (
+                        format!("{url} reader's note"),
+                        format!("{redacted} reader's note"),
+                    ),
+                    (
+                        format!("target {url:?}, reader's note"),
+                        format!("target {redacted:?}, reader's note"),
+                    ),
+                ] {
+                    let mut output = input.clone();
+                    for _ in 0..3 {
+                        output = redact_str(&output);
+                        assert_eq!(output, expected, "{input}");
+                    }
+                }
+            }
+        }
+        for (input, expected) in [
+            (
+                r#"https://blocked.example/?token=prefix" private-token" reader's note"#,
+                "https://blocked.example/?token=[REDACTED] reader's note",
+            ),
+            (
+                r#"https://blocked.example/?token=prefix" private-token"suffix" more-secret"&view=public#section"#,
+                "https://blocked.example/?token=[REDACTED]&view=public#section",
+            ),
+            (
+                "https://blocked.example/?token=reader's public note",
+                "https://blocked.example/?token=[REDACTED] public note",
+            ),
+            (
+                r#"https://blocked.example/?token=prefix"private-token&view=public#section"#,
+                "https://blocked.example/?token=[REDACTED]&view=public#section",
+            ),
+        ] {
+            assert_eq!(redact_str(input), expected);
+            assert_eq!(redact_str(expected), expected);
+        }
+    }
+
+    #[test]
     fn double_quotes_are_redacted_in_their_url_value_context() {
         for (input, expected) in [
+            (
+                r#"target "https://blocked.example/?token='prefix\\' private-token'&view=public" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]&view=public" denied"#,
+            ),
+            (
+                r#"target "https://blocked.example/?token='prefix\' private-token'&view=public" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]&view=public" denied"#,
+            ),
             (
                 r#"https://blocked.example/?token="private-token"&view=public"#,
                 "https://blocked.example/?token=[REDACTED]&view=public",

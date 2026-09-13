@@ -1065,6 +1065,63 @@ mod tests {
     use super::*;
 
     #[test]
+    fn raw_quote_segment_warnings_and_denials_are_scrubbed_at_mcp_conversion() {
+        // Both conversion paths receive raw text, independently of the daemon.
+        for url in [
+            r#"https://blocked.example/?token=prefix" private-token"&view=public"#,
+            r#"https://blocked.example/?token='prefix\' private-token'&view=public"#,
+        ] {
+            let redacted = "https://blocked.example/?token=[REDACTED]&view=public";
+            let mut wire = json!({
+                "success":true, "data":{"title":"public"}, "warnings":[{
+                    "kind":"network_policy.blocked", "severity":"warning",
+                    "message":format!("blocked Document {url} (2 requests)"),
+                    "ref":format!("target {url:?} denied"), "excerpt":url
+                }]
+            });
+            let expected = json!({
+                "data":{"title":"public"}, "warnings":[{
+                    "kind":"network_policy.blocked", "severity":"warning",
+                    "message":format!("blocked Document {redacted} (2 requests)"),
+                    "ref":format!("target {redacted:?} denied"), "excerpt":redacted
+                }]
+            });
+            for _ in 0..3 {
+                let response: DaemonResponse = serde_json::from_value(wire).unwrap();
+                let result = response.into_result().unwrap();
+                assert_eq!(result, expected);
+                wire = result;
+                wire["success"] = json!(true);
+            }
+            let mut error = json!({
+                "code":"operation_failed", "message":format!("target {url:?} denied"),
+                "hint":url, "resume_hint":format!("blocked Document {url} (2 requests)"),
+                "details":{"url":url}, "requires_user_confirmation":false
+            });
+            let expected = json!({
+                "code":"operation_failed", "message":format!("target {redacted:?} denied"),
+                "hint":redacted, "resume_hint":format!("blocked Document {redacted} (2 requests)"),
+                "details":{"url":redacted}, "requires_user_confirmation":false
+            });
+            for _ in 0..3 {
+                let response: DaemonResponse = serde_json::from_value(json!({
+                    "success":false, "error":error
+                }))
+                .unwrap();
+                let converted = response.into_result().unwrap_err();
+                assert_eq!(converted.retryable, None);
+                error = json!({
+                    "code":converted.code, "message":converted.message,
+                    "hint":converted.hint, "resume_hint":converted.resume_hint,
+                    "details":converted.details,
+                    "requires_user_confirmation":converted.requires_user_confirmation
+                });
+                assert_eq!(error, expected);
+            }
+        }
+    }
+
+    #[test]
     fn raw_double_quote_warnings_are_scrubbed_at_mcp_conversion() {
         // Raw wire warnings bypass the daemon scrubber entirely.
         let response: DaemonResponse = serde_json::from_value(json!({
