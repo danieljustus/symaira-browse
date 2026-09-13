@@ -22,7 +22,10 @@ are replaced individually, and public host/path/query information survives.
 Apostrophes within URL userinfo and query values do not terminate credentials.
 Query delimiters apply only inside URL queries: a generic
 `password=prefix#private-secret` value is scrubbed in full. Ordinary apostrophes
-in safe prose, paths and public query values are retained.
+in safe prose, paths and public query values are retained. Double quotes inside
+a query value, including escaped quotes in debug-formatted denial messages,
+are scrubbed with that value; surrounding URL quotes remain intact. Nested URLs
+in public query values do not reset the outer query boundary.
 MCP also scrubs received warning objects, including warnings from the Go daemon.
 No stdout diagnostics are introduced; the MCP test parses every output line as
 an identified JSON-RPC response.
@@ -47,13 +50,17 @@ checked against separately seeded engine warning history containing synthetic
 credentials. The MCP integration test uses the real socket proxy and stdio
 framer against that server.
 
-The additional boundary tests use synthetic apostrophe/hash inputs separately
-from the Go fixture. The runtime scheme regression checks direct commands and
-open/goto flow steps for Chrome, Firefox, both Safari modes and static dispatch,
+The additional boundary tests use synthetic apostrophe/hash, double-quote and
+nested-URL inputs separately from the Go fixture. The runtime scheme regression
+checks direct `open`/`goto` commands and flow `open` steps for Chrome, Firefox,
+both Safari modes and static dispatch,
 with and without a domain allowlist, and checks that browser sessions remain
 uninitialized. Socket tests assert zero injected-handler navigation calls.
-`raw_daemon_warnings_are_scrubbed_at_mcp_conversion` passes unsanitized warnings
+`raw_daemon_warnings_are_scrubbed_at_mcp_conversion` and
+`raw_double_quote_warnings_are_scrubbed_at_mcp_conversion` pass unsanitized warnings
 directly to MCP's response conversion, independently exercising its scrubber.
+The double-quote regressions also exercise `dispatch_once` denial messages and
+`success_response` warning serialization directly, without requiring sockets.
 The socket/stdio integration tests receive daemon-redacted warnings and do not
 establish MCP-only redaction or process-wide stdout cleanliness.
 
@@ -85,6 +92,13 @@ go run ./scripts/rust-port/cmd/sourcecheck \
   --paths internal/daemon/navigation.go,internal/daemon/navigation_frames.go,internal/daemon/inspect_frames.go,internal/daemon/protocol.go,internal/engine/navigation.go,internal/policy/allowlist.go
 go test ./internal/daemon -run '^TestNavigationAdmissionSequencePort$' -count=1 -v
 cargo test --manifest-path "$manifest" -p symbrowse-daemon -p symbrowse-mcp --all-targets --all-features --locked -- --list
+cargo test --manifest-path "$manifest" -p symbrowse-daemon --test navigation_security runtime_double_quote_denials_are_scrubbed --locked -- --exact
+cargo test --manifest-path "$manifest" -p symbrowse-daemon --test navigation_security daemon_success_response_double_quote_warnings_are_scrubbed --locked -- --exact
+cargo test --manifest-path "$manifest" -p symbrowse-daemon --lib redaction::tests::double_quotes_are_redacted_in_their_url_value_context --locked -- --exact
+cargo test --manifest-path "$manifest" -p symbrowse-daemon --lib redaction::tests::nested_url_queries_preserve_public_data_and_are_idempotent --locked -- --exact
+cargo test --manifest-path "$manifest" -p symbrowse-daemon --test navigation_security daemon_double_quote_denials_are_scrubbed --locked -- --exact
+cargo test --manifest-path "$manifest" -p symbrowse-daemon --test navigation_security daemon_double_quote_success_warnings_are_scrubbed --locked -- --exact
+cargo test --manifest-path "$manifest" -p symbrowse-mcp --lib proxy::tests::raw_double_quote_warnings_are_scrubbed_at_mcp_conversion --locked -- --exact
 cargo test --manifest-path "$manifest" -p symbrowse-daemon --lib redaction::tests::apostrophes_and_hashes_are_redacted_in_their_value_context --locked -- --exact
 cargo test --manifest-path "$manifest" -p symbrowse-daemon --lib runtime::tests::navigation_schemes_preserve_http_policy_and_implicit_blank_tabs --locked -- --exact
 cargo test --manifest-path "$manifest" -p symbrowse-daemon --lib runtime::tests::non_http_navigation_and_flow_steps_never_initialize_engines --locked -- --exact

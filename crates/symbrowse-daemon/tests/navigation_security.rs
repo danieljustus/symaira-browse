@@ -7,6 +7,126 @@ use std::sync::atomic::Ordering;
 use support::*;
 
 #[test]
+fn runtime_double_quote_denials_are_scrubbed() {
+    for (url, redacted) in [
+        (
+            r#"https://blocked.example/?token="private-token"&view=public"#,
+            "https://blocked.example/?token=[REDACTED]&view=public",
+        ),
+        (
+            r#"https://blocked.example/?token=prefix"private-token"#,
+            "https://blocked.example/?token=[REDACTED]",
+        ),
+        (
+            "https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section",
+            "https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section",
+        ),
+    ] {
+        for engine in ["chrome", "firefox", "safari-attach", "safari-bidi"] {
+            for command in ["open", "goto", "tab.new"] {
+                let mut spec = symbrowse_daemon::SessionSpec::for_session("quote-denial");
+                spec.engine = engine.into();
+                spec.allowed_domains = vec!["example.com".into()];
+                let response = symbrowse_daemon::dispatch_once(
+                    spec,
+                    symbrowse_daemon::Frame {
+                        cmd: command.into(),
+                        args: Some(json!({"url":url})),
+                        ..Default::default()
+                    },
+                );
+                assert!(!response.success);
+                let error = response.error.unwrap();
+                assert_eq!(error.code, "operation_failed");
+                assert_eq!(
+                    error.message,
+                    format!(
+                        "navigation URL policy: target {redacted:?} is blocked by the domain allowlist"
+                    )
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn daemon_success_response_double_quote_warnings_are_scrubbed() {
+    let response = symbrowse_daemon::success_response(Some(json!({"title":"public"})), vec![symbrowse_daemon::Warning {
+        kind: "network_policy.blocked".into(), severity: "warning".into(),
+        message: r#"https://blocked.example/?token="private-token"&view=public"#.into(),
+        r#ref: r#"https://blocked.example/?token=prefix"private-token"#.into(),
+        excerpt: "https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section".into(),
+    }]);
+    let wire = serde_json::to_value(&response).unwrap();
+    assert_eq!(
+        wire,
+        json!({"success":true, "data":{"title":"public"}, "warnings":[{
+            "kind":"network_policy.blocked", "severity":"warning",
+            "message":"https://blocked.example/?token=[REDACTED]&view=public",
+            "ref":"https://blocked.example/?token=[REDACTED]",
+            "excerpt":"https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section"
+        }]})
+    );
+    assert_eq!(
+        serde_json::to_value(symbrowse_daemon::success_response(
+            response.data,
+            response.warnings
+        ))
+        .unwrap(),
+        wire
+    );
+}
+
+#[test]
+fn daemon_double_quote_denials_are_scrubbed() {
+    let harness = Harness::new("quote-err");
+    for url in [
+        r#"https://blocked.example/?token="private-token"&view=public"#,
+        r#"https://blocked.example/?token=prefix"private-token"#,
+        "https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section",
+    ] {
+        for command in ["open", "goto", "tab.new"] {
+            let denied = harness.request(command, url);
+            assert_eq!(denied["success"], false);
+            assert_eq!(denied["error"]["code"], "operation_failed");
+            assert_scrubbed(&denied.to_string());
+            if url.contains("view=public") {
+                assert!(
+                    denied["error"]["message"]
+                        .as_str()
+                        .unwrap()
+                        .contains("&view=public")
+                );
+            }
+        }
+    }
+    assert_eq!(harness.calls.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn daemon_double_quote_success_warnings_are_scrubbed() {
+    let harness = Harness::new("quote-ok");
+    *harness.history.lock().unwrap() = vec![symbrowse_daemon::Warning {
+        kind: "network_policy.blocked".into(),
+        severity: "warning".into(),
+        message: r#"https://blocked.example/?token="private-token"&view=public"#.into(),
+        r#ref: r#"https://blocked.example/?token=prefix"private-token"#.into(),
+        excerpt: "https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section".into(),
+    }];
+    let response = harness.request("get.title", "");
+    assert_eq!(response["success"], true);
+    assert_eq!(
+        response["warnings"],
+        json!([{
+            "kind": "network_policy.blocked", "severity": "warning",
+            "message": "https://blocked.example/?token=[REDACTED]&view=public",
+            "ref": "https://blocked.example/?token=[REDACTED]",
+            "excerpt": "https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section"
+        }])
+    );
+}
+
+#[test]
 fn daemon_apostrophe_and_generic_secret_boundaries_are_scrubbed() {
     let harness = Harness::new("daemon-apostrophe");
     for command in ["open", "goto", "tab.new"] {

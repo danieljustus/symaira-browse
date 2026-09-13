@@ -1065,6 +1065,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn raw_double_quote_warnings_are_scrubbed_at_mcp_conversion() {
+        // Raw wire warnings bypass the daemon scrubber entirely.
+        let response: DaemonResponse = serde_json::from_value(json!({
+            "success": true, "data": {"title":"public"},
+            "warnings": [{
+                "kind":"network_policy.blocked", "severity":"warning",
+                "message":r#"https://blocked.example/?token="private-token"&view=public"#,
+                "ref":r#"target "https://blocked.example/?token=prefix\"private-token" denied"#,
+                "excerpt":"https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section"
+            }]
+        })).unwrap();
+        let result = response.into_result().unwrap();
+        assert_eq!(
+            result,
+            json!({
+                "data": {"title":"public"},
+                "warnings": [{
+                    "kind":"network_policy.blocked", "severity":"warning",
+                    "message":"https://blocked.example/?token=[REDACTED]&view=public",
+                    "ref":r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+                    "excerpt":"https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section"
+                }]
+            })
+        );
+    }
+
+    #[test]
     fn raw_daemon_warnings_are_scrubbed_at_mcp_conversion() {
         // Deliberately bypass daemon success_response: this proves the MCP
         // scrubber independently of the daemon/MCP socket integration tests.

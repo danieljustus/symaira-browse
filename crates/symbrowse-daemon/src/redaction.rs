@@ -117,21 +117,46 @@ fn value_end(text: &str, start: usize) -> usize {
 // URL query delimiters must not truncate generic password/token values.
 // Apostrophes are legal URL data, including in userinfo and query values.
 fn query_value_end(text: &str, start: usize) -> Option<usize> {
-    let scheme_end = text[..start].rfind("://")?;
+    // Keep the outer URL's query context when a public parameter contains a
+    // nested URL. Whitespace/angle brackets separate it from surrounding prose.
+    let token_start = text[..start]
+        .rfind(|ch: char| ch.is_ascii_whitespace() || matches!(ch, '<' | '>'))
+        .map_or(0, |offset| offset + 1);
+    let scheme_end = token_start + text[token_start..start].find("://")?;
     let authority_start = scheme_end + 3;
     let prefix = &text[authority_start..start];
-    if prefix.contains(|ch: char| ch.is_ascii_whitespace() || matches!(ch, '"' | '<' | '>'))
-        || prefix.contains('#')
-        || !prefix.contains('?')
-    {
+    if prefix.contains('#') || !prefix.contains('?') {
         return None;
     }
-    let mut end = text[start..]
-        .find(|ch: char| ch.is_ascii_whitespace() || matches!(ch, '&' | '#' | '"' | '<' | '>'))
-        .map_or(text.len(), |offset| start + offset);
     let scheme_start = text[..scheme_end]
         .rfind(|ch: char| !ch.is_ascii_alphanumeric() && !matches!(ch, '+' | '-' | '.'))
         .map_or(0, |offset| offset + 1);
+    let double_quoted_url = scheme_start > 0 && text.as_bytes()[scheme_start - 1] == b'"';
+    let mut end = text.len();
+    for (offset, ch) in text[start..].char_indices() {
+        let index = start + offset;
+        // A quote is URL data unless it closes a surrounding double quote.
+        // Debug-formatted targets escape embedded quotes; count backslashes so
+        // those quotes cannot expose a secret suffix as ordinary message text.
+        // Only punctuation may follow the closing quote before a prose boundary.
+        let closing_quote = double_quoted_url
+            && ch == '"'
+            && text[..index]
+                .bytes()
+                .rev()
+                .take_while(|b| *b == b'\\')
+                .count()
+                % 2
+                == 0
+            && text[index + 1..]
+                .chars()
+                .take_while(|next| !next.is_ascii_whitespace() && !matches!(next, '<' | '>'))
+                .all(|next| matches!(next, ',' | ';' | ')' | '}' | ']'));
+        if closing_quote || ch.is_ascii_whitespace() || matches!(ch, '&' | '#' | '<' | '>') {
+            end = index;
+            break;
+        }
+    }
     // Preserve a surrounding single quote, but never stop at an apostrophe
     // inside a value. Unquoted URL values may themselves end in apostrophes.
     if scheme_start > 0
@@ -249,6 +274,71 @@ pub(crate) fn redact_error(mut error: crate::DaemonError) -> crate::DaemonError 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn double_quotes_are_redacted_in_their_url_value_context() {
+        for (input, expected) in [
+            (
+                r#"https://blocked.example/?token="private-token"&view=public"#,
+                "https://blocked.example/?token=[REDACTED]&view=public",
+            ),
+            (
+                r#"https://blocked.example/?token=prefix"private-token"#,
+                "https://blocked.example/?token=[REDACTED]",
+            ),
+            (
+                r#"target "https://blocked.example/?token=prefix\"private-token" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+            ),
+            (
+                r#"target "https://blocked.example/?token=\"private-token\"&view=public#section" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]&view=public#section" denied"#,
+            ),
+            (
+                r#"target "https://blocked.example/?token=prefix",private-token" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+            ),
+            (
+                r#"target "https://blocked.example/?token=prefix\\" denied"#,
+                r#"target "https://blocked.example/?token=[REDACTED]" denied"#,
+            ),
+            (
+                r#""https://blocked.example/?token=private-token", reader's note"#,
+                r#""https://blocked.example/?token=[REDACTED]", reader's note"#,
+            ),
+            (
+                r#"https://blocked.example/reader"s?view="public"&token="private-token"&mode=public#section"#,
+                r#"https://blocked.example/reader"s?view="public"&token=[REDACTED]&mode=public#section"#,
+            ),
+        ] {
+            assert_eq!(redact_str(input), expected, "{input}");
+            assert_eq!(redact_str(expected), expected, "idempotence: {input}");
+        }
+        for safe in [
+            r##"reader's "public" note: https://example.com/reader"s?view="public"#section"##,
+            r#""https://example.com/?view=public" password=prefix#private-secret"#,
+        ] {
+            let expected = safe.replace("prefix#private-secret", REDACTED);
+            assert_eq!(redact_str(safe), expected);
+        }
+    }
+
+    #[test]
+    fn nested_url_queries_preserve_public_data_and_are_idempotent() {
+        for (input, expected) in [
+            (
+                "https://blocked.example/?next=https://public.example/path&token=private-token&view=public#section",
+                "https://blocked.example/?next=https://public.example/path&token=[REDACTED]&view=public#section",
+            ),
+            (
+                r#"target "https://blocked.example/?next=https://public.example/path?view=public&token=private-token&mode=public#section" denied"#,
+                r#"target "https://blocked.example/?next=https://public.example/path?view=public&token=[REDACTED]&mode=public#section" denied"#,
+            ),
+        ] {
+            assert_eq!(redact_str(input), expected, "{input}");
+            assert_eq!(redact_str(expected), expected, "idempotence: {input}");
+        }
+    }
+
     #[test]
     fn apostrophes_and_hashes_are_redacted_in_their_value_context() {
         for (input, expected) in [
