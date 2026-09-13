@@ -166,10 +166,36 @@ fn closes_url_quote(text: &str, index: usize, escapes: usize) -> bool {
 }
 
 fn authority_has_userinfo_after_quote(text: &str, index: usize) -> bool {
-    text[index..].find(['/', '?', '#', '<', '>']).map_or_else(
-        || text[index..].contains('@'),
-        |limit| text[index..index + limit].contains('@'),
-    )
+    // A closing quote followed by punctuation and prose ends a wrapped URL.
+    // Quoted userinfo may instead continue after whitespace, so retain that
+    // case until the first token boundary and look for its `@` separator.
+    let mut saw_punctuation = false;
+    for (offset, ch) in text[index + 1..].char_indices() {
+        let absolute = index + 1 + offset;
+        if ch.is_ascii_whitespace() {
+            if saw_punctuation {
+                return false;
+            }
+            let token = &text[absolute + ch.len_utf8()..];
+            let token_end = token
+                .find(|next: char| {
+                    next.is_ascii_whitespace() || matches!(next, '/' | '?' | '#' | '<' | '>')
+                })
+                .unwrap_or(token.len());
+            return token[..token_end].contains('@');
+        }
+        if matches!(ch, ',' | ';' | ')' | '}' | ']') {
+            saw_punctuation = true;
+            continue;
+        }
+        if matches!(ch, '/' | '?' | '#' | '<' | '>') {
+            return false;
+        }
+        if ch == '@' {
+            return true;
+        }
+    }
+    false
 }
 
 fn url_query_value_end(text: &str, start: usize, scheme_start: usize) -> usize {
